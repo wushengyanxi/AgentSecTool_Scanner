@@ -1,0 +1,14 @@
+{
+  "_comment": "OpenClaw 版本指纹库。由 harness/build_corpus.py 逐版本起容器记录签名而成。asset_hashes 为首页引用的内容哈希资产名（随版本变化），csp_sha256 为 control-ui-config 那串 CSP 的 sha256，favicon_md5 跨版本稳定（仅判定用，不区分版本）。",
+  "entries": [
+    {
+      "version": "2026.5.17",
+      "asset_hashes": [
+        "index-DC4lnoz-.js",
+        "index-B6U1kUNL.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf"
+    }
+  ]
+}

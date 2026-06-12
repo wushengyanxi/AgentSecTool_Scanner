@@ -1,0 +1,27 @@
+# OpenClaw 扫描器配置示例。
+# 拷贝为 config/scanner.yaml（已被 .gitignore 忽略）后填入真实值。
+# 安全约束（CLAUDE.md §6）：任何凭据不得硬编码进代码，运行时从本文件读取。
+
+discovery:
+  ports: [18789, 80, 443, 8080, 8443, 3000]   # 端口集：主端口 18789 + 常见反代落点
+  active:
+    backend: masscan          # masscan | zmap | internal（internal=内置 async connect，供无 root/小网段兜底）
+    rate: 1000                # 包/秒。全网扫描务必按出口带宽与对端承受谨慎设定
+    excludefile: config/blocklist.txt   # 黑名单/保留网段，主动扫描排除（opt-out 也写这里）
+  passive:
+    fofa:
+      enabled: false          # 置 true 且填好 email/key 才会查询
+      email: ""               # 留空则跳过 FOFA
+      key: ""
+      query: 'title="OpenClaw Control" || port="18789"'
+      max_results: 10000
+
+prober:
+  per_ip_concurrency: 4       # 单 IP 并发上限（远低于服务端 MAX_PREAUTH_CONNECTIONS_PER_IP=32）
+  timeout_seconds: 8
+
+# 公民化扫描：可识别的扫描源（规模化前必须填写；本地验证可留空）
+scanner_identity:
+  rdns: ""                    # 扫描出口 IP 的反向解析（PTR）
+  info_url: ""                # 说明研究目的与退出方式的网页
+  abuse_contact: ""           # abuse 联系邮箱

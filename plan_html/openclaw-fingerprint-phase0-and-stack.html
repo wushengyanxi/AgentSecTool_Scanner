@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 0：OpenClaw 指纹实测 · 平台与技术栈选型 · 暴露面板数据模型</title>
+<style>
+  :root{
+    --ivory:#FAF9F5; --slate:#141413; --clay:#D97757; --olive:#788C5D;
+    --oat:#E3DACC; --plum:#8E6E8A; --gray-150:#F0EEE6; --gray-300:#D1CFC5;
+    --gray-500:#87867F; --gray-700:#3D3D3A; --white:#FFFFFF;
+    --serif: ui-serif, Georgia, "Times New Roman", "Songti SC", "STSong", serif;
+    --sans:  system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono:  ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{margin:0; background:var(--ivory); color:var(--gray-700);
+    font-family:var(--sans); font-size:14.5px; line-height:1.75;}
+  .wrap{max-width:1120px; margin:0 auto; padding:56px 32px 120px;}
+
+  .eyebrow{font-family:var(--mono); font-size:11.5px; text-transform:uppercase;
+    letter-spacing:0.08em; color:var(--gray-500); margin:0 0 14px;}
+  h1{font-family:var(--serif); font-weight:500; font-size:34px; line-height:1.3;
+    letter-spacing:0; color:var(--slate); margin:0 0 22px; max-width:900px;}
+  h2{font-family:var(--serif); font-weight:500; font-size:26px; line-height:1.35;
+    letter-spacing:0; color:var(--slate); margin:0;}
+  h3{font-family:var(--serif); font-weight:500; font-size:19px; line-height:1.4;
+    letter-spacing:0; color:var(--slate); margin:0 0 6px;}
+  p{margin:0 0 14px;}
+  .prose{max-width:770px;}
+  .prose p{line-height:1.75;}
+
+  .tldr{background:var(--white); border:1.5px solid var(--gray-300);
+    border-left:4px solid var(--clay); border-radius:10px; padding:18px 22px;
+    margin:0 0 30px; max-width:900px;}
+  .tldr .lab{font-family:var(--mono); font-size:11px; text-transform:uppercase;
+    letter-spacing:0.07em; color:var(--gray-500); margin:0 0 8px;}
+  .tldr p{font-size:14.5px; line-height:1.8; margin:0;}
+  .tldr p + p{margin-top:10px;}
+
+  .strip{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:0 0 64px;}
+  .cell{background:var(--white); border:1.5px solid var(--gray-300); border-radius:10px; padding:14px 16px;}
+  .cell .k{font-family:var(--mono); font-size:11px; text-transform:uppercase;
+    letter-spacing:0.06em; color:var(--gray-500); margin:0 0 6px;}
+  .cell .v{font-size:13px; line-height:1.55; color:var(--slate);}
+
+  section{margin-bottom:64px;}
+  .sec-head{display:flex; align-items:center; gap:12px; margin:0 0 14px;}
+  .num{font-family:var(--mono); font-size:12px; background:var(--oat); color:var(--slate);
+    padding:3px 8px; border-radius:5px; border-bottom:2px solid var(--clay); letter-spacing:0.04em;}
+  .intro{font-size:14.5px; line-height:1.8; color:var(--gray-500); max-width:770px; margin:0 0 22px;}
+
+  .grid{display:grid; border:1.5px solid var(--gray-300); border-radius:10px; overflow:hidden; background:var(--white);}
+  .grid .row{display:grid;}
+  .grid .row + .row{border-top:1.5px solid var(--gray-300);}
+  .g-plat .row{grid-template-columns:0.8fr 0.85fr 1.85fr;}
+  .g-stack .row{grid-template-columns:0.85fr 1.05fr 1.7fr;}
+  .g-kpi .row{grid-template-columns:1.15fr 0.5fr 1.65fr;}
+  .grid .celld{padding:11px 14px; font-size:13px; line-height:1.62;}
+  .grid .row.head .celld{font-family:var(--mono); font-size:11px; text-transform:uppercase;
+    letter-spacing:0.05em; color:var(--gray-500); background:var(--gray-150);}
+  .grid .celld + .celld{border-left:1.5px solid var(--gray-300);}
+  .grid .t{color:var(--slate); font-weight:600;}
+  .grid .celld.lead{color:var(--slate); font-family:var(--mono); font-size:12px;}
+  code, .mono{font-family:var(--mono); font-size:12.5px; color:var(--slate);}
+  .grid code{font-size:11.7px;}
+
+  .sev{display:inline-block; font-family:var(--mono); font-size:11px; padding:2px 7px;
+    border-radius:5px; letter-spacing:0.03em; white-space:nowrap;}
+  .sev.high{background:#F3D9CC; color:#8A3B1E;}
+  .sev.med {background:#E3DACC; color:#141413;}
+  .sev.low {background:#E4E9DC; color:#4B5C39;}
+  .tag{display:inline-block; font-family:var(--mono); font-size:11px; padding:1.5px 7px;
+    border-radius:5px; background:var(--gray-150); border:1px solid var(--gray-300); color:var(--gray-700);}
+
+  .diagram{background:var(--white); border:1.5px solid var(--gray-300); border-radius:12px; padding:18px; overflow-x:auto;}
+  .diagram svg{display:block; min-width:780px; width:100%; height:auto;}
+  .caption{font-size:12.5px; line-height:1.7; color:var(--gray-500); max-width:770px; margin:14px 2px 0;}
+
+  pre.code{background:var(--slate); color:#E8E6DF; border-radius:10px; padding:16px 18px;
+    overflow-x:auto; font-family:var(--mono); font-size:12.3px; line-height:1.62; margin:0 0 14px;}
+  pre.code .c{color:var(--gray-500); font-style:italic;}
+  pre.code .k{color:var(--clay);} pre.code .s{color:#9DB87A;} pre.code .f{color:#C9B98A;}
+
+  ul.tight{margin:6px 0 14px; padding-left:20px; max-width:770px;}
+  ul.tight li{margin:4px 0; line-height:1.7;}
+  .note{font-size:13px; color:var(--gray-500); line-height:1.7;}
+
+  .callout{background:var(--white); border:1.5px solid var(--gray-300); border-left:4px solid var(--plum);
+    border-radius:10px; padding:13px 18px; margin:0 0 18px; max-width:900px;}
+  .callout .cl{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--plum); margin:0 0 6px;}
+  .callout p{font-size:13px; line-height:1.75; margin:0 0 7px; color:var(--gray-700);}
+  .callout p:last-child{margin:0;}
+  .callout code{font-size:12px;}
+  .sig-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:0 0 4px;}
+  .sig{background:var(--white); border:1.5px solid var(--gray-300); border-radius:10px; padding:14px 16px;}
+  .sig-h{display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin:0 0 8px; flex-wrap:wrap;}
+  .sig-n{font-family:var(--mono); font-size:12.5px; color:var(--slate); font-weight:600;}
+  .sig .obs{font-size:12.3px; line-height:1.62; color:var(--gray-700); margin:0 0 8px;}
+  .sig .obs code{font-size:11.5px;}
+  .sig .why{font-size:12.3px; line-height:1.62; color:var(--gray-700); margin:0 0 10px;}
+  .sig .why b{color:var(--slate);}
+  .chips{display:flex; flex-wrap:wrap; gap:6px;}
+  .conf{display:inline-block; font-family:var(--mono); font-size:11px; padding:2px 8px; border-radius:5px; letter-spacing:0.02em; white-space:nowrap;}
+  .conf.hi{background:#E4E9DC; color:#3F5230;}
+  .conf.mid{background:#E3DACC; color:#141413;}
+  .conf.lo{background:#F0EEE6; color:#5C5B54;}
+  .conf.prior{background:#F0EEE6; color:#87867F;}
+  .minset{background:var(--white); border:1.5px solid var(--gray-300); border-left:4px solid var(--olive);
+    border-radius:10px; padding:14px 18px; margin:16px 0 0; max-width:900px;}
+  .minset .cl{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--olive); margin:0 0 9px;}
+  .minset .row2{font-size:13px; line-height:1.72; margin:0 0 8px;}
+  .minset .row2:last-child{margin:0;}
+  .minset .row2 b{color:var(--slate);}
+  .g-combo .row{grid-template-columns:1.5fr 0.62fr 1.7fr;}
+
+  .pair{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:4px 0 0;}
+  .pcard{background:var(--white); border:1.5px solid var(--gray-300); border-radius:10px; padding:15px 17px;}
+  .pcard.a{border-left:4px solid var(--olive);} .pcard.b{border-left:4px solid var(--clay);}
+  .pcard .ptag{font-family:var(--mono); font-size:11px; letter-spacing:0.04em; margin:0 0 8px;}
+  .pcard.a .ptag{color:var(--olive);} .pcard.b .ptag{color:#8A3B1E;}
+  .pcard p{font-size:13px; line-height:1.7; margin:0 0 8px;}
+  .pcard p:last-child{margin:0;}
+
+  .oq{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .oq .card{background:var(--white); border:1.5px solid var(--gray-300);
+    border-left:4px solid var(--clay); border-radius:10px; padding:16px 18px;}
+  .oq h3{font-size:16.5px; margin-bottom:7px;} .oq p{font-size:13px; line-height:1.7; margin:0 0 10px;}
+  .oq .owner{font-family:var(--mono); font-size:11px; color:var(--gray-500); letter-spacing:0.03em;}
+
+  footer{border-top:1.5px solid var(--gray-300); margin-top:24px; padding-top:22px; max-width:830px;}
+  footer p{font-size:13.5px; line-height:1.8; color:var(--gray-500); font-style:italic;}
+
+  @media (max-width:900px){
+    .strip{grid-template-columns:repeat(2,1fr);}
+    .g-plat .row, .g-stack .row, .g-kpi .row, .g-combo .row{grid-template-columns:1fr;}
+    .sig-grid{grid-template-columns:1fr;}
+    .grid .celld + .celld{border-left:none; border-top:1.5px solid var(--gray-300);}
+    .pair, .oq{grid-template-columns:1fr;}
+  }
+  @media (max-width:720px){
+    .wrap{padding:40px 18px 90px;} h1{font-size:27px;} .strip{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">AgentSecTool Scanner · Phase 0 实测纪要与构建决策</p>
+  <h1>OpenClaw 指纹实测结论，以及测绘平台、技术栈与暴露面板数据模型的选定</h1>
+
+  <div class="tldr">
+    <p class="lab">结论先行 · TL;DR</p>
+    <p>在容器内以 <code>--allow-unconfigured</code> 跑起 OpenClaw <strong>2026.5.17</strong>（仓库 HEAD），对其外部可观测面做了只读探测。<strong>判定（是不是 OpenClaw）已可在零鉴权下做到极高可靠</strong>：WebSocket 一连上，服务端立即推送 <code>connect.challenge</code> 事件；<code>/healthz</code> 回 <code>{"ok":true,"status":"live"}</code> 且带一组特征响应头；首页 <code>&lt;title&gt;OpenClaw Control&lt;/title&gt;</code> 与 <code>favicon.ico</code> 的 md5 固定。</p>
+    <p><strong>版本判定分两种处境</strong>：疏于防护的实例（<code>auth=none</code>）在 <code>/__openclaw/control-ui-config.json</code> 直接吐出 <code>serverVersion</code>；已设令牌/配对的实例该接口回 <code>401</code>，握手里的版本也拿不到——此时只能走隐式指纹（首页引用的 <code>assets/index-&lt;hash&gt;</code> 资产哈希、CSP 允许域、响应头集合、协议版本）反推版本区间。两条路都按 CalVer 映射到 CVE。本文给出实测信号清单、测绘平台推荐、选定的技术栈与存储，以及对标范例那张暴露面板的数据模型。</p>
+  </div>
+
+  <div class="strip">
+    <div class="cell"><div class="k">实测目标</div><div class="v">OpenClaw <code>2026.5.17</code> · 容器内 <code>--allow-unconfigured</code></div></div>
+    <div class="cell"><div class="k">判定信号</div><div class="v">WS <code>connect.challenge</code> · <code>/healthz</code> · 标题 + favicon</div></div>
+    <div class="cell"><div class="k">版本可得性</div><div class="v">疏防实例直读 <code>serverVersion</code>；已防实例靠隐式指纹</div></div>
+    <div class="cell"><div class="k">选型</div><div class="v">ZMap + ZGrab2 · ClickHouse + Postgres · FastAPI + React</div></div>
+  </div>
+
+  <!-- 01 -->
+  <section>
+    <div class="sec-head"><span class="num">01</span><h2>判定逻辑：单条信号的判别力、获取难度与组合置信度</h2></div>
+    <p class="intro">判定一台主机是不是 OpenClaw，不靠单条信号，而靠多条联合。要把它说清楚，得回答三件事：每条信号<strong>单独</strong>能带来多大置信、在真实公网扫描里<strong>多容易拿到</strong>、以及不同<strong>组合</strong>能堆到多高。下面先逐条给出，再给组合阈值与最小"≈100%"集。文中置信度均为工程先验估计，最终以 Phase 0 真值语料的精确率/召回校准。</p>
+    <p class="note" style="max-width:770px; margin:-8px 0 18px;">获取难度口径——<strong>易</strong>：一次匿名 HTTP GET，反代友好，多数已被 Censys / Shodan / FOFA 被动收录，无需自己发包即可命中；<strong>中</strong>：需主动完成 WebSocket 升级（必要时先 TLS），反代不转发 WS 时取不到，被动平台一般没有。</p>
+
+    <div class="callout">
+      <p class="cl">辨析 · 单个 CSP 域不是指纹</p>
+      <p>CSP 里出现 <code>api.openai.com</code> 并不能证明是 OpenClaw——任何调用 OpenAI 的应用都有它；<code>tweakcn.com</code> 单独也几乎没有判别力。这一行真正的判别力来自两点：一是对 <code>/__openclaw/control-ui-config.json</code> 这条 OpenClaw 专有路径返回 <code>401</code>（说明服务端"认识"该路由），二是<strong>整串 CSP 的逐字节匹配</strong>。原则推广到所有"内容可被复制"的信号：看专有结构与整体，不看任何可复用的零件。</p>
+    </div>
+
+    <div class="sig-grid">
+      <div class="sig">
+        <div class="sig-h"><span class="sig-n">A · WS connect.challenge</span><span class="conf hi">单独 ≈0.99</span></div>
+        <p class="obs">连上 <code>ws://h:18789/</code> 即收到<strong>未经请求</strong>的 <code>{"type":"event","event":"connect.challenge","payload":{"nonce":…,"ts":…}}</code>。</p>
+        <p class="why"><b>判别力来源：</b>开局未经请求即下发的 bespoke 挑战帧，字面量加 JSON 结构近乎唯一，正常服务与克隆静态页都不会有。单条判别力最高；残余不确定仅来自蓄意蜜罐可仿。</p>
+        <div class="chips"><span class="tag">获取：中</span><span class="tag">被动可得：否</span><span class="tag">表面：WebSocket 协议</span></div>
+      </div>
+      <div class="sig">
+        <div class="sig-h"><span class="sig-n">B · favicon.ico 哈希</span><span class="conf mid">单独 ≈0.95</span></div>
+        <p class="obs"><code>GET /favicon.ico</code> → md5 <code>f58854f6450618729679ad33622bebaf</code>（版本间稳定）。</p>
+        <p class="why"><b>判别力来源：</b>特定 favicon 哈希极少与无关主机重合，是经典强指纹；缺点是可被替换，且跨版本不变——只判"是不是"，不判版本。</p>
+        <div class="chips"><span class="tag">获取：易</span><span class="tag">被动可得：是 · http.favicon.hash</span><span class="tag">表面：HTTP 静态</span></div>
+      </div>
+      <div class="sig">
+        <div class="sig-h"><span class="sig-n">C · 首页标题 / manifest 名</span><span class="conf mid">单独 ≈0.9</span></div>
+        <p class="obs"><code>GET /</code> → <code>&lt;title&gt;OpenClaw Control&lt;/title&gt;</code>；<code>manifest.webmanifest</code> 名 "OpenClaw Control"。</p>
+        <p class="why"><b>判别力来源：</b>品牌字面量，极少他用；缺点是可被改名或被克隆页伪造。与 B 同源（都来自 SPA 外壳），二者相关性高，叠加增信有限。</p>
+        <div class="chips"><span class="tag">获取：易</span><span class="tag">被动可得：是 · html_title</span><span class="tag">表面：HTTP 静态 / HTML</span></div>
+      </div>
+      <div class="sig">
+        <div class="sig-h"><span class="sig-n">D · /healthz 体 + Permissions-Policy</span><span class="conf mid">单独 ≈0.85</span></div>
+        <p class="obs"><code>/healthz</code> → <code>{"ok":true,"status":"live"}</code>；头含 <code>Permissions-Policy: camera=(), microphone=(self), geolocation=()</code>。</p>
+        <p class="why"><b>判别力来源：</b>健康端点常见，但该精确体不算大众；<code>microphone=(self)</code> 的 Permissions-Policy 较少见，叠加后提升。与 B/C 不同表面（路由行为加响应头），独立性较好。</p>
+        <div class="chips"><span class="tag">获取：易</span><span class="tag">被动可得：部分</span><span class="tag">表面：HTTP 路由 / 头</span></div>
+      </div>
+      <div class="sig">
+        <div class="sig-h"><span class="sig-n">E · control-ui-config 401 + 整串 CSP</span><span class="conf mid">单独 ≈0.9</span></div>
+        <p class="obs"><code>GET /__openclaw/control-ui-config.json</code> → <code>401</code>（疏防实例则 <code>200</code> 带 <code>serverVersion</code>），附整串特征 CSP。</p>
+        <p class="why"><b>判别力来源：</b>主要来自"对这条专有路径回 <code>401</code>"——服务端认识该路由；整串 CSP 逐字节匹配是版本相关佐证。任一单个允许域单独几乎无判别力（见上方辨析）。</p>
+        <div class="chips"><span class="tag">获取：易</span><span class="tag">被动可得：部分</span><span class="tag">表面：HTTP 路由</span></div>
+      </div>
+      <div class="sig">
+        <div class="sig-h"><span class="sig-n">F · WS 未授权拒绝</span><span class="conf lo">不独立于 A</span></div>
+        <p class="obs">发 connect 后回 <code>{"ok":false,…"DEVICE_IDENTITY_REQUIRED"}</code>，WS 关闭 <code>code=1008 reason="device identity required"</code>。</p>
+        <p class="why"><b>判别力来源：</b>bespoke 错误信封是好佐证，但与 A 同属 WebSocket 面——伪造 A 即可伪造它，故不与 A 独立，不能当作两条独立证据计入组合。</p>
+        <div class="chips"><span class="tag">获取：中 · 随 A 附带</span><span class="tag">被动可得：否</span><span class="tag">表面：WebSocket 协议</span></div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p class="cl">先验与护栏 · 不是证据</p>
+      <p><strong>端口 18789 开放：</strong>只抬高"值得探测"的优先级；任何东西都能监听它，且常被反代迁走，单独 <code>P(OpenClaw) &lt; 0.05</code>，不能作判定。</p>
+      <p><strong>路由回落 200：</strong>未知顶层路径回 <code>200</code>（SPA 外壳）、而 <code>/api</code> → <code>404</code>，这是<strong>防误报的护栏</strong>——判定看具体响应内容，绝不把猜测路径上的裸 <code>200</code> 当作"端点存在"。</p>
+    </div>
+
+    <div class="callout">
+      <p class="cl">独立性 · 为什么要跨表面组合</p>
+      <p>置信度相乘只在<strong>不同协议表面</strong>的信号之间近似成立。A 与 F 都出自 WebSocket，伪造一个就伪造另一个，叠加几乎不增信；B 与 C 都来自同一个 SPA 外壳，也高度相关。真正把置信推向 1 的，是跨表面组合：<strong>WebSocket 协议面（A）× HTTP 静态资源面（B / C）× HTTP 路由与头行为面（D / E）</strong>。克隆一张静态页很容易，要同时正确实现 OpenClaw 的 WS 握手协议则很难——这就是跨表面的价值。</p>
+    </div>
+
+    <div class="grid g-combo">
+      <div class="row head"><div class="celld">组合</div><div class="celld">置信</div><div class="celld">适用</div></div>
+      <div class="row"><div class="celld lead">仅端口 18789</div><div class="celld">&lt; 0.05</div><div class="celld">先验，不可作判定。</div></div>
+      <div class="row"><div class="celld lead">单条 A（WS 挑战）</div><div class="celld">≈ 0.99</div><div class="celld">已很强；但蓄意蜜罐可仿，建议再补一条跨表面佐证。</div></div>
+      <div class="row"><div class="celld lead">B + C（favicon + 标题，同属 HTML 面）</div><div class="celld">≈ 0.99</div><div class="celld">全易得；克隆页可同时伪造 → 不抗蓄意伪装。</div></div>
+      <div class="row"><div class="celld lead">B + D（favicon + healthz，跨表面）</div><div class="celld">≈ 0.997</div><div class="celld">全易得且多可被动获取 → 务实推荐的下限。</div></div>
+      <div class="row"><div class="celld lead">B + C + D + E（HTTP 簇）</div><div class="celld">≈ 0.999</div><div class="celld">全易得；实务上即视作确认。</div></div>
+      <div class="row"><div class="celld lead">HTTP 簇 + A（再加 WS 协议面）</div><div class="celld">≈ 1.0</div><div class="celld">抗蓄意伪装，最稳；代价是要做主动 WS 探测。</div></div>
+    </div>
+
+    <div class="minset">
+      <p class="cl">最小 "≈100%" 集</p>
+      <p class="row2"><b>务实（全可被动获取，无需主动 WS）：</b>favicon 哈希 <code>∧</code> 首页标题 <code>∧</code> /healthz 体 → ≈ 0.999，可直接作大规模判定阈值。</p>
+      <p class="row2"><b>最稳（抗蓄意伪装）：</b>上面任一 HTTP 簇 <code>∧</code> WS connect.challenge（引入第二个协议表面）→ ≈ 1.0。</p>
+    </div>
+  </section>
+
+  <!-- 02 -->
+  <section>
+    <div class="sec-head"><span class="num">02</span><h2>探测与判定：只读、多信号、低误报</h2></div>
+    <p class="intro">把 01 的信号组织成一次判定，遵循三条原则——只读良性、多信号交叉、不被裸状态码欺骗。</p>
+    <div class="prose">
+      <p><strong>只读、良性。</strong>探测止于"开局握手 + 几个无鉴权 GET"。WebSocket 只读到 <code>connect.challenge</code> 与未授权拒绝信封即可识别，绝不发送任何会改状态或试图越权的帧——尤其绝不触碰 <code>config.apply</code>（其本身即 CVE-2026-25593 的利用面）。这条在 ZGrab2 模块里要写成硬不变量。</p>
+      <p><strong>多信号交叉。</strong>任一信号都可能被蜜罐或巧合命中，因此判定要求至少两个独立信号吻合：例如 <code>connect.challenge</code> ＋ <code>/healthz</code> 体，或 <code>/healthz</code> 体 ＋ 首页标题/favicon。<code>connect.challenge</code> 单独已足够强，但仍以双证据入账以压低误报。</p>
+      <p><strong>不被裸状态码骗。</strong>由于未知路径回落到 SPA 的 <code>200</code>，判定逻辑必须核对响应体特征（<code>{"ok":true,"status":"live"}</code>、<code>OpenClaw Control</code>、favicon 哈希、那串 CSP），而不是"某路径返回 200 即认定为某端点"。</p>
+      <p>面对反代/CDN 时，纯 WebSocket 协议探测可能打不穿，但 HTTP 侧的标题、favicon、CSP、响应头往往随响应透传——因此 HTTP 指纹与 WS 指纹互为补充，缺一不可。</p>
+    </div>
+  </section>
+
+  <!-- 03 -->
+  <section>
+    <div class="sec-head"><span class="num">03</span><h2>版本判定的两种处境</h2></div>
+    <p class="intro">"检查每一台的版本"在公网上不是一条路走到底。实测表明，能不能直接读到版本，取决于该实例的防护姿态。下图是判定流程，随后两张卡片分别说明两条路。</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 860 470" role="img" aria-label="OpenClaw 版本判定流程图">
+        <defs>
+          <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#87867F"></path>
+          </marker>
+        </defs>
+        <!-- A -->
+        <rect x="200" y="20" width="460" height="50" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
+        <text x="430" y="50" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-size="14" fill="#141413">已判定为 OpenClaw 实例（多信号命中 · 只读探测）</text>
+        <path d="M430,70 L430,98" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#a2)"></path>
+        <!-- Q -->
+        <rect x="170" y="98" width="520" height="48" rx="9" fill="#F0EEE6" stroke="#D1CFC5" stroke-width="1.5"></rect>
+        <text x="430" y="127" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#141413">/__openclaw/control-ui-config.json 能否无鉴权读取？</text>
+        <!-- branches -->
+        <path d="M300,146 L230,182" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#a2)"></path>
+        <text x="196" y="170" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#788C5D">能 · auth=none</text>
+        <path d="M560,146 L630,182" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#a2)"></path>
+        <text x="566" y="170" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#8A3B1E">否 · 已设令牌/配对</text>
+        <!-- L1 L2 -->
+        <rect x="48" y="184" width="340" height="56" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
+        <text x="66" y="208" font-family="ui-monospace, Menlo, monospace" font-size="11.5" fill="#141413">直接读 serverVersion 字段</text>
+        <text x="66" y="227" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#3D3D3A">GET …/control-ui-config.json → 200</text>
+        <path d="M218,240 L218,286" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#a2)"></path>
+        <rect x="48" y="286" width="340" height="48" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
+        <text x="218" y="315" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-size="13" fill="#141413">精确版本 · 高置信</text>
+        <!-- R1 R2 -->
+        <rect x="472" y="184" width="340" height="56" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
+        <text x="490" y="208" font-family="ui-monospace, Menlo, monospace" font-size="11.5" fill="#141413">隐式指纹（无版本串）</text>
+        <text x="490" y="227" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#3D3D3A">assets/index-&lt;hash&gt; · CSP · 头部 · 协议版本</text>
+        <path d="M642,240 L642,286" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#a2)"></path>
+        <rect x="472" y="286" width="340" height="48" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
+        <text x="642" y="311" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-size="13" fill="#141413">版本 / 版本区间 · 中置信</text>
+        <text x="642" y="328" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="10.5" fill="#87867F">依赖指纹库（见正文）</text>
+        <!-- merge -->
+        <path d="M218,334 L218,360 L430,360 L430,388" fill="none" stroke="#87867F" stroke-width="1.5"></path>
+        <path d="M642,334 L642,360 L430,360" fill="none" stroke="#87867F" stroke-width="1.5"></path>
+        <path d="M430,360 L430,388" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#a2)"></path>
+        <rect x="160" y="388" width="540" height="62" rx="9" fill="#141413" stroke="#141413" stroke-width="1.5"></rect>
+        <text x="430" y="412" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="11.5" fill="#FAF9F5">版本 ⇒ CVE 映射（CalVer，&lt; 2026.1.29 ⇒ CVE-2026-25253）</text>
+        <text x="430" y="432" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="11.5" fill="#E3DACC">打置信标签 · 写入资产时序记录</text>
+      </svg>
+      <p class="caption">方框为步骤，箭头为流向，灰底框是分支判断，深色终端框是出口（版本落到 CVE 映射并入库）。左路对应疏于防护的实例，可直接读到精确版本；右路对应已防护的实例，只能靠随版本变化的可观测量反推区间。两路最终都带置信标签汇入同一套记录——面板上"存在漏洞的暴露实例"正由此而来。</p>
+    </div>
+
+    <div class="pair">
+      <div class="pcard a">
+        <p class="ptag">左路 · 疏于防护（auth=none）</p>
+        <p><code>/__openclaw/control-ui-config.json</code> 返回 <code>200</code>，体含 <code>serverVersion</code>（源码 <code>resolveRuntimeServiceVersion</code> 注入，即产品版本如 <code>2026.5.17</code>）。一次无鉴权 GET 即得精确版本，高置信。</p>
+        <p class="note">这正是 CVE-2026-25253 那批"裸奔"实例所属的姿态，公网占比不低，是版本数据最干净的来源。</p>
+      </div>
+      <div class="pcard b">
+        <p class="ptag">右路 · 已防护（令牌 / 设备配对）</p>
+        <p>该接口 <code>401</code>，<code>hello-ok</code>（含 <code>server.version</code>、<code>protocol: 4</code>）也需配对才拿得到 → 无直接版本串。改用<strong>隐式指纹</strong>：首页引用的 <code>assets/index-&lt;hash&gt;.js/.css</code>（按构建内容哈希、随版本变化）、CSP 允许域、响应头集合、协议版本号。</p>
+        <p class="note">这些信号→版本的对照表，需用<strong>指纹库</strong>承载：在容器里逐个跑起各发布版本、记录其外部签名（正是本次所用方法），产出"签名 → 版本/版本区间 + 置信度"。协议版本 <code>4</code> 较粗，只作下界/区间。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 -->
+  <section>
+    <div class="sec-head"><span class="num">04</span><h2>测绘平台推荐</h2></div>
+    <p class="intro">扫描范围是全球，且面板要拆出"境内"口径，因此平台选择按"全球覆盖 + 境内覆盖"两条线搭配；学术研究授权下，多数平台可申请研究/学术档位。下表给出推荐主集与命中 OpenClaw 的查询思路（直接复用 01 的指纹），再补充被动源与自建扫描。</p>
+
+    <div class="grid g-plat">
+      <div class="row head"><div class="celld">平台</div><div class="celld">覆盖侧重</div><div class="celld">命中 OpenClaw 的查询思路</div></div>
+      <div class="row">
+        <div class="celld lead">Censys</div><div class="celld">全球 · 学术档</div>
+        <div class="celld"><code>services.http.response.html_title="OpenClaw Control"</code>；<code>services.port=18789</code>。全网 banner 数据最适合做严肃测量；研究计划面向高校开放。</div>
+      </div>
+      <div class="row">
+        <div class="celld lead">Shodan</div><div class="celld">全球 · 易用</div>
+        <div class="celld"><code>http.title:"OpenClaw Control"</code>；<code>port:18789</code>；<code>http.favicon.hash:&lt;由 favicon.ico 计算的 mmh3&gt;</code>。API 简单，可升级学术账号。</div>
+      </div>
+      <div class="row">
+        <div class="celld lead">FOFA（白帽汇）</div><div class="celld">境内最佳 · 全球</div>
+        <div class="celld"><code>title="OpenClaw Control"</code>；<code>port="18789"</code>；<code>header="Permissions-Policy: camera=(), microphone=(self)"</code>。境内资产覆盖与语法最强，<strong>境内口径首选</strong>。</div>
+      </div>
+      <div class="row">
+        <div class="celld lead">Quake（360）</div><div class="celld">境内 · 全球</div>
+        <div class="celld"><code>title:"OpenClaw Control"</code>；<code>port:18789</code>；favicon 哈希。360 网络空间测绘，境内补充力强。</div>
+      </div>
+      <div class="row">
+        <div class="celld lead">ZoomEye / Hunter（鹰图）</div><div class="celld">境内 · 全球</div>
+        <div class="celld"><code>title:"OpenClaw Control"</code> / <code>port:18789</code>。作为 FOFA/Quake 的交叉校验与查漏补缺。</div>
+      </div>
+    </div>
+
+    <div class="prose" style="margin-top:18px;">
+      <p><strong>被动源（补反代后与不宜主动敲的主机）：</strong>证书透明日志（crt.sh / Censys Certs）捞 OpenClaw 相关主机名；被动 DNS（如 360 PassiveDNS、DNSDB）追溯域名；IPv6 命中表（TU München IPv6 Hitlist）作 IPv6 种子——IPv6 不能暴力遍历，只能尽力而为并在面板标注覆盖局限。</p>
+      <p><strong>自建扫描（真值与查漏）：</strong>平台索引有滞后与盲区，因此对端口集自跑 <code>ZMap</code> 全网 SYN 发现 + <code>ZGrab2</code> OpenClaw 模块做应用层确认（见 05），既补平台之缺，也用于校准平台数据的准确率。</p>
+      <p class="note">合规与凭据：所有平台 API key 写入配置文件、运行时读取，纳入 <code>.gitignore</code>，绝不硬编码；自建扫描遵循公民化基座（可识别扫描源、opt-out、按 <code>/24</code> 限速、只探测不利用）。</p>
+    </div>
+  </section>
+
+  <!-- 05 -->
+  <section>
+    <div class="sec-head"><span class="num">05</span><h2>技术栈与存储选型</h2></div>
+    <p class="intro">按"先把定性做对、再把规模做大"的次序选型，每层选定一项并给出理由。整体是 Censys 式两阶段架构：无状态发现 → 应用层确认 → 版本预言 → 去重时序存储 → 面板与披露。</p>
+
+    <div class="grid g-stack">
+      <div class="row head"><div class="celld">环节</div><div class="celld">选定</div><div class="celld">理由</div></div>
+      <div class="row">
+        <div class="celld lead">发现</div><div class="celld"><code>ZMap</code>（+ <code>masscan</code> 备选）</div>
+        <div class="celld">对端口集 <code>{18789, 80, 443, 3000, 8080, 8443, …}</code> 做无状态 SYN，受控速率下短时覆盖全 IPv4 单端口；学术界标准工具，原生支持 <code>--blocklist</code> 与限速。</div>
+      </div>
+      <div class="row">
+        <div class="celld lead">候选种子</div><div class="celld">平台 API（Python asyncio）</div>
+        <div class="celld">Censys/Shodan/FOFA/Quake 拉取候选，与 ZMap 产物并取去抖，形成候选 <code>IP:port</code> 队列。</div>
+      </div>
+      <div class="row">
+        <div class="celld lead">应用层探测</div><div class="celld"><code>ZGrab2</code> 自定义模块（Go）</div>
+        <div class="celld">TCP→WS 升级读 <code>connect.challenge</code>，再打 <code>/healthz</code> · <code>/</code> · <code>control-ui-config</code> · <code>favicon</code>，输出 <code>{is_openclaw, signals[], version|range, confidence, evidence}</code>。Go 并发强、ZGrab2 是同类测量的工业标准；<strong>只读不变量在此硬编码</strong>。</div>
+      </div>
+      <div class="row">
+        <div class="celld lead">版本预言机 + 指纹库</div><div class="celld">Python 规则引擎 + 版本化指纹库</div>
+        <div class="celld">对探测输出做签名匹配；指纹库为入库的数据文件（资产哈希集 / 首页哈希 / CSP / 头部集 / 协议版本 → 版本区间），由"逐版本 Docker 起服务记签名"的真值 harness 维护。</div>
+      </div>
+      <div class="row">
+        <div class="celld lead">时序存储</div><div class="celld"><code>ClickHouse</code></div>
+        <div class="celld">每条观测 <code>(asset, port, scan_ts, signals, version, vuln)</code> 入列存；面板的历史/活跃/按国家/按版本聚合都是列存强项，可撑十亿级行。</div>
+      </div>
+      <div class="row">
+        <div class="celld lead">资产登记 + 状态</div><div class="celld"><code>PostgreSQL</code></div>
+        <div class="celld">去重身份（TLS 证书 / JARM / favicon / 内容哈希 → <code>asset_id</code>）、opt-out 黑名单、披露跟踪与运营者联系记录——这些要关系完整性。</div>
+      </div>
+      <div class="row">
+        <div class="celld lead">原始留存</div><div class="celld">对象存储（S3 / MinIO）</div>
+        <div class="celld">原始 banner/响应留底，供审计与重处理（指纹库迭代后回灌历史数据）。</div>
+      </div>
+      <div class="row">
+        <div class="celld lead">地理 / ASN 富化</div><div class="celld">MaxMind GeoLite2 + 境内省级 IP 库</div>
+        <div class="celld">全球国家/ASN 用 GeoLite2；面板"省市 31/207"需省级粒度，叠加境内 IP 库（如 ip2region / 纯真）；ASN 用 Team Cymru / pyasn。</div>
+      </div>
+      <div class="row">
+        <div class="celld lead">面板 / API</div><div class="celld"><code>FastAPI</code> + <code>React</code></div>
+        <div class="celld">FastAPI 从 ClickHouse 取聚合，React 复刻暴露面板（KPI、地图、版本分布、脆弱占比、趋势）。</div>
+      </div>
+      <div class="row">
+        <div class="celld lead">调度</div><div class="celld">定时全量扫 + 按资产复扫</div>
+        <div class="celld">已知资产高频复扫定"活跃"，全网定期全扫补新增；驱动整条 发现→探测→富化→入库→聚合 流水。</div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:14px; max-width:770px;">语言取舍：网络探测器用 Go（并发 + ZGrab2 生态），编排/预言机/面板用 Python（迭代快、数据生态全）。这条边界清晰，不强求单一语言。</p>
+  </section>
+
+  <!-- 06 -->
+  <section>
+    <div class="sec-head"><span class="num">06</span><h2>暴露面板的数据模型</h2></div>
+    <p class="intro">对标范例面板"公网暴露情况分析"的指标，逐个映射到上面的存储。可见三件事是硬需求：区分历史/活跃需要带时间戳的观测时序；境内口径需要国家级地理；省市口径需要省级境内 IP 库。每台实例都要带"已判定版本 + CVE 命中"才能算出脆弱口径。</p>
+
+    <div class="grid g-kpi">
+      <div class="row head"><div class="celld">面板指标</div><div class="celld">范例值</div><div class="celld">数据来源（如何算出）</div></div>
+      <div class="row"><div class="celld lead">历史暴露服务总数</div><div class="celld">148,768</div><div class="celld">曾被观测到暴露的去重资产数：<code>count(distinct asset_id)</code>，曾为 OpenClaw。</div></div>
+      <div class="row"><div class="celld lead">当前活跃实例总数</div><div class="celld">22,479</div><div class="celld">近 N 天仍被观测到的资产数（活跃窗口）。需观测时序。</div></div>
+      <div class="row"><div class="celld lead">境内暴露总数</div><div class="celld">65,656</div><div class="celld">历史去重资产中 <code>geo.country = CN</code> 的部分。</div></div>
+      <div class="row"><div class="celld lead">境内活跃实例数量</div><div class="celld">13,195</div><div class="celld">活跃窗口内且 <code>geo.country = CN</code>。</div></div>
+      <div class="row"><div class="celld lead">覆盖国家 / 地区</div><div class="celld">100</div><div class="celld"><code>count(distinct geo.country)</code>，全球暴露资产。</div></div>
+      <div class="row"><div class="celld lead">涉及省市</div><div class="celld">31 / 207</div><div class="celld">境内资产的去重省 / 市数。需省级境内 IP 库。</div></div>
+      <div class="row"><div class="celld lead">存在漏洞的暴露实例</div><div class="celld">26,057</div><div class="celld">已判定版本映射到 ≥1 个 CVE 的资产数（CalVer 比较，见 03）。<span class="sev high">version→CVE</span></div></div>
+      <div class="row"><div class="celld lead">合计历史漏洞条目数</div><div class="celld">593</div><div class="celld">历史上 <code>(asset, CVE)</code> 命中条目的累计计数。</div></div>
+      <div class="row"><div class="celld lead">最近更新时间</div><div class="celld">2026-06-09</div><div class="celld">最近一次扫描批次的时间戳（数据新鲜度）。</div></div>
+    </div>
+    <p class="note" style="margin-top:14px; max-width:770px;">随之而来的下钻视图——版本分布、按国家/ASN、随时间趋势、脆弱版本拆分——都落在同一套 ClickHouse 聚合上。对外只呈现聚合统计；可定位到个体的暴露清单仅用于协同披露，不公开。</p>
+  </section>
+
+  <!-- 07 -->
+  <section>
+    <div class="sec-head"><span class="num">07</span><h2>复现与下一步</h2></div>
+    <p class="intro">这次实测的最小复现如下（注意 compose 默认 command 缺 <code>--allow-unconfigured</code> 会因 "Missing config" 崩溃重启，故直接用 <code>docker run</code> 起最小可指纹形态）。同一套命令就是逐版本建指纹库的真值 harness。</p>
+
+    <pre class="code"><span class="c"># 1) 构建镜像（首次，产出 openclaw:local）</span>
+docker compose -f docker-compose.yml --project-directory . build
+
+<span class="c"># 2) 以最小可指纹形态起一个实例（已设令牌 = 已防护姿态）</span>
+docker run -d --name oc-fp -p 18789:18789 \
+  -e HOME=/home/node -e OPENCLAW_HOME=/home/node \
+  -e OPENCLAW_GATEWAY_TOKEN=$(openssl rand -hex 32) \
+  openclaw:local node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured
+
+<span class="c"># 3) 只读探测：判定信号 + 版本信号</span>
+curl -s http://127.0.0.1:18789/healthz                              <span class="c"># {"ok":true,"status":"live"}</span>
+curl -s -i http://127.0.0.1:18789/__openclaw/control-ui-config.json <span class="c"># 401 / 或 200 含 serverVersion</span>
+curl -s http://127.0.0.1:18789/ | grep -oE <span class="s">'assets/index-[^"]+'</span>     <span class="c"># 版本相关资产哈希</span>
+node -e <span class="s">'const w=new WebSocket("ws://127.0.0.1:18789/");w.onmessage=e=&gt;{console.log(""+e.data);w.close()}'</span> <span class="c"># connect.challenge</span></pre>
+
+    <div class="oq">
+      <div class="card">
+        <h3>建多版本真值语料</h3>
+        <p>用上面的 harness 逐个起各发布版本（含 <code>&lt; 2026.1.29</code> 的脆弱版与已修复版），记录其外部签名，产出指纹库第一版与精确率/召回评测集。</p>
+        <p class="owner">验证 · 判定精确率 ≥ 0.99、召回 ≥ 0.90；脆弱/已修复版可区分</p>
+      </div>
+      <div class="card">
+        <h3>写 ZGrab2 OpenClaw 模块</h3>
+        <p>实现 03 的判定+版本两条路，硬编码只读不变量，输出结构化证据；先在本地多版本语料上闭环，再接发现层。</p>
+        <p class="owner">验证 · 本地语料复现既定精确率/召回；越界帧被硬禁用</p>
+      </div>
+      <div class="card">
+        <h3>校准 serverVersion 直读占比</h3>
+        <p>实测确认了已防实例的 401 路径；再起一个 <code>auth=none</code> 实例验证直读 <code>serverVersion</code>，并估计公网中"可直读"与"靠隐式"两类的大致比例。</p>
+        <p class="owner">验证 · 两类各有可观测样例；比例口径写入面板说明</p>
+      </div>
+      <div class="card">
+        <h3>接发现层与公民化基座</h3>
+        <p>接 ZMap 端口集扫描 + 平台种子；规模化前先落地可识别扫描源、opt-out 与按 <code>/24</code> 限速。</p>
+        <p class="owner">验证 · 每次规模化前基座生效；凭据来自 <code>.gitignore</code> 配置</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>这次 Phase 0 把"指纹"从文档推断落到了对 OpenClaw 2026.5.17 的容器实测：判定可在零鉴权下做到极高可靠，版本则因实例防护姿态分成"直读"与"隐式反推"两条路，两路都按 CalVer 落到 CVE。测绘平台按全球＋境内搭配、技术栈选定 ZMap+ZGrab2 与 ClickHouse+Postgres、面板数据模型对齐了范例的历史/活跃/境内/脆弱口径——下一步是把这套指纹喂进多版本真值语料与 ZGrab2 模块，让"检查每一台的版本"在规模上立得住。</p>
+  </footer>
+
+</div>
+</body>
+</html>

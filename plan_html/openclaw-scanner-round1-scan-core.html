@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>本轮实现说明：OpenClaw 扫描器 · 扫描核心 + 全网能力 + 取版本</title>
+<style>
+  :root{
+    --ivory:#FAF9F5; --slate:#141413; --clay:#D97757; --olive:#788C5D;
+    --oat:#E3DACC; --plum:#8E6E8A; --gray-150:#F0EEE6; --gray-300:#D1CFC5;
+    --gray-500:#87867F; --gray-700:#3D3D3A; --white:#FFFFFF;
+    --serif: ui-serif, Georgia, "Times New Roman", "Songti SC", "STSong", serif;
+    --sans:  system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono:  ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{margin:0; background:var(--ivory); color:var(--gray-700);
+    font-family:var(--sans); font-size:14.5px; line-height:1.75;}
+  .wrap{max-width:1120px; margin:0 auto; padding:56px 32px 120px;}
+  .eyebrow{font-family:var(--mono); font-size:11.5px; text-transform:uppercase;
+    letter-spacing:0.08em; color:var(--gray-500); margin:0 0 14px;}
+  h1{font-family:var(--serif); font-weight:500; font-size:34px; line-height:1.3;
+    letter-spacing:0; color:var(--slate); margin:0 0 22px; max-width:900px;}
+  h2{font-family:var(--serif); font-weight:500; font-size:26px; line-height:1.35;
+    letter-spacing:0; color:var(--slate); margin:0;}
+  h3{font-family:var(--serif); font-weight:500; font-size:19px; line-height:1.4;
+    letter-spacing:0; color:var(--slate); margin:0 0 6px;}
+  p{margin:0 0 14px;}
+  .prose{max-width:770px;} .prose p{line-height:1.75;}
+  .tldr{background:var(--white); border:1.5px solid var(--gray-300);
+    border-left:4px solid var(--clay); border-radius:10px; padding:18px 22px; margin:0 0 30px; max-width:900px;}
+  .tldr .lab{font-family:var(--mono); font-size:11px; text-transform:uppercase;
+    letter-spacing:0.07em; color:var(--gray-500); margin:0 0 8px;}
+  .tldr p{font-size:14.5px; line-height:1.8; margin:0;} .tldr p + p{margin-top:10px;}
+  .strip{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:0 0 64px;}
+  .cell{background:var(--white); border:1.5px solid var(--gray-300); border-radius:10px; padding:14px 16px;}
+  .cell .k{font-family:var(--mono); font-size:11px; text-transform:uppercase;
+    letter-spacing:0.06em; color:var(--gray-500); margin:0 0 6px;}
+  .cell .v{font-size:13px; line-height:1.55; color:var(--slate);}
+  section{margin-bottom:64px;}
+  .sec-head{display:flex; align-items:center; gap:12px; margin:0 0 14px;}
+  .num{font-family:var(--mono); font-size:12px; background:var(--oat); color:var(--slate);
+    padding:3px 8px; border-radius:5px; border-bottom:2px solid var(--clay); letter-spacing:0.04em;}
+  .intro{font-size:14.5px; line-height:1.8; color:var(--gray-500); max-width:770px; margin:0 0 22px;}
+  .grid{display:grid; border:1.5px solid var(--gray-300); border-radius:10px; overflow:hidden; background:var(--white);}
+  .grid .row{display:grid;} .grid .row + .row{border-top:1.5px solid var(--gray-300);}
+  .g2 .row{grid-template-columns:1fr 1fr;}
+  .grid .celld{padding:12px 15px; font-size:13.3px; line-height:1.65;}
+  .grid .row.head .celld{font-family:var(--mono); font-size:11px; text-transform:uppercase;
+    letter-spacing:0.05em; color:var(--gray-500); background:var(--gray-150);}
+  .grid .celld + .celld{border-left:1.5px solid var(--gray-300);}
+  .grid .t{color:var(--slate); font-weight:600;}
+  code, .mono{font-family:var(--mono); font-size:12.7px; color:var(--slate);} .grid code{font-size:12px;}
+  .diagram{background:var(--white); border:1.5px solid var(--gray-300); border-radius:12px; padding:18px; overflow-x:auto;}
+  .diagram svg{display:block; min-width:780px; width:100%; height:auto;}
+  .caption{font-size:12.5px; line-height:1.7; color:var(--gray-500); max-width:770px; margin:14px 2px 0;}
+  .mile{display:grid; grid-template-columns:96px 34px 1fr; gap:0;}
+  .mile .when{font-family:var(--mono); font-size:12px; color:var(--gray-500); padding:2px 0 30px; line-height:1.5;}
+  .mile .rail{position:relative;}
+  .mile .rail::before{content:""; position:absolute; left:50%; top:7px; bottom:-7px; width:1.5px; background:var(--gray-300); transform:translateX(-50%);}
+  .mile .item:last-child .rail::before{display:none;}
+  .mile .dot{position:absolute; left:50%; top:5px; width:12px; height:12px; border-radius:50%; transform:translateX(-50%); background:var(--ivory); border:2px solid var(--clay);}
+  .mile .dot.fill{background:var(--clay);}
+  .mile .body{padding:0 0 30px 6px;}
+  .mile .item{display:contents;}
+  .mile .body p{font-size:13.6px; line-height:1.7; margin:4px 0 0; max-width:680px;}
+  .mile .check{font-family:var(--mono); font-size:11.5px; color:var(--olive); margin-top:7px; line-height:1.55; max-width:680px;}
+  .mile .check b{color:var(--gray-500); font-weight:400;}
+  ul.tight{margin:6px 0 14px; padding-left:20px; max-width:770px;} ul.tight li{margin:5px 0; line-height:1.7;}
+  .note{font-size:13px; color:var(--gray-500); line-height:1.7;}
+  pre.code{background:var(--slate); color:#E8E6DF; border-radius:10px; padding:16px 18px; overflow-x:auto;
+    font-family:var(--mono); font-size:12.3px; line-height:1.65; margin:0 0 14px;}
+  pre.code .c{color:var(--gray-500); font-style:italic;}
+  footer{border-top:1.5px solid var(--gray-300); margin-top:24px; padding-top:22px; max-width:830px;}
+  footer p{font-size:13.5px; line-height:1.8; color:var(--gray-500); font-style:italic;}
+  @media (max-width:900px){
+    .strip{grid-template-columns:repeat(2,1fr);}
+    .g2 .row{grid-template-columns:1fr;}
+    .grid .celld + .celld{border-left:none; border-top:1.5px solid var(--gray-300);}
+  }
+  @media (max-width:720px){ .wrap{padding:40px 18px 90px;} h1{font-size:27px;} .strip{grid-template-columns:1fr;} .mile{grid-template-columns:78px 28px 1fr;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">AgentSecTool Scanner · 本轮实现说明（Round 1：扫描核心）</p>
+  <h1>把 OpenClaw 扫描的核心跑通：全网能力的发现、可靠判定、尽力取版本</h1>
+
+  <div class="tldr">
+    <p class="lab">本轮目标 · TL;DR</p>
+    <p>这一轮只解决"扫描问题"：构建一条端到端管线——<strong>发现</strong>（能吃任意 CIDR 直至 <code>0.0.0.0/0</code> 的主动扫描，叠加 <strong>FOFA</strong> 被动种子）→ <strong>判定</strong>（可靠确认是不是 OpenClaw）→ <strong>取版本</strong>（疏防实例直读、已防实例隐式反推）→ <strong>落地</strong>（JSONL + SQLite）。</p>
+    <p>构建的是"全网扫描能力"，不是现在就真打全 IPv4（那是需要专用出口 IP 与合规前置的运营动作）；本轮以本地 <code>openclaw:local</code> 容器 + 小网段验证正确性。版本→CVE 映射本轮不做。探测器用 <strong>Go + ZGrab2 自定义模块</strong>，结果落地 <strong>JSONL + SQLite</strong>，整条扫描器跑在<strong>本地宿主机</strong>。</p>
+  </div>
+
+  <div class="strip">
+    <div class="cell"><div class="k">发现</div><div class="v">主动 masscan/ZMap（任意 CIDR）+ 被动 FOFA</div></div>
+    <div class="cell"><div class="k">探测器</div><div class="v">Go + ZGrab2 <code>openclaw</code> 模块 · 只读良性</div></div>
+    <div class="cell"><div class="k">取版本</div><div class="v">直读 <code>serverVersion</code> / 隐式指纹反推</div></div>
+    <div class="cell"><div class="k">落地</div><div class="v">JSONL + SQLite · 本地宿主机</div></div>
+  </div>
+
+  <!-- 01 -->
+  <section>
+    <div class="sec-head"><span class="num">01</span><h2>本轮做什么、不做什么</h2></div>
+    <p class="intro">范围卡死在"扫描核心"。左列是本轮交付，右列是明确推迟的，避免把后续阶段（面板、CVE、规模化存储）提前拖进来。</p>
+    <div class="grid g2">
+      <div class="row head"><div class="celld">本轮做</div><div class="celld">本轮不做（留后续）</div></div>
+      <div class="row">
+        <div class="celld">ZGrab2 <code>openclaw</code> 探测模块：判定 + 取版本，全程只读良性。</div>
+        <div class="celld">版本 → CVE 映射（对照漏洞）。</div>
+      </div>
+      <div class="row">
+        <div class="celld">发现层：主动 masscan/ZMap（任意 CIDR + 端口集 + 限速 + 黑名单）+ 被动 FOFA 种子 + 合并去重。</div>
+        <div class="celld">暴露面板 / 前端。</div>
+      </div>
+      <div class="row">
+        <div class="celld">指纹库 + 采集 harness（种子版本 2026.5.17）。</div>
+        <div class="celld">ClickHouse / PostgreSQL（本轮用 SQLite）。</div>
+      </div>
+      <div class="row">
+        <div class="celld">JSONL → SQLite 落地；配置/密钥/黑名单/限速/只读不变量；端到端编排与验证。</div>
+        <div class="celld">真实全 IPv4 执行、Geo/ASN 与省市富化、IPv6 hitlist、协同披露。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 -->
+  <section>
+    <div class="sec-head"><span class="num">02</span><h2>架构与数据流</h2></div>
+    <p class="intro">一条管线：两路发现并入候选队列，候选交给 Go/ZGrab2 探测器做只读判定与取版本，结果写 JSONL 再入 SQLite。发现与落地用 Python 便于迭代，探测器用 Go 复用 ZGrab2 自带的并发/超时/重试/结构化输出——这正是全网扫描需要的健壮性。</p>
+    <div class="diagram">
+      <svg viewBox="0 0 860 642" role="img" aria-label="本轮扫描管线数据流图">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#87867F"></path>
+          </marker>
+        </defs>
+        <rect x="150" y="22" width="560" height="46" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
+        <text x="430" y="50" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#141413">目标规格：CIDR（直至 0.0.0.0/0）· 国家 · 主机列表</text>
+        <path d="M300,68 L300,96 L226,96 L226,112" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#ah)"></path>
+        <path d="M560,68 L560,96 L634,96 L634,112" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#ah)"></path>
+        <rect x="40" y="112" width="372" height="74" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
+        <text x="58" y="135" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#87867F" letter-spacing="0.04em">主动发现 · ACTIVE</text>
+        <text x="58" y="158" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#141413">masscan / ZMap 扫端口集</text>
+        <text x="58" y="178" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#3D3D3A">限速 · 黑名单 · 任意 CIDR</text>
+        <rect x="448" y="112" width="372" height="74" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
+        <text x="466" y="135" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#87867F" letter-spacing="0.04em">被动种子 · PASSIVE</text>
+        <text x="466" y="158" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#141413">FOFA 查 OpenClaw 指纹</text>
+        <text x="466" y="178" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#3D3D3A">覆盖反代后 / 扫不到的主机</text>
+        <path d="M226,186 L226,206 L430,206 L430,222" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#ah)"></path>
+        <path d="M634,186 L634,206 L430,206" fill="none" stroke="#87867F" stroke-width="1.5"></path>
+        <rect x="160" y="222" width="540" height="50" rx="9" fill="#F0EEE6" stroke="#D1CFC5" stroke-width="1.5"></rect>
+        <text x="430" y="252" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#141413">合并去重 + 黑名单剔除 → candidates.csv (IP,port)</text>
+        <path d="M430,272 L430,300" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#ah)"></path>
+        <rect x="160" y="300" width="540" height="86" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
+        <text x="180" y="324" font-family="ui-serif, Georgia, serif" font-size="14" fill="#141413">Go / ZGrab2 · openclaw 模块（只读 · 良性）</text>
+        <text x="180" y="349" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#3D3D3A">WS connect.challenge + HTTP（/healthz · / · config · favicon）</text>
+        <text x="180" y="370" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#3D3D3A">判定置信 + 取版本（直读 serverVersion / 隐式指纹）</text>
+        <path d="M430,386 L430,414" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#ah)"></path>
+        <rect x="160" y="414" width="540" height="44" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
+        <text x="430" y="441" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="11.5" fill="#141413">results.jsonl  {ip, port, is_openclaw, confidence, version, …}</text>
+        <path d="M430,458 L430,486" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#ah)"></path>
+        <rect x="160" y="486" width="540" height="58" rx="9" fill="#141413" stroke="#141413" stroke-width="1.5"></rect>
+        <text x="180" y="510" font-family="ui-serif, Georgia, serif" font-size="14" fill="#FAF9F5">Python sink → SQLite</text>
+        <text x="180" y="531" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#E3DACC">assets · observations · 按身份去重</text>
+        <rect x="40" y="574" width="780" height="44" rx="9" fill="#F0EEE6" stroke="#D1CFC5" stroke-width="1.5" stroke-dasharray="5 4"></rect>
+        <text x="430" y="601" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#3D3D3A">本地宿主机进程 · 只读不变量（不发 connect / config.apply）· 每 IP 限速，远低于服务端 32 连接上限</text>
+      </svg>
+      <p class="caption">方框为管线阶段，箭头为数据流向，灰底框是候选队列，深色终端框是出口（结果入 SQLite）。最下方虚线条带是贯穿全程的运行约束：扫描器跑在本地宿主机、探测只读、对单一主机礼貌限速。两路发现并取以补齐反代后与扫不到的主机。</p>
+    </div>
+  </section>
+
+  <!-- 03 -->
+  <section>
+    <div class="sec-head"><span class="num">03</span><h2>探测器：判定与取版本</h2></div>
+    <p class="intro">探测器是本轮的核心：一个 Go 写的 ZGrab2 自定义模块，对每个目标只做只读探测，据此判定是否 OpenClaw 并尽力取版本。</p>
+    <div class="prose">
+      <p>每个目标只做两类<strong>只读</strong>动作：几个无鉴权 HTTP GET，加一次 WebSocket 升级读首帧。</p>
+      <p><strong>判定</strong>按跨表面组合打分：WebSocket 一连上就收到的 <code>connect.challenge</code>（最强信号）、<code>/healthz</code> 的 <code>{"ok":true,"status":"live"}</code>、首页 <code>&lt;title&gt;OpenClaw Control&lt;/title&gt;</code> 与 <code>favicon.ico</code> 的 md5、<code>/__openclaw/control-ui-config.json</code> 的 401＋特征 CSP。务实判定阈值取"favicon ∧ 标题 ∧ /healthz 体"（≈0.999），WS 挑战作抗伪装加权。每条信号的判别力、获取难度与组合阈值，已在 <code>openclaw-fingerprint-phase0-and-stack.html</code> §01 论证，这里不重复。</p>
+      <p><strong>取版本</strong>分两条路。疏于防护的实例（<code>auth=none</code>）：<code>control-ui-config</code> 返回 200，直读 <code>serverVersion</code>（高置信）。已防护的实例：该接口 401、握手版本需配对、<code>probe</code> 模式也非旁路——只能隐式反推，用首页引用的 <code>assets/index-&lt;hash&gt;</code> 资产名、整串 CSP、响应头集合、协议版本去比对指纹库，得版本或版本区间（中置信）。指纹库由 harness 逐版本起容器记录签名而成，本轮种子 2026.5.17。</p>
+      <p><strong>只读不变量是硬约束</strong>：探测器永不发 <code>connect</code> 帧、永不发 <code>config.apply</code> 或任何会改目标状态的帧；以单测固化"发送白名单只含 WS 升级与 GET"。识别一台主机不需要、也不允许去动它。</p>
+    </div>
+  </section>
+
+  <!-- 04 -->
+  <section>
+    <div class="sec-head"><span class="num">04</span><h2>里程碑</h2></div>
+    <p class="intro">按"先把判定/取版本做对，再接发现与落地"排序。M1 是关键路径，先对本地容器把探测器跑扎实；每个里程碑带可验证的成功标准。</p>
+    <div class="mile">
+      <div class="item">
+        <div class="when">M0<br>说明</div>
+        <div class="rail"><span class="dot fill"></span></div>
+        <div class="body"><h3>本轮 HTML 说明</h3>
+          <p>即本文档：范围、架构与数据流、里程碑、部署位置、验证方式，供讨论与留档。</p>
+          <p class="check"><b>验证：</b>本文档生成于项目根目录，按 HTML_STYLE_GUIDE.md 规范。</p>
+        </div>
+      </div>
+      <div class="item">
+        <div class="when">M1<br>探测器</div>
+        <div class="rail"><span class="dot"></span></div>
+        <div class="body"><h3>Go / ZGrab2 openclaw 模块（关键路径）</h3>
+          <p>WS connect.challenge + HTTP 簇的只读探测，跨表面置信度打分，直读 <code>serverVersion</code>，输出 JSONL。</p>
+          <p class="check"><b>验证：</b><code>echo "127.0.0.1,18789" | ./prober openclaw</code> → <code>is_openclaw=true</code>、高置信、有 version；只读不变量单测通过。</p>
+        </div>
+      </div>
+      <div class="item">
+        <div class="when">M2<br>版本库</div>
+        <div class="rail"><span class="dot"></span></div>
+        <div class="body"><h3>隐式版本 + 指纹库 + harness</h3>
+          <p>隐式版本匹配（资产哈希/CSP/头部/协议）；指纹库种子 2026.5.17；Docker harness 逐版本记签名。</p>
+          <p class="check"><b>验证：</b>已防实例隐式命中 2026.5.17；另起 <code>auth=none</code> 实例直读 <code>serverVersion</code>。</p>
+        </div>
+      </div>
+      <div class="item">
+        <div class="when">M3<br>发现</div>
+        <div class="rail"><span class="dot"></span></div>
+        <div class="body"><h3>发现层（主动 masscan/ZMap + 被动 FOFA）</h3>
+          <p>任意 CIDR + 端口集 + 限速 + 黑名单；FOFA 种子；合并去重产出 candidates.csv。</p>
+          <p class="check"><b>验证：</b>masscan 扫含 localhost 小段；FOFA 有凭据则跑、无则 mock；合并去重 + 黑名单单测。</p>
+        </div>
+      </div>
+      <div class="item">
+        <div class="when">M4<br>落地</div>
+        <div class="rail"><span class="dot"></span></div>
+        <div class="body"><h3>SQLite 落地 + 编排 + 配置/安全</h3>
+          <p>results.jsonl → SQLite（assets/observations + 去重）；Makefile 串联；凭据走 gitignore 配置；README。</p>
+          <p class="check"><b>验证：</b><code>make load</code> 入库查计数；<code>make demo</code> 一键走通"发现（localhost）→ 探测 → 落地"。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 -->
+  <section>
+    <div class="sec-head"><span class="num">05</span><h2>部署与安全</h2></div>
+    <p class="intro">几条运行约束从一开始就具备，不延后——它们既是合规边界，也是"全网能力"能稳的前提。</p>
+    <div class="prose">
+      <ul class="tight">
+        <li><strong>部署位置：</strong>整条扫描器（发现/探测/落地）作为本地宿主机进程运行；SQLite 就是工作目录下一个文件（gitignore），无独立 DB 服务、无 DB 容器。唯一的容器是被扫的 <code>openclaw:local</code> 靶机。迁到专用 Linux 扫描主机时再提供扫描器 Dockerfile（本轮不做）。</li>
+        <li><strong>只读不变量：</strong>探测器永不发 <code>connect</code>/<code>config.apply</code>/任何改状态帧；单测固化发送白名单。</li>
+        <li><strong>礼貌与合规：</strong>每 IP 并发/速率上限（远低于服务端 <code>MAX_PREAUTH_CONNECTIONS_PER_IP=32</code>）；黑名单/保留网段排除（masscan <code>--excludefile</code>）；扫描源可识别占位（rDNS/说明页/abuse）。这些是"全网能力"的前置，不延后。</li>
+        <li><strong>凭据安全：</strong>FOFA 等 API key 走 <code>config/scanner.yaml</code>（gitignore），运行时读取，绝不硬编码（CLAUDE.md §6）。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 06 -->
+  <section>
+    <div class="sec-head"><span class="num">06</span><h2>端到端验证</h2></div>
+    <p class="intro">全部在本地完成，不向公网发包。先起靶机，再逐段验证，最后一键跑通全链。</p>
+    <pre class="code"><span class="c"># 1) 起靶机（被扫的 OpenClaw，已防护姿态）</span>
+docker run -d --name oc-fp -p 18789:18789 \
+  -e OPENCLAW_GATEWAY_TOKEN=$(openssl rand -hex 32) \
+  openclaw:local node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured
+
+<span class="c"># 2) M1 探测器：对靶机判定 + 取版本</span>
+echo "127.0.0.1,18789" | ./prober/bin/prober openclaw --port 18789 -o results.jsonl
+
+<span class="c"># 3) M3 发现：小网段 + 合并去重（FOFA 有凭据则一并种子）</span>
+python -m discovery --cidr 127.0.0.0/30 --ports 18789 --backend masscan
+
+<span class="c"># 4) M4 落地 + 全链</span>
+make load          <span class="c"># results.jsonl → SQLite，查 assets / observations 计数</span>
+make demo          <span class="c"># 发现(localhost) → 探测 → 落地，一键走通</span></pre>
+  </section>
+
+  <footer>
+    <p>本轮只求一件事：把 OpenClaw 扫描的核心立起来——发现具备全网能力、判定可靠、版本尽力可得、结果可落地，且全程只读、对单机礼貌。指纹与置信度的论证在 Phase 0 文档里已经做实，这一轮把它变成能跑的 ZGrab2 模块与 Python 发现/落地；版本对照 CVE、规模化存储与面板留给后续阶段。</p>
+  </footer>
+
+</div>
+</body>
+</html>

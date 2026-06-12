@@ -1,0 +1,32 @@
+# --- 凭据与本地配置（绝不入库）---
+config/scanner.yaml
+config/blocklist.txt
+fofa/fofa.ini
+
+# --- 扫描产物 ---
+*.jsonl
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+candidates.csv
+results*.json
+scope/cn-cidrs.txt
+
+# --- Go 构建产物 ---
+prober/bin/
+prober/zgrab2-openclaw
+
+# --- Python ---
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+
+# --- 指纹库本地覆盖 ---
+fingerprints/*.local.json
+
+# --- 系统 ---
+.DS_Store
