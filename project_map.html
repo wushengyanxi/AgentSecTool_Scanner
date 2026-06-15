@@ -215,7 +215,7 @@
         <li><strong>HTTP 静态资源面</strong>：首页 <code>&lt;title&gt;OpenClaw Control&lt;/title&gt;</code>、<code>favicon.ico</code> 的 md5（<code>f58854f6…</code>）。</li>
         <li><strong>HTTP 路由/头面</strong>：<code>/healthz</code> 回 <code>{"ok":true,"status":"live"}</code>、<code>/__openclaw/control-ui-config.json</code> 回 401 + 特征 CSP、响应头三件套（<code>X-Content-Type-Options/Referrer-Policy/Permissions-Policy</code>）。</li>
       </ul>
-      <p><strong>判定规则</strong>："命中 WS 挑战（强单证）<strong>或</strong> ≥2 个不同表面命中"。置信度用 noisy-OR 跨表面合成。为什么强调"跨表面"——同一表面的信号（如 WS 挑战 + 未授权拒绝，或 favicon + 标题）伪造一个就能伪造另一个；只有跨表面（WS × HTTP静态 × HTTP路由）才真正抗伪造。判别力/置信度的完整论证见 <code>openclaw-fingerprint-phase0-and-stack.html</code> §01。</p>
+      <p><strong>判定规则</strong>："命中 WS 挑战（强单证）<strong>或</strong> ≥2 个不同表面命中"。置信度用 noisy-OR 跨表面合成。为什么强调"跨表面"——同一表面的信号（如 WS 挑战 + 未授权拒绝，或 favicon + 标题）伪造一个就能伪造另一个；只有跨表面（WS × HTTP静态 × HTTP路由）才真正抗伪造。判别力/置信度的完整论证见 <code>扫描研判依据与精准化路径.html</code> §02–§03。</p>
       <p><strong>全程只读、良性</strong>：探测只发"HTTP 升级 + 无鉴权 GET"，<strong>绝不发 connect 帧或 config.apply</strong>（后者本身是 CVE 利用面）。这条以单测固化（<code>probe_test.go</code> 断言发送字节里没有越界帧）。</p>
     </div>
     <div class="coderef">

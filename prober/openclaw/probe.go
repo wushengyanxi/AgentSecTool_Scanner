@@ -34,19 +34,20 @@ func Probe(ctx context.Context, host string, port uint16, opts Options) Result {
 	probeWS(ctx, host, port, opts.TLS, opts.Timeout, dial, &ev)
 
 	conf, isOC, sigs := score(ev)
-	ver, vsrc := determineVersion(ev, opts.Fingerprints)
+	ver, vsrc, vcand := determineVersion(ev, opts.Fingerprints)
 
 	return Result{
-		IP:            host,
-		Port:          port,
-		IsOpenClaw:    isOC,
-		Confidence:    round4(conf),
-		Signals:       sigs,
-		Version:       ver,
-		VersionSource: vsrc,
-		TLS:           opts.TLS,
-		Evidence:      ev,
-		TS:            time.Now().UTC().Format(time.RFC3339),
+		IP:                host,
+		Port:              port,
+		IsOpenClaw:        isOC,
+		Confidence:        round4(conf),
+		Signals:           sigs,
+		Version:           ver,
+		VersionSource:     vsrc,
+		VersionCandidates: vcand,
+		TLS:               opts.TLS,
+		Evidence:          ev,
+		TS:                time.Now().UTC().Format(time.RFC3339),
 	}
 }
 

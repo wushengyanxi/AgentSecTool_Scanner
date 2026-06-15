@@ -30,3 +30,6 @@ fingerprints/*.local.json
 
 # --- 系统 ---
 .DS_Store
+
+# 指纹采集临时报告（每次运行变化）
+harness/collect_corpus_report.json

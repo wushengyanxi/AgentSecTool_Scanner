@@ -1,6 +1,776 @@
 {
-  "_comment": "OpenClaw 版本指纹库。由 harness/build_corpus.py 逐版本起容器记录签名而成。asset_hashes 为首页引用的内容哈希资产名（随版本变化），csp_sha256 为 control-ui-config 那串 CSP 的 sha256，favicon_md5 跨版本稳定（仅判定用，不区分版本）。",
+  "_comment": "OpenClaw 版本指纹库。由 harness/collect_corpus.py 全量采集：优先从官方镜像（ghcr.io/openclaw/openclaw）静态层 cp 出 dist/control-ui（不起服务，逐字节等同分发，source=image），无官方镜像的最老版本回退到一次性 node 容器内 pnpm 构建（host 零污染，source=local-build，因 buildId 含 git sha，未必等同官方分发，需独立核验）。asset_hashes 为首页引用的内容哈希资产名，是唯一有效的版本区分信号；csp_sha256（control-ui-config 端点那串静态 CSP）与 favicon_md5 实测几乎全版本相同，仅判定用、不区分版本。注意：纯后端改动的相邻版本前端 bundle 不变、资产指纹相同，存在若干组不可区分版本（如 2026.3.7=2026.3.8、2026.5.5=2026.5.6），探测器对这些版本报 version_source=implicit-range 与候选集，不谎报单一精确版本。",
   "entries": [
+    {
+      "version": "2026.1.5",
+      "asset_hashes": [
+        "index-BKmK3wjK.js",
+        "index-DxN0Bq48.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.8",
+      "asset_hashes": [
+        "index-Ci9bEWV2.js",
+        "index-D3PigoS7.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.9",
+      "asset_hashes": [
+        "index-BRnbFnOy.js",
+        "index-COvqjSjr.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.10",
+      "asset_hashes": [
+        "index-COvqjSjr.css",
+        "index-R0hOuO5Q.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.11",
+      "asset_hashes": [
+        "index-CN7mhdU7.js",
+        "index-bmCB4WXs.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.12",
+      "asset_hashes": [
+        "index-BQkl4b0t.css",
+        "index-DK6hloGl.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.13",
+      "asset_hashes": [
+        "index-BQkl4b0t.css",
+        "index-DK6hloGl.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.15",
+      "asset_hashes": [
+        "index-CD4FTda1.js",
+        "index-zCHR1MZs.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.20",
+      "asset_hashes": [
+        "index-C7aPxXiI.js",
+        "index-iRx91g1B.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.21",
+      "asset_hashes": [
+        "index-BPDeGGxb.css",
+        "index-bYQnHP3a.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.22",
+      "asset_hashes": [
+        "index-B0_pGVGK.js",
+        "index-B_dnGukZ.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.23",
+      "asset_hashes": [
+        "index-BvhR9FCb.css",
+        "index-DsXRcnEw.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.24",
+      "asset_hashes": [
+        "index-BvhR9FCb.css",
+        "index-DsXRcnEw.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.29",
+      "asset_hashes": [
+        "index-BKPyesll.css",
+        "index-DFDgq9AK.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.30",
+      "asset_hashes": [
+        "index-BKPyesll.css",
+        "index-CXUONUC9.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.1",
+      "asset_hashes": [
+        "index-BZkju1RS.css",
+        "index-CelYWcD3.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.2",
+      "asset_hashes": [
+        "index-BVBLXya3.css",
+        "index-CYRpW51H.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.3",
+      "asset_hashes": [
+        "index-BJMYln02.js",
+        "index-B_pAAEiP.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.6",
+      "asset_hashes": [
+        "index-BoXosYY6.css",
+        "index-Dm6g1E26.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.9",
+      "asset_hashes": [
+        "index-BeKTXH1m.js",
+        "index-DWhx-9JL.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.12",
+      "asset_hashes": [
+        "index-DWhx-9JL.css",
+        "index-qROWRwaR.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.13",
+      "asset_hashes": [
+        "index-BVvzkFOb.js",
+        "index-DRPcd1Z4.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.14",
+      "asset_hashes": [
+        "index-Cvlv14C9.js",
+        "index-DRPcd1Z4.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.15",
+      "asset_hashes": [
+        "index-C3ge7plv.css",
+        "index-mlB3SJ08.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.17",
+      "asset_hashes": [
+        "index-C3ge7plv.css",
+        "index-y8WCJEWp.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.19",
+      "asset_hashes": [
+        "index-CJS46cAv.js",
+        "index-DKJ2TBVf.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.21",
+      "asset_hashes": [
+        "index-Cx1_w3YP.js",
+        "index-DNdFNvs2.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.22",
+      "asset_hashes": [
+        "index-BQhJzHbW.css",
+        "index-D1uIGfCV.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.23",
+      "asset_hashes": [
+        "index-B6U9P9Ka.js",
+        "index-D1cXKZsT.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.24",
+      "asset_hashes": [
+        "index-D1cXKZsT.css",
+        "index-yUL4-MTm.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.25",
+      "asset_hashes": [
+        "index-CM7kTShz.css",
+        "index-m0G6afX5.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.26",
+      "asset_hashes": [
+        "index-CM7kTShz.css",
+        "index-C_C6XOMD.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.3.1",
+      "asset_hashes": [
+        "index-DPmPMREA.css",
+        "index-DbbaBUkl.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.3.2",
+      "asset_hashes": [
+        "index-E0j6Tkrc.css",
+        "index-Qb3PJV7U.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.3.7",
+      "asset_hashes": [
+        "index-E0j6Tkrc.css",
+        "index-wxM3V0HM.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.3.8",
+      "asset_hashes": [
+        "index-E0j6Tkrc.css",
+        "index-wxM3V0HM.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.3.11",
+      "asset_hashes": [
+        "index-CYbiPp9k.js",
+        "index-C_GaJ8wS.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.3.12",
+      "asset_hashes": [
+        "index-D2aEq-P_.js",
+        "index-yp2NJnHN.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.3.22",
+      "asset_hashes": [
+        "index-BK0yXA_h.css",
+        "index-khmCNvxp.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.3.23",
+      "asset_hashes": [
+        "index-BK0yXA_h.css",
+        "index-BxCNA5Kk.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.3.24",
+      "asset_hashes": [
+        "index-CmL01vk_.css",
+        "index-Ij2djnNX.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.3.28",
+      "asset_hashes": [
+        "index-Bhjki1_a.css",
+        "index-D7mg1IkY.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.3.31",
+      "asset_hashes": [
+        "index-Bhjki1_a.css",
+        "index-BsGEx55J.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.1",
+      "asset_hashes": [
+        "index-Bhjki1_a.css",
+        "index-DGtEaKlS.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.2",
+      "asset_hashes": [
+        "index-Bx1QDj3a.js",
+        "index-D-SPkk8b.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.5",
+      "asset_hashes": [
+        "index-D6qddEG9.css",
+        "index-DWX0XMYb.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.7",
+      "asset_hashes": [
+        "index-6snfzTxc.js",
+        "index-CLrV3JI-.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.8",
+      "asset_hashes": [
+        "index-6snfzTxc.js",
+        "index-CLrV3JI-.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.9",
+      "asset_hashes": [
+        "index-BVXsoScG.css",
+        "index-Dts6VHgr.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.10",
+      "asset_hashes": [
+        "index-Bs4iQELM.js",
+        "index-DKfv87PV.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.11",
+      "asset_hashes": [
+        "index-793AfpWV.css",
+        "index-D0pCc5YA.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.12",
+      "asset_hashes": [
+        "index-793AfpWV.css",
+        "index-CsLHusjn.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.14",
+      "asset_hashes": [
+        "index-DfTb2bb1.css",
+        "index-M4TNVXB3.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.15",
+      "asset_hashes": [
+        "index-Dba6JFRP.js",
+        "index-Dbv_lyce.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.20",
+      "asset_hashes": [
+        "index-2DUimdlN.css",
+        "index-Bsj0vinf.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.21",
+      "asset_hashes": [
+        "index-2DUimdlN.css",
+        "index-Bsj0vinf.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.22",
+      "asset_hashes": [
+        "index-CG4NoBQ3.css",
+        "index-DIfSzHeM.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.23",
+      "asset_hashes": [
+        "index-3TlQe5hN.js",
+        "index-6cmxhlRE.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.24",
+      "asset_hashes": [
+        "index-D13gUwUm.css",
+        "index-ckUmEo1l.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.25",
+      "asset_hashes": [
+        "index-BUB744L7.js",
+        "index-W1xTefW9.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.26",
+      "asset_hashes": [
+        "index-DV4QBOU4.js",
+        "index-SzPIN7Ua.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.27",
+      "asset_hashes": [
+        "index-BK6dSJOM.js",
+        "index-SzPIN7Ua.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.29",
+      "asset_hashes": [
+        "index-0RNoHvMd.js",
+        "index-DVY8hbWN.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.5.2",
+      "asset_hashes": [
+        "index-CgOSGTV1.css",
+        "index-Dqolf6WA.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.5.3",
+      "asset_hashes": [
+        "index-CZPMxUCf.css",
+        "index-jOv_K1Xj.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.5.4",
+      "asset_hashes": [
+        "index-BS51oJri.js",
+        "index-DyaZOQpm.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.5.5",
+      "asset_hashes": [
+        "index-DTbgMYT2.js",
+        "index-DyaZOQpm.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.5.6",
+      "asset_hashes": [
+        "index-DTbgMYT2.js",
+        "index-DyaZOQpm.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.5.7",
+      "asset_hashes": [
+        "index-DyaZOQpm.css",
+        "index-NYVkUQrq.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.5.12",
+      "asset_hashes": [
+        "index-Bsr3gFG6.js",
+        "index-D6MC3CBQ.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
     {
       "version": "2026.5.17",
       "asset_hashes": [

@@ -113,12 +113,12 @@ func TestScore(t *testing.T) {
 }
 
 func TestDetermineVersionDirect(t *testing.T) {
-	v, src := determineVersion(Evidence{ServerVersion: "v2026.5.17"}, nil)
-	if v != "2026.5.17" || src != "direct" {
-		t.Fatalf("got (%q,%q) want (2026.5.17,direct)", v, src)
+	v, src, cand := determineVersion(Evidence{ServerVersion: "v2026.5.17"}, nil)
+	if v != "2026.5.17" || src != "direct" || cand != nil {
+		t.Fatalf("got (%q,%q,%v) want (2026.5.17,direct,nil)", v, src, cand)
 	}
-	if v, src := determineVersion(Evidence{}, nil); v != "" || src != "" {
-		t.Fatalf("expected empty version when nothing available, got (%q,%q)", v, src)
+	if v, src, cand := determineVersion(Evidence{}, nil); v != "" || src != "" || cand != nil {
+		t.Fatalf("expected empty version when nothing available, got (%q,%q,%v)", v, src, cand)
 	}
 }
 

@@ -8,7 +8,10 @@ type Result struct {
 	Confidence    float64  `json:"confidence"`
 	Signals       []string `json:"signals"`
 	Version       string   `json:"version,omitempty"`
-	VersionSource string   `json:"version_source,omitempty"` // direct | implicit
+	VersionSource string   `json:"version_source,omitempty"` // direct | implicit | implicit-range
+	// VersionCandidates 仅在 version_source=implicit-range 时非空：资产指纹相同、无法精确区分的
+	// 版本区间（如 ["2026.3.7","2026.3.8"]）。Version 取其中代表值，此处列出全部候选，不谎报单一精确版本。
+	VersionCandidates []string `json:"version_candidates,omitempty"`
 	TLS           bool     `json:"tls"`
 	Evidence      Evidence `json:"evidence"`
 	Error         string   `json:"error,omitempty"`

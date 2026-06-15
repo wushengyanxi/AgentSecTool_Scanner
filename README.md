@@ -1,8 +1,8 @@
 # AgentSecTool Scanner — OpenClaw 公网暴露扫描器
 
 在公网范围发现暴露的 OpenClaw 网关、可靠判定并尽力取版本。本轮（Round 1）实现**扫描核心**：
-发现（全网能力）→ 只读判定 → 取版本 → 落地 SQLite。设计与论证见根目录文档
-`openclaw-scanner-round1-scan-core.html`、`openclaw-fingerprint-phase0-and-stack.html`。
+发现（全网能力）→ 只读判定 → 取版本 → 落地 SQLite。扫描所依据的服务特征、判定与置信度
+逻辑、以及让单 IP 研判更精准的路径，见根目录文档 `扫描研判依据与精准化路径.html`。
 
 ## 组成
 

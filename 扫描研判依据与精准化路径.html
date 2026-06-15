@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw 扫描研判依据与精准化路径</title>
+<style>
+  :root {
+    --ivory: #FAF9F5;
+    --slate: #141413;
+    --clay: #D97757;
+    --olive: #788C5D;
+    --oat: #E3DACC;
+    --plum: #8E6E8A;
+    --gray-150: #F0EEE6;
+    --gray-300: #D1CFC5;
+    --gray-500: #87867F;
+    --gray-700: #3D3D3A;
+    --white: #FFFFFF;
+    --serif: ui-serif, Georgia, "Times New Roman", "Songti SC", "STSong", serif;
+    --sans:  system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono:  ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--ivory);
+    color: var(--gray-700);
+    font-family: var(--sans);
+    font-size: 14.5px;
+    line-height: 1.75;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 56px 32px 120px; }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11.5px; text-transform: uppercase;
+    letter-spacing: 0.07em; color: var(--gray-500); margin: 0 0 14px;
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 500; font-size: 36px;
+    line-height: 1.3; letter-spacing: 0; color: var(--slate); margin: 0 0 24px;
+    max-width: 880px;
+  }
+  h2 {
+    font-family: var(--serif); font-weight: 500; font-size: 26px;
+    letter-spacing: 0; color: var(--slate); margin: 0; display: inline;
+  }
+  h3 {
+    font-family: var(--serif); font-weight: 500; font-size: 19px;
+    letter-spacing: 0; color: var(--slate); margin: 0 0 8px;
+  }
+  p { max-width: 760px; }
+  section { margin-bottom: 64px; }
+
+  .num {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    color: var(--slate); background: var(--oat); border-radius: 5px;
+    padding: 2px 8px; margin-right: 12px; position: relative; top: -3px;
+  }
+  .sec-head { margin-bottom: 6px; }
+  .intro { color: var(--gray-500); font-size: 14.5px; line-height: 1.8; max-width: 760px; margin: 8px 0 28px; }
+
+  /* TL;DR */
+  .tldr {
+    background: var(--white); border: 1.5px solid var(--gray-300);
+    border-left: 4px solid var(--clay); border-radius: 10px;
+    padding: 18px 22px; margin: 0 0 40px; max-width: 880px;
+  }
+  .tldr .lbl { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--clay); margin: 0 0 8px; }
+  .tldr p { margin: 0; font-size: 14.5px; line-height: 1.8; max-width: none; }
+
+  /* 信源可信级别图例 */
+  .legend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 0 0 8px; }
+  .lg-card { background: var(--white); border: 1.5px solid var(--gray-300); border-radius: 10px; padding: 14px 16px; }
+  .lg-card .tag { margin-bottom: 8px; }
+  .lg-card p { font-size: 13px; line-height: 1.7; color: var(--gray-700); margin: 0; max-width: none; }
+
+  /* 可信级别 tag chips */
+  .tag {
+    display: inline-block; font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.02em; padding: 2px 8px; border-radius: 5px;
+    border: 1.5px solid var(--gray-300); background: var(--gray-150); color: var(--gray-700);
+    white-space: nowrap;
+  }
+  .tag.code { background: #E4E9DC; border-color: #C4D0B4; color: #3F5128; }
+  .tag.plan { background: var(--oat); border-color: #CBBEA6; color: #6B5630; }
+  .tag.ext  { background: #F3D9CC; border-color: #E3B49B; color: #8A3B1E; }
+
+  /* summary strip */
+  .strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 0 0 8px; }
+  .kv { background: var(--white); border: 1.5px solid var(--gray-300); border-radius: 10px; padding: 14px 16px; }
+  .kv .k { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray-500); margin: 0 0 6px; }
+  .kv .v { font-family: var(--serif); font-size: 22px; color: var(--slate); line-height: 1.2; }
+  .kv .v small { font-family: var(--sans); font-size: 12.5px; color: var(--gray-500); display: block; margin-top: 3px; font-weight: 400; }
+
+  /* diagram card */
+  .diagram { background: var(--white); border: 1.5px solid var(--gray-300); border-radius: 12px; padding: 20px; margin: 8px 0 14px; overflow-x: auto; }
+  .diagram svg { display: block; min-width: 760px; }
+  .caption { font-size: 12.5px; color: var(--gray-500); line-height: 1.7; margin: 6px 0 0; max-width: 880px; }
+
+  /* grid table */
+  .grid { border: 1.5px solid var(--gray-300); border-radius: 10px; overflow: hidden; margin: 8px 0 14px; background: var(--white); }
+  .grid .row { display: grid; border-top: 1.5px solid var(--gray-300); }
+  .grid .row:first-child { border-top: none; }
+  .grid .row.head { background: var(--gray-150); }
+  .grid .row.head .cell { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-500); font-weight: 600; }
+  .grid .cell { padding: 11px 14px; font-size: 13.5px; line-height: 1.6; border-left: 1.5px solid var(--gray-300); }
+  .grid .cell:first-child { border-left: none; }
+  .grid .cell code { font-family: var(--mono); font-size: 12.5px; color: var(--slate); background: var(--gray-150); padding: 1px 5px; border-radius: 4px; word-break: break-word; }
+  .grid .cell .ref { font-family: var(--mono); font-size: 11.5px; color: var(--gray-500); }
+
+  /* 8 信号面表 */
+  .sig { grid-template-columns: 1.6fr 1.5fr 2fr 0.9fr 1.3fr; }
+  /* 缺口/杠杆表 */
+  .lever { grid-template-columns: 1.1fr 2.4fr; }
+
+  code, .mono { font-family: var(--mono); }
+  p code, li code { font-family: var(--mono); font-size: 13px; color: var(--slate); background: var(--gray-150); padding: 1px 5px; border-radius: 4px; }
+
+  /* code block (slate) */
+  pre.code { background: var(--slate); color: #E8E6DF; border-radius: 10px; padding: 16px 18px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; margin: 8px 0 14px; }
+  pre.code .kw { color: var(--clay); }
+  pre.code .str { color: #9DB07C; }
+  pre.code .fn { color: #C9B98A; }
+  pre.code .cm { color: var(--gray-500); font-style: italic; }
+
+  ul.clean { list-style: none; padding: 0; margin: 8px 0 0; max-width: 820px; }
+  ul.clean li { position: relative; padding-left: 22px; margin-bottom: 10px; line-height: 1.7; }
+  ul.clean li::before { content: "▸"; position: absolute; left: 4px; color: var(--clay); }
+  ul.clean.check li::before { content: "✓"; color: var(--olive); }
+
+  /* 改进卡 */
+  .lever-card { background: var(--white); border: 1.5px solid var(--gray-300); border-left: 4px solid var(--olive); border-radius: 10px; padding: 16px 18px; margin-bottom: 14px; max-width: 880px; }
+  .lever-card h3 { margin-bottom: 6px; }
+  .lever-card .meta { font-family: var(--mono); font-size: 11.5px; color: var(--gray-500); margin: 8px 0 0; }
+  .lever-card p { margin: 0; max-width: none; }
+
+  .warn { background: #F3D9CC33; border: 1.5px solid #E3B49B; border-radius: 8px; padding: 12px 16px; margin: 8px 0 14px; max-width: 880px; font-size: 13.5px; line-height: 1.7; color: #6e3417; }
+  .warn strong { color: #8A3B1E; }
+
+  footer { border-top: 1.5px solid var(--gray-300); margin-top: 40px; padding-top: 20px; color: var(--gray-500); font-size: 13.5px; line-height: 1.8; max-width: 880px; }
+
+  @media (max-width: 900px) {
+    .strip { grid-template-columns: repeat(2, 1fr); }
+    .legend { grid-template-columns: 1fr; }
+    .sig, .lever { grid-template-columns: 1fr; }
+    .grid .cell { border-left: none; border-top: 1px dashed var(--gray-300); }
+    .grid .row .cell:first-child { border-top: none; }
+    .grid .row.head { display: none; }
+  }
+  @media (max-width: 720px) {
+    .wrap { padding: 40px 18px 80px; }
+    h1 { font-size: 28px; }
+    .strip { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">AgentSecTool Scanner · 技术交付说明</p>
+  <h1>OpenClaw 扫描器基于哪些服务特征研判，以及如何让单 IP 研判更精准</h1>
+
+  <div class="tldr">
+    <p class="lbl">核心结论</p>
+    <p>当前扫描器对一台主机的研判，建立在 <strong>1 次 WebSocket 升级握手 + 4 条无鉴权 HTTP GET</strong> 共采集的 <strong>8 个服务特征</strong> 之上，按“跨协议表面组合”做置信合成；判定门槛为 <code>WS 命中 || ≥2 个表面命中 || 置信≥0.97</code>。版本走两条路：疏防实例直读 <code>serverVersion</code>，已防实例靠资产哈希反推。<strong>版本指纹库已覆盖自更名起的全部 70 个正式版（共 71 条），30 个随机版本经真实容器端到端验证全部识别正确。</strong>其中 6 组相邻版本因前端 bundle 未变而资产指纹相同，反推时如实给出版本区间；尚未消费的信号（TLS 证书、WS 载荷结构、未授权高危态）是进一步精准化的方向。</p>
+  </div>
+
+  <!-- 可信级别图例 -->
+  <p style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:var(--gray-500);margin:0 0 12px;">本文每条信息的可信级别标注</p>
+  <div class="legend">
+    <div class="lg-card">
+      <span class="tag code">代码已证实</span>
+      <p>已在 prober 源码中实现并经测试，标注 <code>文件:行号</code> 可逐条核对。这些是扫描器“现在真正基于的特征”。</p>
+    </div>
+    <div class="lg-card">
+      <span class="tag plan">规划 · 未实现</span>
+      <p>出自项目规划文档（<code>plan_html/</code>）的设想，源码中尚无对应实现。仅作为“如何更精准”的路线图，不代表当前能力。</p>
+    </div>
+    <div class="lg-card">
+      <span class="tag ext">外部情报 · 待核实</span>
+      <p>CVE 编号、暴露规模等数字源自外部，<strong>本项目代码库内无任何出处、未独立验证</strong>。出处待补，技术评估时请独立复核。</p>
+    </div>
+  </div>
+  <div class="warn" style="margin-top:14px;">
+    <strong>关于“禁止编造”：</strong>凡标 <span class="tag ext" style="font-size:10px;padding:1px 6px;">外部情报 · 待核实</span> 的内容（如 CVE-2026-25253、“40000+ 实例 / 63% 脆弱”），均在整个代码库（<code>*.go / *.py / *.md / *.json</code>，<code>plan_html/</code> 除外）中检索不到任何出处。本文如实保留并显著标注其性质，绝不将其呈现为本扫描器已验证的事实。
+  </div>
+
+  <!-- summary strip -->
+  <div class="strip" style="margin-top:40px;">
+    <div class="kv"><div class="k">探测动作</div><div class="v">1 + 4<small>WS 升级 + 4 条 GET</small></div></div>
+    <div class="kv"><div class="k">研判信号面</div><div class="v">8<small>个服务特征</small></div></div>
+    <div class="kv"><div class="k">判定表面</div><div class="v">3<small>WS / 静态 / 路由头</small></div></div>
+    <div class="kv"><div class="k">指纹库版本</div><div class="v">71<small>覆盖全部 70 正式版</small></div></div>
+  </div>
+
+  <!-- 01 -->
+  <section>
+    <div class="sec-head"><span class="num">01</span><h2>扫描器现在“基于什么”——一次探测的动作序列</h2></div>
+    <p class="intro">对每个候选 <code>IP[,port]</code>（默认端口 TCP/18789），探测器执行一段固定的、严格只读的序列：先发一次 WebSocket 升级握手，再发四条无鉴权 GET，从各响应里提取证据，最后合成判定。除 WS 升级请求外不向目标写入任何内容，更不触碰任何会改变目标状态的帧——这一“只读不变量”由单元测试固化。</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 980 360" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace">
+        <!-- target -->
+        <rect x="20" y="150" width="150" height="60" rx="8" fill="#141413"/>
+        <text x="95" y="178" fill="#FAF9F5" font-size="13" text-anchor="middle" font-weight="600">目标主机</text>
+        <text x="95" y="196" fill="#C9B98A" font-size="11" text-anchor="middle">IP : 18789</text>
+
+        <!-- probe seq boxes -->
+        <!-- WS -->
+        <rect x="240" y="20" width="330" height="48" rx="8" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="256" y="40" fill="#141413" font-size="12.5" font-weight="600">① WS 升级 → 读 1 帧</text>
+        <text x="256" y="57" fill="#87867F" font-size="11">connect.challenge 字符串匹配</text>
+
+        <rect x="240" y="78" width="330" height="48" rx="8" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="256" y="98" fill="#141413" font-size="12.5" font-weight="600">② GET /healthz</text>
+        <text x="256" y="115" fill="#87867F" font-size="11">体含 "status":"live" 与 "ok":true</text>
+
+        <rect x="240" y="136" width="330" height="48" rx="8" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="256" y="156" fill="#141413" font-size="12.5" font-weight="600">③ GET /</text>
+        <text x="256" y="173" fill="#87867F" font-size="11">title · 资产哈希 · 响应头三件套</text>
+
+        <rect x="240" y="194" width="330" height="48" rx="8" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="256" y="214" fill="#141413" font-size="12.5" font-weight="600">④ GET /__openclaw/control-ui-config.json</text>
+        <text x="256" y="231" fill="#87867F" font-size="11">状态码 · CSP-SHA256 · serverVersion</text>
+
+        <rect x="240" y="252" width="330" height="48" rx="8" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="256" y="272" fill="#141413" font-size="12.5" font-weight="600">⑤ GET /favicon.ico</text>
+        <text x="256" y="289" fill="#87867F" font-size="11">响应体二进制 MD5</text>
+
+        <!-- arrows from target -->
+        <line x1="170" y1="180" x2="240" y2="44"  stroke="#D97757" stroke-width="1.5"/>
+        <line x1="170" y1="180" x2="240" y2="102" stroke="#D97757" stroke-width="1.5"/>
+        <line x1="170" y1="180" x2="240" y2="160" stroke="#D97757" stroke-width="1.5"/>
+        <line x1="170" y1="180" x2="240" y2="218" stroke="#D97757" stroke-width="1.5"/>
+        <line x1="170" y1="180" x2="240" y2="276" stroke="#D97757" stroke-width="1.5"/>
+
+        <!-- score box -->
+        <rect x="650" y="110" width="310" height="140" rx="8" fill="#F0EEE6" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="668" y="135" fill="#141413" font-size="12.5" font-weight="600">证据 → 三表面打分 → 合成</text>
+        <text x="668" y="158" fill="#3D3D3A" font-size="11">pWS · pStatic · pRoute</text>
+        <text x="668" y="176" fill="#3D3D3A" font-size="11">confidence = 1 − ∏(1−p)</text>
+        <line x1="668" y1="188" x2="942" y2="188" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="668" y="208" fill="#141413" font-size="11" font-weight="600">is_openclaw =</text>
+        <text x="668" y="225" fill="#3D3D3A" font-size="11">WS命中 ‖ 表面≥2 ‖ conf≥0.97</text>
+        <text x="668" y="242" fill="#3D3D3A" font-size="11">version = 直读 ▸ 反推</text>
+
+        <line x1="570" y1="160" x2="650" y2="180" stroke="#788C5D" stroke-width="1.5"/>
+        <polygon points="650,180 640,174 641,184" fill="#788C5D"/>
+      </svg>
+      <p class="caption">深色框为被测目标，仅作数据落点；五个白框是固定探测序列（橙线＝读取动作，唯一的写动作是 ① 的 WS 升级请求）；右侧灰框是把证据合成判定与版本的打分环节。动作序列与提取字段对应 <code>prober/openclaw/ws.go</code>、<code>http.go</code>。</p>
+    </div>
+  </section>
+
+  <!-- 02 -->
+  <section>
+    <div class="sec-head"><span class="num">02</span><h2>八个服务特征：每一条都可追溯到源码</h2></div>
+    <p class="intro">下表是研判所依据的全部特征。每一条都给出网络动作、从响应里提取的具体信号、它服务于“判定是不是 OpenClaw”还是“取版本”、在置信合成里的概率权重，以及对应的 <code>文件:行号</code>。全部为 <span class="tag code" style="font-size:10px;padding:1px 6px;">代码已证实</span>。</p>
+
+    <div class="grid sig">
+      <div class="row head">
+        <div class="cell">特征</div>
+        <div class="cell">网络动作</div>
+        <div class="cell">提取的信号</div>
+        <div class="cell">用途 · 概率</div>
+        <div class="cell">源码位置</div>
+      </div>
+      <div class="row sig">
+        <div class="cell"><strong>WS connect.challenge</strong></div>
+        <div class="cell">对 <code>/</code> 发 WebSocket 升级请求，读 1 帧</div>
+        <div class="cell">帧载荷字符串匹配是否含 <code>"event":"connect.challenge"</code>（仅 <code>strings.Contains</code>，<strong>不解析 JSON</strong>）</div>
+        <div class="cell">判定（最强单证）<br>p = <strong>0.99</strong></div>
+        <div class="cell"><span class="ref">ws.go:66<br>signals.go:13</span></div>
+      </div>
+      <div class="row sig">
+        <div class="cell"><strong>favicon MD5</strong></div>
+        <div class="cell">GET <code>/favicon.ico</code></div>
+        <div class="cell">响应体二进制 MD5 是否等于常量 <code>f58854f6…2bebaf</code></div>
+        <div class="cell">判定（静态面）<br>p = 0.95</div>
+        <div class="cell"><span class="ref">http.go:71<br>signals.go:19<br>consts.go:8</span></div>
+      </div>
+      <div class="row sig">
+        <div class="cell"><strong>首页 title</strong></div>
+        <div class="cell">GET <code>/</code></div>
+        <div class="cell">正则取 <code>&lt;title&gt;</code> 文本，trim 后是否等于 <code>OpenClaw Control</code></div>
+        <div class="cell">判定（静态面）<br>p = 0.90</div>
+        <div class="cell"><span class="ref">http.go:39<br>signals.go:23<br>consts.go:11</span></div>
+      </div>
+      <div class="row sig">
+        <div class="cell"><strong>资产哈希集合</strong></div>
+        <div class="cell">GET <code>/</code>（同一响应）</div>
+        <div class="cell">正则取全部 <code>assets/index-[hash].js|css</code> 文件名（Vite 构建内容哈希）</div>
+        <div class="cell">取版本（隐式反推）<br>不参与判定打分</div>
+        <div class="cell"><span class="ref">http.go:23,42<br>fingerprints.go:40</span></div>
+      </div>
+      <div class="row sig">
+        <div class="cell"><strong>/healthz 体</strong></div>
+        <div class="cell">GET <code>/healthz</code></div>
+        <div class="cell">状态 200 且体含 <code>"status":"live"</code> 与 <code>"ok":true</code>（子串匹配）</div>
+        <div class="cell">判定（路由面）<br>p = 0.85</div>
+        <div class="cell"><span class="ref">http.go:32<br>signals.go:29</span></div>
+      </div>
+      <div class="row sig">
+        <div class="cell"><strong>control-ui-config<br>状态 + serverVersion</strong></div>
+        <div class="cell">GET <code>/__openclaw/control-ui-config.json</code></div>
+        <div class="cell">HTTP 状态码；状态 200 时 JSON 解析 <code>serverVersion</code> 字段</div>
+        <div class="cell">判定 + 直读版本<br>p = 0.95（200+ver）<br>p = 0.90（401）</div>
+        <div class="cell"><span class="ref">http.go:51-63<br>signals.go:34-39<br>version.go:7</span></div>
+      </div>
+      <div class="row sig">
+        <div class="cell"><strong>CSP SHA256</strong></div>
+        <div class="cell">同 ④ 的响应头</div>
+        <div class="cell"><code>Content-Security-Policy</code> 头原文的 SHA256</div>
+        <div class="cell">取版本（反推退路）<br>不参与判定打分</div>
+        <div class="cell"><span class="ref">http.go:53-55<br>fingerprints.go:48</span></div>
+      </div>
+      <div class="row sig">
+        <div class="cell"><strong>响应头三件套</strong></div>
+        <div class="cell">GET <code>/</code> 或 ④ 的响应头</div>
+        <div class="cell"><code>X-Content-Type-Options:nosniff</code> ∧ <code>Referrer-Policy:no-referrer</code> ∧ <code>Permissions-Policy</code> 含 <code>microphone=(self)</code></div>
+        <div class="cell">判定（弱信号）<br>p = 0.60</div>
+        <div class="cell"><span class="ref">http.go:45,116<br>signals.go:41</span></div>
+      </div>
+    </div>
+    <p class="caption">概率为各表面命中时赋予的值；同一表面内多个信号取较大者（<code>pStatic = max(favicon, title)</code>，<code>pRoute = max(healthz, control-ui, 头三件套)</code>）。</p>
+  </section>
+
+  <!-- 03 -->
+  <section>
+    <div class="sec-head"><span class="num">03</span><h2>判定与取版本的合成逻辑</h2></div>
+    <p class="intro">八个特征归入三个相互独立的协议表面——WS 协议面、HTTP 静态面、HTTP 路由/头面。每个表面取该面内命中信号的最大概率，再用 noisy-OR 合成总置信度。判定有三个并列触发条件，任一满足即判为 OpenClaw。版本独立于判定，走优先级回退。逻辑全部 <span class="tag code" style="font-size:10px;padding:1px 6px;">代码已证实</span>，见 <code>signals.go</code> 与 <code>version.go</code>。</p>
+
+    <pre class="code"><span class="cm">// 判定（signals.go:46-54）</span>
+confidence = <span class="fn">noisyOR</span>(pWS, pStatic, pRoute)   <span class="cm">// 1 − ∏(1−p)</span>
+surfaces   = <span class="kw">count</span>(p &gt; 0  <span class="kw">for</span> p <span class="kw">in</span> [pWS, pStatic, pRoute])
+isOpenClaw = ev.WSChallenge <span class="kw">||</span> surfaces &gt;= <span class="str">2</span> <span class="kw">||</span> confidence &gt;= <span class="str">0.97</span>
+
+<span class="cm">// 取版本（version.go:5-9，优先级回退）</span>
+<span class="kw">if</span> ev.ServerVersion != <span class="str">""</span>      <span class="kw">return</span> normalize(ServerVersion), <span class="str">"direct"</span>   <span class="cm">// 直读，需 auth=none</span>
+<span class="kw">else</span>                            <span class="kw">return</span> <span class="fn">MatchImplicit</span>(ev)                       <span class="cm">// 反推，需指纹库</span>
+<span class="cm">//   MatchImplicit：资产哈希集合精确相等 ▸ 退到 CSP-SHA256 精确相等 ▸ 否则版本为空</span></pre>
+
+    <ul class="clean">
+      <li><strong>WS 命中可单独定案。</strong><code>ev.WSChallenge</code> 为真时 <code>isOpenClaw</code> 直接为真——connect.challenge 是协议级信号，代理／WAF 难以伪造，故作最强单证。</li>
+      <li><strong>无 WS 时需 ≥2 个表面交叉。</strong>例如「favicon ∧ /healthz」或「title ∧ control-ui-config」，用跨表面冗余压低误报。</li>
+      <li><strong>版本直读的前提是疏防。</strong>仅当 control-ui-config 返回 200（即 <code>auth=none</code>）才读得到 <code>serverVersion</code>；一旦返回 401，直读失效，只能反推。</li>
+      <li><strong>常量 <code>detectConfidenceFloor=0.90</code> 已定义但未接入</strong>（consts.go:27）；判定实际用的阈值是硬编码的 <code>0.97</code>。属代码与注释的轻微不一致，不影响行为，记录在案。</li>
+    </ul>
+  </section>
+
+  <!-- 04 -->
+  <section>
+    <div class="sec-head"><span class="num">04</span><h2>制约单 IP 研判精准度的缺口</h2></div>
+    <p class="intro">以下缺口均基于源码事实，是“为什么对一台主机研判还不够精准”的真实原因，而非泛论。按对单 IP 研判的影响程度排序。</p>
+
+    <div class="grid lever">
+      <div class="row head"><div class="cell">缺口</div><div class="cell">说明（基于源码）</div></div>
+      <div class="row lever">
+        <div class="cell"><strong>6 组相邻版本不可区分</strong> <span class="tag code" style="font-size:10px;padding:1px 5px;">代码已证实</span></div>
+        <div class="cell">指纹库已覆盖全部 70 个正式版（原“仅 1 版”的硬缺口已解决）。残留限制是：纯后端改动的相邻版本前端 bundle 不变、资产指纹相同，实测有 6 组共 12 个版本无法区分（<code>1.12=1.13</code>、<code>1.23=1.24</code>、<code>3.7=3.8</code>、<code>4.7=4.8</code>、<code>4.20=4.21</code>、<code>5.5=5.6</code>）。被 401 挡住 <code>serverVersion</code> 又落在这些组的实例，只能反推到“两版之一”，探测器对此返回 <code>implicit-range</code> 候选集而非谎报单值。</div>
+      </div>
+      <div class="row lever">
+        <div class="cell"><strong>多数实例无法直读版本</strong> <span class="tag code" style="font-size:10px;padding:1px 5px;">代码已证实</span></div>
+        <div class="cell">直读 <code>serverVersion</code> 需 <code>control-ui-config</code> 返回 200 且响应含该字段。实测：该端点自 <code>v2026.4.22</code> 起加鉴权（无 token 即 401），<code>serverVersion</code> 字段约自 <code>v2026.3.12</code> 才加入。现实公网实例多为新版（返回 401），<strong>多数只能靠资产指纹反推，能直读精确版本的目标占比很低</strong>——这正是全量指纹库的价值所在。</div>
+      </div>
+      <div class="row lever">
+        <div class="cell"><strong>WS 载荷只做字符串匹配</strong> <span class="tag code" style="font-size:10px;padding:1px 5px;">代码已证实</span></div>
+        <div class="cell"><code>ws.go:66</code> 仅 <code>strings.Contains</code> 判断帧里是否含 <code>"event":"connect.challenge"</code>，不解析 JSON、不校验 <code>type</code>、不提取 <code>nonce/ts/payload</code>。结构化信息（含可能的协议代次线索）被丢弃。</div>
+      </div>
+      <div class="row lever">
+        <div class="cell"><strong>TLS 证书完全未采集</strong> <span class="tag code" style="font-size:10px;padding:1px 5px;">代码已证实</span></div>
+        <div class="cell">HTTP/WS 客户端均 <code>InsecureSkipVerify=true</code>（http.go:80），握手后未提取证书 CN/SAN/颁发者/自签状态/指纹。一个可独立佐证、且对资产聚类去重很有价值的表面被整体放弃。</div>
+      </div>
+      <div class="row lever">
+        <div class="cell"><strong>“未授权可访问”未列为一等输出</strong> <span class="tag code" style="font-size:10px;padding:1px 5px;">代码已证实</span></div>
+        <div class="cell">control-ui-config 返回 200（<code>auth=none</code>）即意味着配置可被任意读取，这是高危事实，但当前只并入置信打分，未在结果里单列 <code>unauthenticated</code> 标记。</div>
+      </div>
+      <div class="row lever">
+        <div class="cell"><strong>资产哈希要求集合精确相等</strong> <span class="tag code" style="font-size:10px;padding:1px 5px;">代码已证实</span></div>
+        <div class="cell"><code>fingerprints.go:40</code> 用 <code>setsEqual</code>。若某版本只改 js 未改 css，或 CDN 重写了文件名，集合不等即整体不命中，无部分匹配/相似度兜底。</div>
+      </div>
+      <div class="row lever">
+        <div class="cell"><strong>无暴露时效信息</strong> <span class="tag code" style="font-size:10px;padding:1px 5px;">代码已证实</span></div>
+        <div class="cell">单 IP 探测不记录、也不利用 <code>lastupdatetime</code> 类时效，无法区分“当前在线”与“历史残留”。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 -->
+  <section>
+    <div class="sec-head"><span class="num">05</span><h2>要补充哪些信息，单 IP 研判才更精准</h2></div>
+    <p class="intro">下列改进直接针对上一节的缺口。每条说明“补什么、怎么补、补完哪个信号变强”。可信级别已逐条标注：标 <span class="tag code" style="font-size:10px;padding:1px 5px;">代码已证实</span> 的是基于现有代码即可扩展的工作，标 <span class="tag plan" style="font-size:10px;padding:1px 5px;">规划 · 未实现</span> 的是源码尚无、需新建的能力。所有手段都必须维持“只读、非侵入”的不变量。</p>
+
+    <div class="lever-card" style="border-left-color: var(--olive);">
+      <h3>① 把指纹库扩到全量 <span class="tag" style="font-size:10px;padding:1px 5px;background:#E4E9DC;border-color:#C4D0B4;color:#3F5128;">已完成</span></h3>
+      <p>已用 <code>harness/collect_corpus.py</code> 采全自更名起的 70 个正式版（共 71 条）。主路径从官方镜像（<code>ghcr.io/openclaw/openclaw</code>）静态层 <code>docker cp</code> 出 <code>dist/control-ui</code>，不起服务、逐字节等同分发（57 版）；无官方镜像的最老版本回退到一次性 <code>node:22</code> 容器内 pnpm 构建，宿主机零污染（13 版）。同时改 <code>MatchImplicit</code> 返回候选集、新增 <code>implicit-range</code> 来源与 <code>version_candidates</code> 字段，命中不可区分区间时如实报候选。</p>
+      <p class="meta">→ 30 个随机版本经真实容器端到端验证全部识别正确（10 直读 / 17 反推单值 / 3 区间）。被 401 挡住版本号的实例现在也能反推出精确版本或版本区间。</p>
+    </div>
+
+    <div class="lever-card">
+      <h3>② 解析 WS connect.challenge 的 JSON 载荷 <span class="tag plan" style="font-size:10px;padding:1px 5px;">规划 · 未实现</span></h3>
+      <p>把 <code>ws.go:66</code> 的 <code>strings.Contains</code> 升级为 <code>json.Unmarshal</code>，校验 <code>{"type":"event","event":"connect.challenge","payload":{…}}</code> 完整结构，并提取握手字段。</p>
+      <p class="meta">→ WS 信号从“字符串巧合可伪造”升级为结构化确认；若载荷携带协议版本号，还能为版本判定增加一个不依赖 HTTP 的来源。</p>
+    </div>
+
+    <div class="lever-card">
+      <h3>③ 采集并研判 TLS 证书 <span class="tag plan" style="font-size:10px;padding:1px 5px;">规划 · 未实现</span></h3>
+      <p>对 TLS 目标，在握手后从 <code>tls.ConnectionState</code> 提取证书 CN/SAN/颁发者/自签状态/有效期/指纹，写入 Evidence，并视情况纳入指纹库。</p>
+      <p class="meta">→ 新增一个独立表面提升 noisy-OR 置信；佐证服务归属与是否自部署；为按证书去重、资产聚类提供比 IP 更稳的身份键。</p>
+    </div>
+
+    <div class="lever-card">
+      <h3>④ 把“未授权可访问”提升为一等研判输出 <span class="tag plan" style="font-size:10px;padding:1px 5px;">规划 · 未实现</span></h3>
+      <p>当 control-ui-config 返回 200（<code>auth=none</code>）时，在结果结构里单列 <code>unauthenticated=true</code> 的高危标记，而不仅并入置信分。</p>
+      <p class="meta">→ 让“这台配置可被任意读取”这一风险结论显式可消费，直接服务于风险分级与协同披露的优先级排序。</p>
+    </div>
+
+    <div class="lever-card">
+      <h3>⑤ 为资产哈希反推加部分匹配兜底 <span class="tag plan" style="font-size:10px;padding:1px 5px;">规划 · 未实现</span></h3>
+      <p>当资产集合不完全相等时，按 js/css 命中比例给出候选版本与一个置信度，而非直接判空；并对 CSP 哈希前做规范化（指令排序、去多余空白）。</p>
+      <p class="meta">→ 缓解 CDN 改名、部分升级导致的整体丢失，提升反推的召回与稳定性。</p>
+    </div>
+
+    <div class="lever-card">
+      <h3>⑥ 保留完整响应头与原始证据快照 <span class="tag plan" style="font-size:10px;padding:1px 5px;">规划 · 未实现</span></h3>
+      <p>除现有字段外，留存 <code>Server</code> 头与完整响应头快照、首页 HTML 结构特征、control-ui-config 的 JSON 键集合。</p>
+      <p class="meta">→ 既新增弱佐证信号，也为未来发现新版本特有指纹留存原始材料，使版本指纹可在资产哈希被 CDN 抹掉时仍有补充维度。</p>
+    </div>
+  </section>
+
+  <!-- 06 -->
+  <section>
+    <div class="sec-head"><span class="num">06</span><h2>规划文档中的设想与外部情报（须独立核实）</h2></div>
+    <p class="intro">项目规划文档（<code>plan_html/</code>）描述了一批更宏大的能力与背景数字。这些内容<strong>在当前 prober 源码中没有对应实现</strong>，本节如实呈现并标注其性质，使技术评估时能把“现状”与“设想／外部情报”清楚分开——这是本交付物“禁止编造”的直接体现。</p>
+
+    <div class="grid lever">
+      <div class="row head"><div class="cell">规划文档中的内容</div><div class="cell">本项目核实状态</div></div>
+      <div class="row lever">
+        <div class="cell">协议协商指纹 <code>minProtocol</code> / <code>maxProtocol</code>、握手 <code>server.version</code>、<code>protocol:4</code></div>
+        <div class="cell"><span class="tag plan" style="font-size:10px;padding:1px 5px;">规划 · 未实现</span> 源码仅对 WS 首帧做字符串匹配，未解析任何协议协商字段（见缺口②）。属改进项②的目标。</div>
+      </div>
+      <div class="row lever">
+        <div class="cell">TLS JARM / JA3S 传输层指纹（代理穿透场景）</div>
+        <div class="cell"><span class="tag plan" style="font-size:10px;padding:1px 5px;">规划 · 未实现</span> 代码库内无 JARM/JA3 实现。属改进项③的延伸。</div>
+      </div>
+      <div class="row lever">
+        <div class="cell">版本门控端点行为（某版本返回 404 vs 可用）作隐式版本信号</div>
+        <div class="cell"><span class="tag plan" style="font-size:10px;padding:1px 5px;">规划 · 未实现</span> 探测器未对“按版本变化的端点存在性”做差分判定。</div>
+      </div>
+      <div class="row lever">
+        <div class="cell">版本 → CVE 映射：<code>CVE-2026-25253</code>（CVSS 8.8）、<code>CVE-2026-25593</code>、<code>CVE-2026-32922</code></div>
+        <div class="cell"><span class="tag ext" style="font-size:10px;padding:1px 5px;">外部情报 · 待核实</span> 整个代码库（<code>plan_html/</code> 除外）检索不到这些 CVE 编号的任何出处，本项目未独立验证，<strong>映射能力亦未实现</strong>。引用前须对接权威 CVE 源核实。</div>
+      </div>
+      <div class="row lever">
+        <div class="cell">暴露规模：“约 40,000+ 实例、约 63% 脆弱（2026-02）”</div>
+        <div class="cell"><span class="tag ext" style="font-size:10px;padding:1px 5px;">外部情报 · 待核实</span> 代码库内无任何测量数据或出处支撑该数字，本项目未独立产出。引用须标明并核实来源。</div>
+      </div>
+    </div>
+    <div class="warn">
+      <strong>边界提醒：</strong>规划文档把上述能力按“已设计”的口吻叙述，易被误读为扫描器当前已具备。对技术客户的准确表述应是——这些是<strong>路线图与外部背景</strong>，当前可逐条对照源码核实的能力，以本文 §01–§03 为准。
+    </div>
+  </section>
+
+  <footer>
+    本文区分三层信息：标 <span class="tag code" style="font-size:10px;padding:1px 5px;">代码已证实</span> 者均可凭 <code>文件:行号</code> 在 prober 源码中逐条核对；标 <span class="tag plan" style="font-size:10px;padding:1px 5px;">规划 · 未实现</span> 与 <span class="tag ext" style="font-size:10px;padding:1px 5px;">外部情报 · 待核实</span> 者不代表当前能力，需独立核实。AgentSecTool Scanner 的目标是在合规、只读前提下精确发现并研判公网暴露的 OpenClaw 实例并取得版本，以支撑协同披露；版本指纹库已覆盖全部 70 个正式版并经 30 个真实容器验证，单 IP 研判的下一步精准化方向是消费 TLS 证书、WS 载荷结构与未授权高危态等尚未利用的信号。
+  </footer>
+
+</div>
+</body>
+</html>
