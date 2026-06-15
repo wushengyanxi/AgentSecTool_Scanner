@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw 扫描器优化建议</title>
+<style>
+  :root {
+    --ivory: #FAF9F5; --slate: #141413; --clay: #D97757; --olive: #788C5D;
+    --oat: #E3DACC; --plum: #8E6E8A; --gray-150: #F0EEE6; --gray-300: #D1CFC5;
+    --gray-500: #87867F; --gray-700: #3D3D3A; --white: #FFFFFF;
+    --serif: ui-serif, Georgia, "Times New Roman", "Songti SC", "STSong", serif;
+    --sans:  system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono:  ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--ivory); color: var(--gray-700); font-family: var(--sans); font-size: 14.5px; line-height: 1.75; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 56px 32px 120px; }
+
+  .eyebrow { font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--gray-500); margin: 0 0 14px; }
+  h1 { font-family: var(--serif); font-weight: 500; font-size: 36px; line-height: 1.3; letter-spacing: 0; color: var(--slate); margin: 0 0 24px; max-width: 880px; }
+  h2 { font-family: var(--serif); font-weight: 500; font-size: 26px; letter-spacing: 0; color: var(--slate); margin: 0; display: inline; }
+  h3 { font-family: var(--serif); font-weight: 500; font-size: 19px; letter-spacing: 0; color: var(--slate); margin: 0 0 8px; }
+  p { max-width: 760px; }
+  section { margin-bottom: 64px; }
+
+  .num { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--slate); background: var(--oat); border-radius: 5px; padding: 2px 8px; margin-right: 12px; position: relative; top: -3px; }
+  .sec-head { margin-bottom: 6px; }
+  .intro { color: var(--gray-500); font-size: 14.5px; line-height: 1.8; max-width: 760px; margin: 8px 0 28px; }
+
+  .tldr { background: var(--white); border: 1.5px solid var(--gray-300); border-left: 4px solid var(--clay); border-radius: 10px; padding: 18px 22px; margin: 0 0 40px; max-width: 880px; }
+  .tldr .lbl { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--clay); margin: 0 0 8px; }
+  .tldr p { margin: 0; font-size: 14.5px; line-height: 1.8; max-width: none; }
+
+  .legend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 0 0 8px; }
+  .lg-card { background: var(--white); border: 1.5px solid var(--gray-300); border-radius: 10px; padding: 14px 16px; }
+  .lg-card .tag { margin-bottom: 8px; }
+  .lg-card p { font-size: 13px; line-height: 1.7; color: var(--gray-700); margin: 0; max-width: none; }
+
+  .tag { display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: 0.02em; padding: 2px 8px; border-radius: 5px; border: 1.5px solid var(--gray-300); background: var(--gray-150); color: var(--gray-700); white-space: nowrap; }
+  .tag.ok   { background: #E4E9DC; border-color: #C4D0B4; color: #3F5128; }
+  .tag.warn { background: var(--oat); border-color: #CBBEA6; color: #6B5630; }
+  .tag.no   { background: #F3D9CC; border-color: #E3B49B; color: #8A3B1E; }
+
+  .strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 0 0 8px; }
+  .kv { background: var(--white); border: 1.5px solid var(--gray-300); border-radius: 10px; padding: 14px 16px; }
+  .kv .k { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray-500); margin: 0 0 6px; }
+  .kv .v { font-family: var(--serif); font-size: 22px; color: var(--slate); line-height: 1.2; }
+  .kv .v small { font-family: var(--sans); font-size: 12.5px; color: var(--gray-500); display: block; margin-top: 3px; font-weight: 400; }
+
+  .grid { border: 1.5px solid var(--gray-300); border-radius: 10px; overflow: hidden; margin: 8px 0 14px; background: var(--white); }
+  .grid .row { display: grid; border-top: 1.5px solid var(--gray-300); }
+  .grid .row:first-child { border-top: none; }
+  .grid .row.head { background: var(--gray-150); }
+  .grid .row.head .cell { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-500); font-weight: 600; }
+  .grid .cell { padding: 11px 14px; font-size: 13.5px; line-height: 1.6; border-left: 1.5px solid var(--gray-300); }
+  .grid .cell:first-child { border-left: none; }
+  .grid .cell code { font-family: var(--mono); font-size: 12.5px; color: var(--slate); background: var(--gray-150); padding: 1px 5px; border-radius: 4px; word-break: break-word; }
+  .grid .cell .ref { font-family: var(--mono); font-size: 11.5px; color: var(--gray-500); }
+  .rng { grid-template-columns: 1fr 1.3fr 2.4fr; }
+
+  p code, li code { font-family: var(--mono); font-size: 13px; color: var(--slate); background: var(--gray-150); padding: 1px 5px; border-radius: 4px; }
+
+  pre.code { background: var(--slate); color: #E8E6DF; border-radius: 10px; padding: 16px 18px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; margin: 8px 0 14px; }
+  pre.code .kw { color: var(--clay); } pre.code .str { color: #9DB07C; } pre.code .fn { color: #C9B98A; } pre.code .cm { color: var(--gray-500); font-style: italic; }
+
+  .rec { background: var(--white); border: 1.5px solid var(--gray-300); border-radius: 10px; padding: 16px 18px; margin-bottom: 14px; max-width: 880px; }
+  .rec.p1 { border-left: 4px solid var(--olive); }
+  .rec.p2 { border-left: 4px solid var(--clay); }
+  .rec.p3 { border-left: 4px solid var(--gray-300); }
+  .rec h3 { margin-bottom: 6px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .rec h3 .pri { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--gray-500); }
+  .rec p { margin: 0 0 8px; max-width: none; }
+  .rec p:last-child { margin-bottom: 0; }
+  .rec .how { font-family: var(--mono); font-size: 12px; color: var(--gray-700); background: var(--gray-150); border-radius: 6px; padding: 8px 10px; margin: 8px 0; line-height: 1.6; }
+  .rec .effect { font-size: 13.5px; color: var(--olive); }
+  .rec .bound { font-size: 13px; color: #8A3B1E; }
+
+  .caption { font-size: 12.5px; color: var(--gray-500); line-height: 1.7; margin: 6px 0 0; max-width: 880px; }
+  .diagram { background: var(--white); border: 1.5px solid var(--gray-300); border-radius: 12px; padding: 20px; margin: 8px 0 14px; overflow-x: auto; }
+  .diagram svg { display: block; min-width: 760px; }
+
+  footer { border-top: 1.5px solid var(--gray-300); margin-top: 40px; padding-top: 20px; color: var(--gray-500); font-size: 13.5px; line-height: 1.8; max-width: 880px; }
+
+  @media (max-width: 900px) {
+    .strip { grid-template-columns: repeat(2, 1fr); } .legend { grid-template-columns: 1fr; } .rng { grid-template-columns: 1fr; }
+    .grid .cell { border-left: none; border-top: 1px dashed var(--gray-300); } .grid .row .cell:first-child { border-top: none; } .grid .row.head { display: none; }
+  }
+  @media (max-width: 720px) { .wrap { padding: 40px 18px 80px; } h1 { font-size: 28px; } .strip { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">AgentSecTool Scanner · 技术交付说明 · 续篇</p>
+  <h1>扫描器优化建议：从全量指纹库出发，下一步怎么把单 IP 研判做得更准</h1>
+
+  <div class="tldr">
+    <p class="lbl">前提与结论</p>
+    <p>版本指纹库已覆盖全部 70 个正式版并经 30 个真实容器验证（详见《扫描研判依据与精准化路径》）。本篇基于这轮采集与验证中实测到的三个新事实——<strong>现实多数实例返回 401、只能靠指纹反推；6 组共 12 个版本资产指纹相同、只读手段无法区分；WS 只读握手拿不到版本号</strong>——给出分优先级、可落地、且每条都标明效果边界的优化建议。本篇严格区分“实测/源码证实”“待实测”“经核实不可行”三类，凡查证后站不住的方向也明确写出，避免误导工程投入。</p>
+  </div>
+
+  <p style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:var(--gray-500);margin:0 0 12px;">建议的可信级别标注</p>
+  <div class="legend">
+    <div class="lg-card"><span class="tag ok">实测/源码证实</span><p>效果与可行性已由真实容器实测或源码确认，落地路径清晰。</p></div>
+    <div class="lg-card"><span class="tag warn">待实测确认</span><p>方向合理、有源码线索，但具体效果需在真实实例上验证后才能下结论，不预先许诺。</p></div>
+    <div class="lg-card"><span class="tag no">经核实 · 不可行/受限</span><p>看似可行，但查证后发现受只读约束或部署现实限制而走不通。列出是为了告诉评估者“这条路别投”。</p></div>
+  </div>
+
+  <div class="strip" style="margin-top:40px;">
+    <div class="kv"><div class="k">现实可直读版本</div><div class="v">少数<small>多数 401 需反推</small></div></div>
+    <div class="kv"><div class="k">不可区分版本</div><div class="v">12<small>6 组相邻版本</small></div></div>
+    <div class="kv"><div class="k">WS 只读取版本</div><div class="v">否<small>实测仅得 nonce/ts</small></div></div>
+    <div class="kv"><div class="k">优先级建议</div><div class="v">3 级<small>P1 立做 / P2 增益 / P3 缓</small></div></div>
+  </div>
+
+  <!-- 01 核心矛盾 -->
+  <section>
+    <div class="sec-head"><span class="num">01</span><h2>先认清核心矛盾：为什么“指纹库全了”仍不够</h2></div>
+    <p class="intro">指纹库覆盖到全量后，单 IP 研判的瓶颈从“数据缺失”转移到了三个结构性限制。这三个限制是本篇所有建议的出发点，每个都有实测依据。</p>
+
+    <div class="grid rng">
+      <div class="row head"><div class="cell">限制</div><div class="cell">实测事实</div><div class="cell">对单 IP 研判的影响</div></div>
+      <div class="row rng">
+        <div class="cell"><strong>多数实例无法直读版本</strong> <span class="tag ok" style="font-size:10px;padding:1px 5px;">实测</span></div>
+        <div class="cell"><code>control-ui-config</code> 自 <code>v2026.4.22</code> 加鉴权（实测：4.12 返回 200、4.22 返回 401）；<code>serverVersion</code> 字段约自 <code>v2026.3.12</code> 才出现。</div>
+        <div class="cell">现实公网实例多为新版 → 返回 401 → 走不了直读，<strong>绝大多数目标只能靠资产指纹反推</strong>。指纹库的反推质量因此是研判精度的命门。</div>
+      </div>
+      <div class="row rng">
+        <div class="cell"><strong>6 组版本不可区分</strong> <span class="tag ok" style="font-size:10px;padding:1px 5px;">实测</span></div>
+        <div class="cell">纯后端改动的相邻版本前端 bundle 未变、资产指纹相同：<code>1.12=1.13</code>、<code>1.23=1.24</code>、<code>3.7=3.8</code>、<code>4.7=4.8</code>、<code>4.20=4.21</code>、<code>5.5=5.6</code>。</div>
+        <div class="cell">这 12 个版本若被 401 挡住版本号，反推只能到“两版之一”，探测器已如实返回 <code>implicit-range</code> 候选集。要再缩小，需要新的区分信号。</div>
+      </div>
+      <div class="row rng">
+        <div class="cell"><strong>WS 只读拿不到版本</strong> <span class="tag ok" style="font-size:10px;padding:1px 5px;">实测</span></div>
+        <div class="cell">实测对真实容器只读握手：服务端只主动推 <code>connect.challenge</code> 一帧，payload 仅 <code>nonce</code>/<code>ts</code>。带 <code>server.version</code> 的 <code>hello-ok</code> 帧需先发认证 <code>connect</code> 帧才回。</div>
+        <div class="cell">发认证帧违反只读原则，<strong>WS 这条路在合规约束下取不到版本</strong>。WS 信号的价值在判定（抗伪造），不在取版本。</div>
+      </div>
+    </div>
+    <p class="caption">三条限制共同决定：提升单 IP 研判精度的真问题，是“在只读约束下，为被 401 挡住、且落在不可区分组的实例，找到更多区分信号”，而非继续堆指纹数据。</p>
+  </section>
+
+  <!-- 02 P1 建议 -->
+  <section>
+    <div class="sec-head"><span class="num">02</span><h2>P1：基于现有代码即可落地、收益直接</h2></div>
+    <p class="intro">这一级都建立在已采集的证据或现有探测逻辑上，改动集中在 prober 侧，不依赖未实现的能力。</p>
+
+    <div class="rec p1">
+      <h3>① 解析 connect.challenge 帧，把 WS 判定从“字符串匹配”升级为“结构化确认” <span class="pri">P1</span> <span class="tag ok" style="font-size:10px;padding:1px 5px;">实测/源码证实</span></h3>
+      <p>当前 <code>ws.go:66</code> 仅 <code>strings.Contains</code> 判断帧里是否含 <code>"event":"connect.challenge"</code>——任何服务只要响应里巧合带上这串就会被误判。实测确认该帧结构为 <code>{"type":"event","event":"connect.challenge","payload":{"nonce":...,"ts":...}}</code>。</p>
+      <p class="how">改为 <code>json.Unmarshal</code> 并校验：<code>type=="event"</code> ∧ <code>event=="connect.challenge"</code> ∧ <code>payload</code> 含 <code>nonce</code>（UUID 形态）与 <code>ts</code>（数值）。</p>
+      <p class="effect">→ WS 信号从“可被字符串巧合伪造”升级为“结构化确认”，抗伪装，直接提升判定可信度。</p>
+      <p class="bound">边界：该帧<strong>不含版本信息</strong>（实测），此项只增强“是不是 OpenClaw”的判定，<strong>不解决取版本</strong>。不要期待它缩小不可区分区间。</p>
+    </div>
+
+    <div class="rec p1">
+      <h3>② 把“未授权可访问”提升为一等研判输出 <span class="pri">P1</span> <span class="tag ok" style="font-size:10px;padding:1px 5px;">源码证实</span></h3>
+      <p>当 <code>control-ui-config</code> 返回 200（v2026.4.21 及更早、或新版未启用鉴权）时，配置元数据可被任意读取——这本身是高危事实。当前它只并入置信打分，未单独输出。</p>
+      <p class="how">在 <code>Result</code> 增 <code>unauthenticated bool</code>：当 <code>ControlUIStatus==200</code> 且取到 <code>serverVersion</code> 时置真。</p>
+      <p class="effect">→ 让“这台配置可被任意读取”成为显式、可消费的风险结论，直接服务于风险分级与协同披露的优先级排序。</p>
+      <p class="bound">边界：返回 200 的实例现实占比低（多数已升级到 401），此标记命中的是少数老旧或错误配置的高危实例——恰恰是披露最该优先的对象。</p>
+    </div>
+
+    <div class="rec p1">
+      <h3>③ 资产指纹反推加“部分匹配”兜底 <span class="pri">P1</span> <span class="tag warn" style="font-size:10px;padding:1px 5px;">待实测确认</span></h3>
+      <p>当前 <code>MatchImplicit</code>（<code>fingerprints.go</code>）要求资产名集合<strong>精确相等</strong>。现实中 CDN 改名、或某版只改了 js 没改 css，会导致集合不等而整体落空、退回无版本。</p>
+      <p class="how">集合不完全相等时，按 js/css 命中比例给出候选版本 + 一个置信度，而非直接判空；返回结构复用已有的 <code>version_candidates</code>。</p>
+      <p class="effect">→ 缓解“部分升级 / CDN 改名”导致的整体丢失，提升反推召回。</p>
+      <p class="bound">边界：需在真实样本上验证“部分匹配”不会引入误配（两个无关版本恰好共享一个资产名）。落地前应先统计 71 版指纹库里 js/css 单独命中的碰撞率。</p>
+    </div>
+  </section>
+
+  <!-- 03 P2 -->
+  <section>
+    <div class="sec-head"><span class="num">03</span><h2>P2：需新增采集、作为增量佐证信号</h2></div>
+    <p class="intro">这一级能提升判定鲁棒性或为未来留存证据，但效果需实测，且不直接解决不可区分问题。</p>
+
+    <div class="rec p2">
+      <h3>④ 留存完整响应头与原始证据快照 <span class="pri">P2</span> <span class="tag warn" style="font-size:10px;padding:1px 5px;">待实测确认</span></h3>
+      <p>当前 <code>Evidence</code>（<code>result.go</code>）把三件套头压成一个 <code>HeaderTriplet</code> 布尔、CSP 只存哈希，<code>Server</code> 头、<code>Content-Length/ETag/Last-Modified</code> 等全部丢弃。</p>
+      <p class="how">新增字段留存完整响应头快照与 control-ui-config 的 JSON 键集合；探测时一并落盘。</p>
+      <p class="effect">→ 既新增弱佐证信号，也为“未来发现某版本特有的头/键”留存原始材料——指纹维度可在资产名被 CDN 抹掉时多一条后路。</p>
+      <p class="bound">边界：源码核查未能定位到设置三件套头与 CSP 的服务端代码——但这与<strong>实测明确观测到这些头存在</strong>相矛盾，说明它们可能由中间件或未检索到的路径设置。<strong>落地前需先实测确认这些头的确切来源</strong>（OpenClaw 自身 vs 反代注入），否则可能把反代特征误当成 OpenClaw 指纹。</p>
+    </div>
+
+    <div class="rec p2">
+      <h3>⑤ 采集 TLS 证书作为独立表面与去重键 <span class="pri">P2</span> <span class="tag no" style="font-size:10px;padding:1px 5px;">经核实 · 受限</span></h3>
+      <p>设想是从 <code>tls.ConnectionState</code> 提取证书 CN/SAN/颁发者/自签状态/指纹，新增一个独立判定表面，并作为比 IP 更稳的资产去重键。</p>
+      <p class="bound" style="margin-bottom:8px;">边界（重要）：源码确认 <strong>OpenClaw gateway 默认明文 HTTP</strong>（<code>src/infra/tls/gateway.ts</code>，TLS 默认 <code>enabled=false</code>）。现实里 TLS 多由前置反代提供，<strong>证书属于反代、不是 OpenClaw</strong>——用它判 OpenClaw 版本没有依据。</p>
+      <p class="effect">→ 仍有价值的部分：证书可用于<strong>资产聚类与去重</strong>（同一反代后的多实例）、以及判断“是否自部署”，但<strong>不能作为版本信号</strong>。建议只在去重/归属场景启用，不纳入版本判定。</p>
+    </div>
+  </section>
+
+  <!-- 04 不可行/受限 -->
+  <section>
+    <div class="sec-head"><span class="num">04</span><h2>经核实走不通的方向（避免无效投入）</h2></div>
+    <p class="intro">以下方向看起来能缩小不可区分区间或补充版本信号，但查证后确认在只读约束或部署现实下站不住。明确列出，避免评估者重复投入。</p>
+
+    <div class="grid rng">
+      <div class="row head"><div class="cell">设想方向</div><div class="cell">核实结论</div><div class="cell">为什么走不通</div></div>
+      <div class="row rng">
+        <div class="cell"><strong>用 WS hello-ok 取 server.version</strong> <span class="tag no" style="font-size:10px;padding:1px 5px;">实测否定</span></div>
+        <div class="cell">实测：只读握手只收到 <code>connect.challenge</code>（仅 nonce/ts）。带 <code>server.version</code> 的 <code>hello-ok</code> 需先发认证 <code>connect</code> 帧。</div>
+        <div class="cell">发 <code>connect</code> 帧属认证/改状态动作，<strong>违反只读不变量</strong>（单测固化）。合规前提下这条路取不到版本。</div>
+      </div>
+      <div class="row rng">
+        <div class="cell"><strong>主动请求区分 1.23/1.24、3.7/3.8</strong> <span class="tag no" style="font-size:10px;padding:1px 5px;">违反只读</span></div>
+        <div class="cell">源码：这 2 组确有协议级差异（<code>stripMessageIdHints</code>、<code>systemInputProvenance</code> 字段），但只在 <strong>chat send 请求/响应</strong>中体现。</div>
+        <div class="cell">触发这些差异需发 chat 消息——属改状态动作，<strong>越界</strong>。故这 2 组在只读约束下仍不可区分。</div>
+      </div>
+      <div class="row rng">
+        <div class="cell"><strong>区分另外 4 组纯后端版本</strong> <span class="tag no" style="font-size:10px;padding:1px 5px;">原理不可行</span></div>
+        <div class="cell">源码：<code>1.12=1.13</code>、<code>4.7=4.8</code>、<code>4.20=4.21</code>、<code>5.5=5.6</code> 的改动全在后端逻辑/测试/出站请求头。</div>
+        <div class="cell">这些改动<strong>不产生任何外部可观测差异</strong>。任何只读手段都无法区分，应接受“报区间”为这些版本的最终结果。</div>
+      </div>
+    </div>
+    <p class="caption">结论：6 组不可区分版本里，没有任何一组能在只读约束下被进一步区分——这不是工程缺陷，是这些版本“前端无变化 / 差异仅在需鉴权的交互中”的固有性质。对它们，<code>implicit-range</code> 候选集就是诚实且最优的输出。</p>
+  </section>
+
+  <!-- 05 路线图 -->
+  <section>
+    <div class="sec-head"><span class="num">05</span><h2>建议的落地顺序</h2></div>
+    <p class="intro">按“收益/成本/合规风险”排序。P1 三项改动集中在 prober 侧、风险低、收益明确，建议优先；P2 两项需先实测前置事实再决定是否投入。</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 980 230" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace">
+        <rect x="20" y="30" width="290" height="170" rx="10" fill="#FFFFFF" stroke="#788C5D" stroke-width="1.5"/>
+        <text x="36" y="55" fill="#3F5128" font-size="12.5" font-weight="600">P1 · 先做（prober 侧，低风险）</text>
+        <text x="36" y="82" fill="#3D3D3A" font-size="11.5">① 解析 connect.challenge 帧</text>
+        <text x="36" y="103" fill="#87867F" font-size="10.5">  WS 判定抗伪造</text>
+        <text x="36" y="126" fill="#3D3D3A" font-size="11.5">② unauthenticated 一等输出</text>
+        <text x="36" y="147" fill="#87867F" font-size="10.5">  高危实例显式可消费</text>
+        <text x="36" y="170" fill="#3D3D3A" font-size="11.5">③ 资产反推部分匹配兜底</text>
+        <text x="36" y="191" fill="#87867F" font-size="10.5">  先统计碰撞率再落地</text>
+
+        <rect x="345" y="30" width="290" height="170" rx="10" fill="#FFFFFF" stroke="#D97757" stroke-width="1.5"/>
+        <text x="361" y="55" fill="#8A3B1E" font-size="12.5" font-weight="600">P2 · 增益（需先实测前置）</text>
+        <text x="361" y="82" fill="#3D3D3A" font-size="11.5">④ 留存完整响应头快照</text>
+        <text x="361" y="103" fill="#87867F" font-size="10.5">  先确认头来源(自身/反代)</text>
+        <text x="361" y="126" fill="#3D3D3A" font-size="11.5">⑤ TLS 证书</text>
+        <text x="361" y="147" fill="#87867F" font-size="10.5">  仅去重/归属，不判版本</text>
+        <text x="361" y="178" fill="#87867F" font-size="10.5">  默认明文，覆盖面受限</text>
+
+        <rect x="670" y="30" width="290" height="170" rx="10" fill="#141413"/>
+        <text x="686" y="55" fill="#FAF9F5" font-size="12.5" font-weight="600">不投入（经核实走不通）</text>
+        <text x="686" y="82" fill="#E3DACC" font-size="11.5">✗ WS hello-ok 取版本</text>
+        <text x="686" y="103" fill="#9B9890" font-size="10.5">  需认证，违反只读</text>
+        <text x="686" y="126" fill="#E3DACC" font-size="11.5">✗ 主动请求区分版本</text>
+        <text x="686" y="147" fill="#9B9890" font-size="10.5">  发 chat 帧，越界</text>
+        <text x="686" y="170" fill="#E3DACC" font-size="11.5">✗ 区分 4 组纯后端版本</text>
+        <text x="686" y="191" fill="#9B9890" font-size="10.5">  无外部可观测差异</text>
+      </svg>
+      <p class="caption">绿框＝建议优先做的低风险高收益项；橙框＝有条件的增益项，需先验证前置事实；深色框＝经核实在只读约束下走不通的方向，列出以避免无效投入。深色表示“终止区”，非“最重要”。</p>
+    </div>
+  </section>
+
+  <footer>
+    本篇延续《扫描研判依据与精准化路径》，把这轮指纹库全量化与 30 版验证中实测到的限制，转化为分级、可落地、标明边界的优化建议。每条建议的可信级别与边界均基于源码或真实容器实测，凡查证后站不住的方向（WS 取版本、主动请求区分、区分纯后端版本）一并写出，避免误导工程投入。下一阶段单 IP 研判精度的现实上限，由“被 401 挡住 + 落在不可区分组”的实例比例决定——P1 三项是当前性价比最高的推进方向。
+  </footer>
+
+</div>
+</body>
+</html>
