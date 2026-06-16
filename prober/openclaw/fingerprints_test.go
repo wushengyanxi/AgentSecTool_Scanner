@@ -16,9 +16,9 @@ func TestMatchImplicit(t *testing.T) {
 	if h := db.MatchImplicit(Evidence{AssetHashes: []string{"index-B6U1kUNL.css", "index-DC4lnoz-.js"}}); len(h) != 1 || h[0] != "2026.5.17" {
 		t.Fatalf("asset-set match: got %v want [2026.5.17]", h)
 	}
-	// 仅 CSP 哈希匹配（资产拿不到时的退路）。
-	if h := db.MatchImplicit(Evidence{CSPSHA256: "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b"}); len(h) != 1 || h[0] != "2026.5.17" {
-		t.Fatalf("csp match: got %v want [2026.5.17]", h)
+	// 仅有 CSP、资产名拿不到 → 返回空（不再退到 CSP 匹配，因 CSP 全版本相同、区分力为零）。
+	if h := db.MatchImplicit(Evidence{CSPSHA256: "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b"}); h != nil {
+		t.Fatalf("csp-only should not match (csp 无区分力): got %v", h)
 	}
 	// 不匹配则返回 nil。
 	if h := db.MatchImplicit(Evidence{AssetHashes: []string{"index-zzz.js"}}); h != nil {

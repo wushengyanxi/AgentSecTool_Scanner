@@ -31,38 +31,28 @@ func LoadFingerprintDB(path string) (*FingerprintDB, error) {
 	return &db, nil
 }
 
-// MatchImplicit 用隐式信号反推版本：首页资产哈希集合精确匹配优先，CSP 哈希次之。
+// MatchImplicit 用隐式信号反推版本：首页资产哈希集合精确匹配。
 // 资产名随每次构建的内容哈希变化，但纯后端改动的相邻版本前端 bundle 不变、资产指纹相同
 // （实测有若干组，如 2026.3.7=2026.3.8）。故返回【全部】匹配版本：单个=精确，多个=不可区分区间，
-// 由调用方如实呈现，不谎报单一精确版本。无匹配返回 nil。
+// 由调用方如实呈现，不谎报单一精确版本。资产名不在库（如未采集的新版本）则返回 nil（无版本）。
+//
+// 注意：不再用 CSP 哈希回退——control-ui 那串 CSP 是静态常量、全版本相同（区分力为零），
+// 用它匹配会命中指纹库的全部版本，产出一个毫无意义的「全版本区间」。资产名不命中就老实报无版本。
 func (db *FingerprintDB) MatchImplicit(ev Evidence) []string {
 	if db == nil {
 		return nil
 	}
 	evAssets := toSet(ev.AssetHashes)
-	if len(evAssets) > 0 {
-		var hits []string
-		for _, e := range db.Entries {
-			if len(e.AssetHashes) > 0 && setsEqual(toSet(e.AssetHashes), evAssets) {
-				hits = append(hits, e.Version)
-			}
-		}
-		if len(hits) > 0 {
-			return hits
+	if len(evAssets) == 0 {
+		return nil
+	}
+	var hits []string
+	for _, e := range db.Entries {
+		if len(e.AssetHashes) > 0 && setsEqual(toSet(e.AssetHashes), evAssets) {
+			hits = append(hits, e.Version)
 		}
 	}
-	if ev.CSPSHA256 != "" {
-		var hits []string
-		for _, e := range db.Entries {
-			if e.CSPSHA256 != "" && e.CSPSHA256 == ev.CSPSHA256 {
-				hits = append(hits, e.Version)
-			}
-		}
-		if len(hits) > 0 {
-			return hits
-		}
-	}
-	return nil
+	return hits
 }
 
 func toSet(xs []string) map[string]struct{} {
