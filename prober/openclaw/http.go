@@ -17,25 +17,31 @@ import (
 
 const maxBodyBytes = 256 * 1024
 
+// respSnippet 限制入库的响应体长度，避免单条记录过大（完整体仍用于提取，仅原文截断）。
+const respSnippet = 8 * 1024
+
 var (
 	titleRe = regexp.MustCompile(`(?is)<title>([^<]*)</title>`)
 	// 生产构建的内容哈希资产名，如 assets/index-DC4lnoz-.js / index-B6U1kUNL.css。
 	assetRe = regexp.MustCompile(`assets/(index-[A-Za-z0-9_.\-]+\.(?:js|css))`)
 )
 
-// probeHTTP 对目标做一组无鉴权 GET，把观测写进 ev。全程只读。
+// probeHTTP 对目标做一组无鉴权 GET，把观测写进 ev，并为每个测试项记录完整请求/响应原文。全程只读。
 func probeHTTP(ctx context.Context, host string, port uint16, tlsOn bool, timeout time.Duration, ev *Evidence) {
 	client := newHTTPClient(timeout)
 	base := fmt.Sprintf("%s://%s:%d", schemeFor(tlsOn), host, port)
 
-	// /healthz —— 精确体 {"ok":true,"status":"live"}
-	if status, body, _ := httpGet(ctx, client, base+"/healthz"); status == http.StatusOK {
+	// /healthz —— T4：精确体 {"ok":true,"status":"live"}
+	status, body, hdr := httpGet(ctx, client, base+"/healthz")
+	if status == http.StatusOK {
 		s := string(body)
 		ev.HealthzMatch = strings.Contains(s, `"status":"live"`) && strings.Contains(s, `"ok":true`)
 	}
+	ev.Probes = append(ev.Probes, probeRec(T4, "GET /healthz", host, port, status, hdr, body, ev.HealthzMatch))
 
-	// 首页 —— 标题、资产哈希、响应头三件套
-	if status, body, hdr := httpGet(ctx, client, base+"/"); status == http.StatusOK {
+	// 首页 —— T6（title）、T5 的资产名、T7（响应头三件套）共用此响应
+	status, body, hdr = httpGet(ctx, client, base+"/")
+	if status == http.StatusOK {
 		if m := titleRe.FindStringSubmatch(string(body)); m != nil {
 			ev.Title = strings.TrimSpace(m[1])
 		}
@@ -46,9 +52,13 @@ func probeHTTP(ctx context.Context, host string, port uint16, tlsOn bool, timeou
 			ev.HeaderTriplet = true
 		}
 	}
+	// 首页这条记录在 matched 里支撑 T6/T7（title 命中或头三件套），hit 取二者之一。
+	ev.Probes = append(ev.Probes, probeRec("home", "GET /", host, port, status, hdr, body,
+		ev.Title == TitleMarker || ev.HeaderTriplet))
 
-	// control-ui-config —— 路由知识（401/200）、CSP、serverVersion（仅 auth=none 时 200）
-	if status, body, hdr := httpGet(ctx, client, base+ControlUIConfigPath); status != 0 {
+	// control-ui-config —— T1（200+serverVersion）/ T3（401）；CSP、serverVersion
+	status, body, hdr = httpGet(ctx, client, base+ControlUIConfigPath)
+	if status != 0 {
 		ev.ControlUIStatus = status
 		if csp := hdr.Get("Content-Security-Policy"); csp != "" {
 			ev.CSP = csp
@@ -66,11 +76,41 @@ func probeHTTP(ctx context.Context, host string, port uint16, tlsOn bool, timeou
 			ev.HeaderTriplet = true
 		}
 	}
+	t1or3 := (status == http.StatusOK && ev.ServerVersion != "") || status == http.StatusUnauthorized
+	ev.Probes = append(ev.Probes, probeRec("control-ui", "GET "+ControlUIConfigPath, host, port, status, hdr, body, t1or3))
 
-	// favicon —— md5 比对
-	if status, body, _ := httpGet(ctx, client, base+"/favicon.ico"); status == http.StatusOK && len(body) > 0 {
+	// favicon —— T5：md5 比对
+	status, body, _ = httpGet(ctx, client, base+"/favicon.ico")
+	if status == http.StatusOK && len(body) > 0 {
 		ev.FaviconMD5 = fmt.Sprintf("%x", md5.Sum(body))
 	}
+	ev.Probes = append(ev.Probes, probeRec(T5, "GET /favicon.ico", host, port, status, nil, body, ev.FaviconMD5 == FaviconMD5))
+}
+
+// probeRec 把一次 HTTP 请求/响应组装成 ProbeRecord（响应体截断至 respSnippet，避免记录过大）。
+func probeRec(id, reqLine, host string, port uint16, status int, hdr http.Header, body []byte, hit bool) ProbeRecord {
+	req := fmt.Sprintf("%s HTTP/1.1\r\nHost: %s:%d\r\nUser-Agent: %s\r\n", reqLine, host, port, scannerUserAgent)
+	var resp strings.Builder
+	if status == 0 {
+		resp.WriteString("(无响应 / 连接失败)")
+	} else {
+		fmt.Fprintf(&resp, "HTTP/1.1 %d\r\n", status)
+		for k, vs := range hdr {
+			for _, v := range vs {
+				fmt.Fprintf(&resp, "%s: %s\r\n", k, v)
+			}
+		}
+		resp.WriteString("\r\n")
+		b := body
+		if len(b) > respSnippet {
+			b = b[:respSnippet]
+		}
+		resp.Write(b)
+		if len(body) > respSnippet {
+			fmt.Fprintf(&resp, "\n…(响应体截断，原长 %d 字节)", len(body))
+		}
+	}
+	return ProbeRecord{ID: id, Request: req, Response: resp.String(), Hit: hit}
 }
 
 func newHTTPClient(timeout time.Duration) *http.Client {

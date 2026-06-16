@@ -88,25 +88,40 @@ func TestProbeWS_ReadOnlyAndChallenge(t *testing.T) {
 	}
 }
 
-func TestScore(t *testing.T) {
+// TestEvaluate 验证二元白名单：True 当且仅当 C1(T1) 或 C2(T2 && (T3||T4))。
+func TestEvaluate(t *testing.T) {
 	cases := []struct {
-		name   string
-		ev     Evidence
-		wantOC bool
+		name     string
+		ev       Evidence
+		wantOC   bool
+		wantRule string
 	}{
-		{"ws alone", Evidence{WSChallenge: true}, true},
-		{"favicon alone (1 surface)", Evidence{FaviconMD5: FaviconMD5}, false},
-		{"title alone (1 surface)", Evidence{Title: TitleMarker}, false},
-		{"favicon+healthz cross-surface", Evidence{FaviconMD5: FaviconMD5, HealthzMatch: true}, true},
-		{"favicon+title same surface", Evidence{FaviconMD5: FaviconMD5, Title: TitleMarker}, false},
-		{"http cluster", Evidence{FaviconMD5: FaviconMD5, Title: TitleMarker, HealthzMatch: true, ControlUIStatus: 401}, true},
-		{"nothing", Evidence{}, false},
+		// C1：确证级单独成立
+		{"T1 control-ui 200+ver", Evidence{ControlUIStatus: 200, ServerVersion: "2026.5.17"}, true, "C1"},
+		// C2：跨表面双强
+		{"T2+T3 ws+401", Evidence{WSChallenge: true, ControlUIStatus: 401}, true, "C2"},
+		{"T2+T4 ws+healthz", Evidence{WSChallenge: true, HealthzMatch: true}, true, "C2"},
+		// 单个强证据不够（防单点伪造）
+		{"T2 ws alone", Evidence{WSChallenge: true}, false, ""},
+		{"T3 401 alone", Evidence{ControlUIStatus: 401}, false, ""},
+		{"T4 healthz alone", Evidence{HealthzMatch: true}, false, ""},
+		// 同表面双强不跨表面 → False
+		{"T3+T4 same surface", Evidence{ControlUIStatus: 401, HealthzMatch: true}, false, ""},
+		// 纯弱证据，无论多少都 False（防蜜罐）
+		{"T5 favicon alone", Evidence{FaviconMD5: FaviconMD5}, false, ""},
+		{"T5+T6 favicon+title", Evidence{FaviconMD5: FaviconMD5, Title: TitleMarker}, false, ""},
+		{"T5+T6+T7 all weak", Evidence{FaviconMD5: FaviconMD5, Title: TitleMarker, HeaderTriplet: true}, false, ""},
+		// 弱+单强但未跨表面双强 → False（情况 D：WS + favicon）
+		{"T2+T5 ws+favicon no route", Evidence{WSChallenge: true, FaviconMD5: FaviconMD5}, false, ""},
+		// control-ui 200 但无 serverVersion → 非 T1
+		{"200 no version", Evidence{ControlUIStatus: 200}, false, ""},
+		{"nothing", Evidence{}, false, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			conf, isOC, _ := score(c.ev)
-			if isOC != c.wantOC {
-				t.Fatalf("isOpenClaw=%v want %v (confidence=%.4f)", isOC, c.wantOC, conf)
+			ok, _, rule := evaluate(c.ev)
+			if ok != c.wantOC || rule != c.wantRule {
+				t.Fatalf("evaluate=(%v,%q) want (%v,%q)", ok, rule, c.wantOC, c.wantRule)
 			}
 		})
 	}
@@ -137,6 +152,6 @@ func TestProbeIntegration(t *testing.T) {
 	if !r.Evidence.WSChallenge {
 		t.Errorf("expected WS connect.challenge to be observed")
 	}
-	t.Logf("integration result: confidence=%.4f signals=%v version=%q source=%q",
-		r.Confidence, r.Signals, r.Version, r.VersionSource)
+	t.Logf("integration result: verdict=%v rule=%q matched=%v version=%q source=%q",
+		r.IsOpenClaw, r.Rule, r.Matched, r.Version, r.VersionSource)
 }

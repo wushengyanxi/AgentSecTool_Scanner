@@ -24,6 +24,18 @@ const maxWSFrameBytes = 1 << 20 // 1 MiB 上限，防止恶意大帧
 // 只读不变量：本函数对连接只执行一次 Write —— 那个 HTTP 升级请求。
 // 绝不发送任何 WebSocket 数据帧（尤其不发 connect / config.apply）。
 func probeWS(ctx context.Context, host string, port uint16, tlsOn bool, timeout time.Duration, dial dialFunc, ev *Evidence) {
+	// 唯一的一次写：HTTP 升级请求（构造在前，用于 ProbeRecord 入库）。
+	req := "GET / HTTP/1.1\r\n" +
+		"Host: " + host + "\r\n" +
+		"User-Agent: " + scannerUserAgent + "\r\n" +
+		"Upgrade: websocket\r\n" +
+		"Connection: Upgrade\r\n" +
+		"Sec-WebSocket-Key: " + wsKey() + "\r\n" +
+		"Sec-WebSocket-Version: 13\r\n\r\n"
+	// rec 在函数结束时把 T2 的请求/响应记入 ev.Probes；resp 由各退出点填写。
+	resp := "(连接失败 / 无响应)"
+	defer func() { ev.Probes = append(ev.Probes, ProbeRecord{ID: T2, Request: req, Response: resp, Hit: ev.WSChallenge}) }()
+
 	addr := fmt.Sprintf("%s:%d", host, port)
 	conn, err := dial(ctx, "tcp", addr)
 	if err != nil {
@@ -38,32 +50,29 @@ func probeWS(ctx context.Context, host string, port uint16, tlsOn bool, timeout 
 		tc := tls.Client(conn, &tls.Config{InsecureSkipVerify: true, ServerName: host})
 		_ = tc.SetDeadline(deadline)
 		if err := tc.HandshakeContext(ctx); err != nil {
+			resp = "(TLS 握手失败)"
 			return
 		}
 		conn = tc
 	}
 
-	// 唯一的一次写：HTTP 升级请求。
-	req := "GET / HTTP/1.1\r\n" +
-		"Host: " + host + "\r\n" +
-		"User-Agent: " + scannerUserAgent + "\r\n" +
-		"Upgrade: websocket\r\n" +
-		"Connection: Upgrade\r\n" +
-		"Sec-WebSocket-Key: " + wsKey() + "\r\n" +
-		"Sec-WebSocket-Version: 13\r\n\r\n"
 	if _, err := conn.Write([]byte(req)); err != nil {
 		return
 	}
 
 	br := bufio.NewReader(conn)
 	if !readUpgrade101(br) {
+		resp = "(未收到 101 升级响应)"
 		return
 	}
 	payload, ok := readOneFrame(br)
 	if !ok {
+		resp = "HTTP/1.1 101 Switching Protocols\r\n(已升级，但未读到 WS 帧)"
 		return
 	}
-	if strings.Contains(string(payload), `"event":"`+WSChallengeEvent+`"`) {
+	frame := string(payload)
+	resp = "HTTP/1.1 101 Switching Protocols\r\n\r\n[WS 首帧] " + frame
+	if strings.Contains(frame, `"event":"`+WSChallengeEvent+`"`) {
 		ev.WSChallenge = true
 	}
 	// 不发任何帧；defer 直接关闭连接。

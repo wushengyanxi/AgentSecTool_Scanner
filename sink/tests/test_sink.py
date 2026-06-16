@@ -2,6 +2,7 @@
 
 import json
 import os
+import sqlite3
 import tempfile
 import unittest
 
@@ -46,16 +47,19 @@ class TestLoad(unittest.TestCase):
         jsonl = os.path.join(d, "r.jsonl")
         db = os.path.join(d, "s.sqlite")
         recs = [
-            {"ip": "1.1.1.1", "port": 18789, "is_openclaw": True, "confidence": 1.0,
-             "version": "2026.5.17", "version_source": "implicit", "signals": ["ws_challenge"],
+            {"ip": "1.1.1.1", "port": 18789, "is_openclaw": True, "rule": "C2",
+             "version": "2026.5.17", "version_source": "implicit", "matched": ["T2", "T3", "T5"],
              "tls": False, "ts": "2026-06-11T00:00:00Z",
-             "evidence": {"favicon_md5": "f", "asset_hashes": ["x.js"], "csp_sha256": "c"}},
-            {"ip": "1.1.1.1", "port": 18789, "is_openclaw": True, "confidence": 1.0,
-             "version": "2026.5.17", "version_source": "implicit", "signals": ["ws_challenge"],
+             "evidence": {"favicon_md5": "f", "asset_hashes": ["x.js"], "csp_sha256": "c",
+                          "probes": [{"id": "T2", "request": "GET / ...", "response": "101 ...", "hit": True}]}},
+            {"ip": "1.1.1.1", "port": 18789, "is_openclaw": True, "rule": "C2",
+             "version": "2026.5.17", "version_source": "implicit", "matched": ["T2", "T3", "T5"],
              "tls": False, "ts": "2026-06-12T00:00:00Z",
-             "evidence": {"favicon_md5": "f", "asset_hashes": ["x.js"], "csp_sha256": "c"}},
-            {"ip": "2.2.2.2", "port": 80, "is_openclaw": False, "confidence": 0.0,
-             "signals": [], "tls": False, "ts": "2026-06-11T00:00:00Z", "evidence": {}},
+             "evidence": {"favicon_md5": "f", "asset_hashes": ["x.js"], "csp_sha256": "c",
+                          "probes": [{"id": "T2", "request": "GET / ...", "response": "101 ...", "hit": True}]}},
+            {"ip": "2.2.2.2", "port": 80, "is_openclaw": False, "rule": "",
+             "matched": [], "error_type": "timeout", "tls": False,
+             "ts": "2026-06-11T00:00:00Z", "evidence": {}},
         ]
         with open(jsonl, "w") as f:
             for r in recs:
@@ -68,6 +72,17 @@ class TestLoad(unittest.TestCase):
         self.assertEqual(summary["assets_openclaw"], 1)
         self.assertEqual(summary["with_version"], 1)
         self.assertEqual(summary["observations"], 3)
+        self.assertEqual(summary["probe_records"], 2)    # 两条 OpenClaw 各 1 个 probe
+
+        # observations 存了 rule/matched/error_type
+        conn = sqlite3.connect(db)
+        rule, matched = conn.execute(
+            "SELECT rule, matched FROM observations WHERE is_openclaw=1 LIMIT 1").fetchone()
+        self.assertEqual(rule, "C2")
+        self.assertEqual(json.loads(matched), ["T2", "T3", "T5"])
+        et = conn.execute("SELECT error_type FROM observations WHERE is_openclaw=0").fetchone()[0]
+        self.assertEqual(et, "timeout")
+        conn.close()
 
 
 if __name__ == "__main__":

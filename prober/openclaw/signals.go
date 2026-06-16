@@ -1,72 +1,44 @@
 package openclaw
 
-// score 按"跨表面组合"逻辑给出置信度与判定（论证见 §01）。
+// evaluate 做二元研判（is OpenClaw / not），不使用概率分值。
 //
-// 核心：置信度相乘只在不同协议表面之间近似成立。三个独立表面——
-//   - WS 协议面：connect.challenge
-//   - HTTP 静态面：favicon / 标题（彼此相关，取较大者）
-//   - HTTP 路由/头面：/healthz 体、control-ui-config 路由、响应头三件套
+// 测试项按可伪造性分级（确证/强/弱），由一个明确的证据组合白名单判定（详见
+// docs/扫描器优化与研判机制.html §04）：
 //
-// 判定 = "WS 挑战(强单证) 或 ≥2 个不同表面命中"。
-func score(ev Evidence) (confidence float64, isOpenClaw bool, signals []string) {
-	pWS := 0.0
-	if ev.WSChallenge {
-		pWS = 0.99
-		signals = append(signals, "ws_challenge")
-	}
+//	True 当且仅当满足任一，其余一切组合 = False：
+//	  C1: T1                       // 确证级单独成立（control-ui 自报版本，伪造=真实现）
+//	  C2: T2 && (T3 || T4)         // WS 强证据 + HTTP 路由面强证据，跨表面双强
+//
+// 纯弱证据（T5/T6/T7）无论命中多少都不参与达标，只在 matched 里列出供报告说明。
+//
+// 返回 (verdict, matched, rule)：matched 是命中的测试项编号集合（含弱证据，按 T1..T7 顺序），
+// rule 是触发的白名单条件（"C1"/"C2"），verdict=false 时 rule 为空。
+func evaluate(ev Evidence) (verdict bool, matched []string, rule string) {
+	t1 := ev.ControlUIStatus == 200 && ev.ServerVersion != ""
+	t2 := ev.WSChallenge
+	t3 := ev.ControlUIStatus == 401
+	t4 := ev.HealthzMatch
+	t5 := ev.FaviconMD5 == FaviconMD5
+	t6 := ev.Title == TitleMarker
+	t7 := ev.HeaderTriplet
 
-	pStatic := 0.0
-	if ev.FaviconMD5 == FaviconMD5 {
-		pStatic = maxf(pStatic, 0.95)
-		signals = append(signals, "favicon")
-	}
-	if ev.Title == TitleMarker {
-		pStatic = maxf(pStatic, 0.90)
-		signals = append(signals, "title")
-	}
-
-	pRoute := 0.0
-	if ev.HealthzMatch {
-		pRoute = maxf(pRoute, 0.85)
-		signals = append(signals, "healthz")
-	}
-	switch {
-	case ev.ControlUIStatus == 200 && ev.ServerVersion != "":
-		pRoute = maxf(pRoute, 0.95)
-		signals = append(signals, "control_ui_config_200")
-	case ev.ControlUIStatus == 401:
-		pRoute = maxf(pRoute, 0.90)
-		signals = append(signals, "control_ui_config_401")
-	}
-	if ev.HeaderTriplet {
-		pRoute = maxf(pRoute, 0.60)
-		signals = append(signals, "header_triplet")
-	}
-
-	confidence = noisyOR(pWS, pStatic, pRoute)
-
-	surfaces := 0
-	for _, p := range []float64{pWS, pStatic, pRoute} {
-		if p > 0 {
-			surfaces++
+	// matched 按 T1..T7 顺序收集，便于报告与复查。
+	for _, m := range []struct {
+		hit bool
+		id  string
+	}{{t1, T1}, {t2, T2}, {t3, T3}, {t4, T4}, {t5, T5}, {t6, T6}, {t7, T7}} {
+		if m.hit {
+			matched = append(matched, m.id)
 		}
 	}
-	isOpenClaw = ev.WSChallenge || surfaces >= 2 || confidence >= 0.97
-	return confidence, isOpenClaw, signals
-}
 
-// noisyOR 把多个独立表面的命中概率合成（1 - ∏(1-p)）。
-func noisyOR(ps ...float64) float64 {
-	q := 1.0
-	for _, p := range ps {
-		q *= 1 - p
+	// 白名单：确证级优先，其次跨表面双强。
+	switch {
+	case t1:
+		return true, matched, "C1"
+	case t2 && (t3 || t4):
+		return true, matched, "C2"
+	default:
+		return false, matched, ""
 	}
-	return 1 - q
-}
-
-func maxf(a, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
 }

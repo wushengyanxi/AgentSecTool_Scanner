@@ -52,7 +52,7 @@ def _connect(db_path: str) -> sqlite3.Connection:
 
 
 def load(db_path: str, jsonl_path) -> int:
-    """读 JSONL，upsert 资产并追加观测。返回处理条数。"""
+    """读 JSONL，upsert 资产、追加观测、落库每个测试项的完整请求/响应。返回处理条数。"""
     conn = _connect(db_path)
     src = sys.stdin if jsonl_path in (None, "-") else open(jsonl_path)
     n = 0
@@ -84,19 +84,31 @@ def load(db_path: str, jsonl_path) -> int:
                 """,
                 (aid, key, r.get("ip"), int(r.get("port")), isoc, ver, vsrc, ts, ts),
             )
-            conn.execute(
+            cur = conn.execute(
                 """
                 INSERT INTO observations
-                  (asset_id, ip, port, ts, is_openclaw, confidence, version, version_source, signals, tls)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
+                  (asset_id, ip, port, ts, is_openclaw, rule, version, version_source, matched, error_type, tls)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     aid, r.get("ip"), int(r.get("port")), ts, isoc,
-                    r.get("confidence"), ver, vsrc,
-                    json.dumps(r.get("signals") or [], ensure_ascii=False),
+                    r.get("rule") or None, ver, vsrc,
+                    json.dumps(r.get("matched") or [], ensure_ascii=False),
+                    r.get("error_type") or None,
                     1 if r.get("tls") else 0,
                 ),
             )
+            obs_id = cur.lastrowid
+            ev = r.get("evidence") or {}
+            for p in ev.get("probes") or []:
+                conn.execute(
+                    """
+                    INSERT INTO probe_records (observation_id, test_id, request, response, hit)
+                    VALUES (?,?,?,?,?)
+                    """,
+                    (obs_id, p.get("id"), p.get("request"), p.get("response"),
+                     1 if p.get("hit") else 0),
+                )
             n += 1
         conn.commit()
     finally:
@@ -118,6 +130,7 @@ def stats(db_path: str):
             "assets_openclaw": one("SELECT COUNT(*) FROM assets WHERE is_openclaw=1"),
             "with_version": one("SELECT COUNT(*) FROM assets WHERE is_openclaw=1 AND latest_version IS NOT NULL"),
             "observations": one("SELECT COUNT(*) FROM observations"),
+            "probe_records": one("SELECT COUNT(*) FROM probe_records"),
         }
         rows = conn.execute(
             "SELECT latest_version, COUNT(*) FROM assets WHERE is_openclaw=1 "
