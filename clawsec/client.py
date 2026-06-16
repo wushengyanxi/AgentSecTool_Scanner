@@ -70,6 +70,10 @@ class ClawSecClient:
         """汇总计数（境内/海外/Active 等）。"""
         return self._get("exposure/overview")
 
+    def last_scan_time(self) -> str:
+        """平台最近更新日期（overview 的 lastScanTime，如 "2026-06-15"），作为快照日期。"""
+        return self.overview().get("lastScanTime", "")
+
     def page(self, page: int, scope: str = "china", active_only: bool = True) -> dict:
         """取一页。返回 {services: [...], pagination: {page,limit,total,totalPages}}。"""
         if scope not in SCOPES:

@@ -33,3 +33,6 @@ fingerprints/*.local.json
 
 # 指纹采集临时报告（每次运行变化）
 harness/collect_corpus_report.json
+
+# 拆库后的数据（真实暴露主机，绝不入库）
+data/

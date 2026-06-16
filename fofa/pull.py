@@ -177,13 +177,18 @@ def export_candidates(db, out, limit=None) -> int:
     return len(rows)
 
 
-def province_versions(db):
-    """按省 × 版本统计已探测确认的 OpenClaw（join fofa_candidates.region 与 observations）。
-    满足"按省份规划资产"——每省有哪些版本、各多少。需先探测过（有 observations 表）。"""
+def province_versions(db, scanner_db="data/scanner/scan_results.sqlite"):
+    """按省 × 版本统计已探测确认的 OpenClaw（fofa_candidates.region join 扫描库的 observations）。
+    满足"按省份规划资产"。observations 在独立的扫描结果库里，跨库 ATTACH 读。需先探测入库。"""
+    import os
+    if not os.path.exists(scanner_db):
+        return []
     conn = _conn(db)
+    conn.execute("ATTACH DATABASE ? AS scanner", (scanner_db,))
     has = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='observations'").fetchone()
+        "SELECT name FROM scanner.sqlite_master WHERE type='table' AND name='observations'").fetchone()
     if not has:
+        conn.execute("DETACH DATABASE scanner")
         conn.close()
         return []
     rows = conn.execute(
@@ -192,11 +197,12 @@ def province_versions(db):
                COALESCE(NULLIF(o.version,''),'(unknown)') AS ver,
                COUNT(DISTINCT o.ip || ':' || o.port) AS n
         FROM fofa_candidates c
-        JOIN observations o ON o.ip = c.ip AND o.port = c.port
+        JOIN scanner.observations o ON o.ip = c.ip AND o.port = c.port
         WHERE o.is_openclaw = 1
         GROUP BY prov, ver
         ORDER BY prov, n DESC
         """
     ).fetchall()
+    conn.execute("DETACH DATABASE scanner")
     conn.close()
     return rows

@@ -1,10 +1,10 @@
 """FOFA 工作流 CLI。
 
   python3 -m fofa info                                            # 账号与剩余额度 + 默认候选查询
-  python3 -m fofa pull --db scan.sqlite --full --before 2026-05-30  # 全量、时间窗（可续）
-  python3 -m fofa pull --db scan.sqlite --delta                   # 增量（after=上次拉取日期）
-  python3 -m fofa pull --db scan.sqlite --query '...' --before ...  # 自定义完整 FOFA 查询
-  python3 -m fofa provinces --db scan.sqlite                      # 按省候选数量
+  python3 -m fofa pull --db data/fofa/fofa.sqlite --full --before 2026-05-30  # 全量、时间窗（可续）
+  python3 -m fofa pull --db data/fofa/fofa.sqlite --delta                   # 增量（after=上次拉取日期）
+  python3 -m fofa pull --db data/fofa/fofa.sqlite --query '...' --before ...  # 自定义完整 FOFA 查询
+  python3 -m fofa provinces --db data/fofa/fofa.sqlite                      # 按省候选数量
 """
 
 import argparse
@@ -18,7 +18,7 @@ def main(argv=None) -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("pull", help="拉取候选入库")
-    p.add_argument("--db", default="scan.sqlite")
+    p.add_argument("--db", default="data/fofa/fofa.sqlite")
     g = p.add_mutually_exclusive_group()
     g.add_argument("--full", action="store_true", help="全量（默认，可续）")
     g.add_argument("--delta", action="store_true", help="增量")
@@ -30,15 +30,17 @@ def main(argv=None) -> None:
     p.add_argument("--page-size", type=int, default=2000)
 
     pr = sub.add_parser("provinces", help="按省候选数量")
-    pr.add_argument("--db", default="scan.sqlite")
+    pr.add_argument("--db", default="data/fofa/fofa.sqlite")
 
     e = sub.add_parser("export", help="导出候选为 candidates.csv（喂探测器）")
-    e.add_argument("--db", default="scan.sqlite")
+    e.add_argument("--db", default="data/fofa/fofa.sqlite")
     e.add_argument("--out", default="candidates.csv")
     e.add_argument("--limit", type=int, default=None)
 
     pv = sub.add_parser("province-versions", help="按省 × 版本统计已探测资产")
-    pv.add_argument("--db", default="scan.sqlite")
+    pv.add_argument("--db", default="data/fofa/fofa.sqlite")
+    pv.add_argument("--scanner-db", default="data/scanner/scan_results.sqlite",
+                    help="扫描结果库（跨库 ATTACH 读 observations）")
 
     sub.add_parser("info", help="账号与剩余额度")
 
@@ -69,7 +71,7 @@ def main(argv=None) -> None:
         n = pullmod.export_candidates(args.db, args.out, limit=args.limit)
         print(f"导出 {n} 条候选 → {args.out}")
     elif args.cmd == "province-versions":
-        rows = pullmod.province_versions(args.db)
+        rows = pullmod.province_versions(args.db, args.scanner_db)
         if not rows:
             print("（还没有探测数据；先 export → 探测 → 入库）")
         for prov, ver, n in rows:

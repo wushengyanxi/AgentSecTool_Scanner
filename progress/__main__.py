@@ -15,17 +15,17 @@ def main(argv=None) -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("seed", help="从 CIDR 文件切块登记一个战役")
-    s.add_argument("--db", default="scan.sqlite")
+    s.add_argument("--db", default="data/scanner/scan_results.sqlite")
     s.add_argument("--campaign", required=True)
     s.add_argument("--cidrs", required=True, help="CIDR 列表文件，如 scope/cn-cidrs.txt")
     s.add_argument("--prefix", type=int, default=16, help="块大小（/prefix），默认 /16")
 
     t = sub.add_parser("status", help="查看战役进度")
-    t.add_argument("--db", default="scan.sqlite")
+    t.add_argument("--db", default="data/scanner/scan_results.sqlite")
     t.add_argument("--campaign", required=True)
 
     c = sub.add_parser("claim", help="原子领取一个待扫块")
-    c.add_argument("--db", default="scan.sqlite")
+    c.add_argument("--db", default="data/scanner/scan_results.sqlite")
     c.add_argument("--campaign", required=True)
     c.add_argument("--worker", required=True)
 

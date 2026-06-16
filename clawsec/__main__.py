@@ -1,72 +1,111 @@
-"""ClawSec 测绘平台拉取 CLI（与 fofa/ 平级的被动发现源）。
+"""ClawSec 测绘平台每日全量快照拉取 CLI（与 fofa/ 平级的被动发现源）。
 
-  python3 -m clawsec info                                  # 平台汇总计数
-  python3 -m clawsec pull --db scan.sqlite                 # 拉境内 Active 入库（拉完为止，可续）
-  python3 -m clawsec pull --scope all                      # 拉全部（境内+海外）
-  python3 -m clawsec pull --scope overseas --include-inactive
-  python3 -m clawsec overlap --db scan.sqlite              # 与 fofa_candidates 的隐位重叠统计
-  python3 -m clawsec versions --db scan.sqlite             # 按平台标注版本统计
+  python3 -m clawsec info                          # 平台汇总计数（含 lastScanTime）
+  python3 -m clawsec pull                          # 拉当日全量快照入库（拉完为止、可续、日期变更自动切）
+  python3 -m clawsec pull --scope china            # 只拉境内
+  python3 -m clawsec longlived --min-days 3        # 跨快照分析长期有效实例（优先枚举对象）
+  python3 -m clawsec overlap                       # 最新快照 × fofa_candidates 的隐位重叠
+  python3 -m clawsec versions                      # 最新快照按平台标注版本统计
 
-命令在项目根目录跑（python3 -m clawsec）。数据入 scan.sqlite 的 clawsec_instances 表。
+命令在项目根目录跑（python3 -m clawsec）。数据入 data/clawsec/clawsec.sqlite 的 clawsec_snapshots 表。
 """
 import argparse
+import os
 import sqlite3
 
 from . import pull as pullmod
 from .client import ClawSecClient
+
+DEFAULT_DB = "data/clawsec/clawsec.sqlite"
+DEFAULT_FOFA_DB = "data/fofa/fofa.sqlite"
+
+
+def _ensure_dir(path):
+    d = os.path.dirname(path)
+    if d:
+        os.makedirs(d, exist_ok=True)
 
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser("clawsec")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    p = sub.add_parser("pull", help="拉取暴露实例入库（拉完为止，可续）")
-    p.add_argument("--db", default="scan.sqlite")
-    p.add_argument("--scope", default="china", choices=["china", "overseas", "all"],
-                   help="拉取范围（默认 china 境内）")
-    p.add_argument("--include-inactive", action="store_true",
-                   help="连同 Inactive 一起拉（默认只拉 Active）")
+    p = sub.add_parser("pull", help="拉当日全量快照入库（拉完为止、可续、日期变更自动切）")
+    p.add_argument("--db", default=DEFAULT_DB)
+    p.add_argument("--scope", default="all", choices=["china", "overseas", "all"],
+                   help="拉取范围（默认 all 全量）")
+    p.add_argument("--active-only", action="store_true",
+                   help="只拉 Active（默认含 Inactive，作完整记录）")
+    p.add_argument("--snapshot-date", default=None,
+                   help="指定快照日期（默认取平台 lastScanTime）")
 
-    o = sub.add_parser("overlap", help="与 fofa_candidates 的隐位重叠统计")
-    o.add_argument("--db", default="scan.sqlite")
+    ll = sub.add_parser("longlived", help="跨快照分析长期有效实例")
+    ll.add_argument("--db", default=DEFAULT_DB)
+    ll.add_argument("--min-days", type=int, default=2, help="最少 Active 快照数（默认 2）")
+    ll.add_argument("--all-scope", action="store_true", help="含海外（默认仅境内）")
+    ll.add_argument("--limit", type=int, default=50)
 
-    v = sub.add_parser("versions", help="按平台标注版本统计")
-    v.add_argument("--db", default="scan.sqlite")
+    o = sub.add_parser("overlap", help="最新快照 × fofa_candidates 的隐位重叠")
+    o.add_argument("--db", default=DEFAULT_DB)
+    o.add_argument("--fofa-db", default=DEFAULT_FOFA_DB)
+
+    v = sub.add_parser("versions", help="最新快照按平台标注版本统计")
+    v.add_argument("--db", default=DEFAULT_DB)
 
     sub.add_parser("info", help="平台汇总计数")
 
     args = ap.parse_args(argv)
 
     if args.cmd == "pull":
+        _ensure_dir(args.db)
+
         def _progress(cur, total, page, total_pages):
-            print(f"\r  拉取中… 第 {page}/{total_pages} 页，库内 {cur:,}/{total:,} 条",
+            print(f"\r  拉取中… 第 {page}/{total_pages} 页，本快照 {cur:,}/{total:,} 条",
                   end="", flush=True)
 
-        n, n_total = pullmod.pull(args.db, scope=args.scope,
-                                  active_only=not args.include_inactive, on_progress=_progress)
-        print()
-        print(f"本次新增 {n} 条 → clawsec_instances（{args.scope} 共 {n_total} 条）")
+        def _snap_done(sd, n, interrupted):
+            tag = "（被日期变更中断，标 incomplete）" if interrupted else "（完整）"
+            print(f"\n  快照 {sd}：{n:,} 条 {tag}", flush=True)
+
+        n, n_total, sd = pullmod.pull(
+            args.db, scope=args.scope, active_only=args.active_only,
+            snapshot_date=args.snapshot_date, on_progress=_progress, on_snapshot_done=_snap_done)
+        print(f"完成。本次新增 {n:,} 条 → clawsec_snapshots（最终快照 {sd} 共 {n_total:,} 条）")
+
+    elif args.cmd == "longlived":
+        rows, incomplete = pullmod.longlived(
+            args.db, min_days=args.min_days, china_only=not args.all_scope)
+        if incomplete:
+            print(f"（注意：{len(incomplete)} 个快照不完整，缺席不计入消失：{incomplete}）")
+        print(f"长期有效实例（Active 快照数 ≥ {args.min_days}，共 {len(rows)} 个，优先枚举）：")
+        print(f"  {'隐位IP':<20}{'Active天':<8}{'出现天':<8}{'首见':<12}{'末见':<12}{'平台版本'}")
+        for r in rows[:args.limit]:
+            print(f"  {r['masked_ip']:<20}{r['active_days']:<8}{r['seen_days']:<8}"
+                  f"{r['first_snap']:<12}{r['last_snap']:<12}{r['their_version'] or '(无)'}")
 
     elif args.cmd == "overlap":
-        res = pullmod.overlap_with_fofa(args.db)
+        res = pullmod.overlap_with_fofa(args.db, args.fofa_db)
         if res is None:
-            print("（scan.sqlite 里没有 fofa_candidates 表，先跑 fofa pull）")
+            print(f"（找不到 fofa 库 {args.fofa_db} 或 clawsec 无快照，先跑 fofa pull / clawsec pull）")
         else:
             total, hit = res
             pct = hit / total * 100 if total else 0
-            print(f"clawsec {total} 条 → 在 fofa_candidates 找到隐位重叠 {hit} 条（{pct:.1f}%）")
+            print(f"clawsec 最新快照 {total:,} 条 → 在 fofa_candidates 找到隐位重叠 {hit:,} 条（{pct:.1f}%）")
 
     elif args.cmd == "versions":
         conn = sqlite3.connect(args.db)
         try:
+            sd = conn.execute("SELECT MAX(snapshot_date) FROM clawsec_snapshots").fetchone()[0]
             rows = conn.execute(
                 "SELECT COALESCE(their_version,'(无)') v, COUNT(*) n "
-                "FROM clawsec_instances GROUP BY v ORDER BY n DESC").fetchall()
+                "FROM clawsec_snapshots WHERE snapshot_date=? GROUP BY v ORDER BY n DESC",
+                (sd,)).fetchall()
         except sqlite3.OperationalError:
-            print("（还没有 clawsec_instances 表，先跑 clawsec pull）")
+            print("（还没有 clawsec_snapshots 表，先跑 clawsec pull）")
             return
         finally:
             conn.close()
+        print(f"最新快照 {sd} 的版本分布：")
         for v, n in rows:
             print(f"  {v:<14} {n}")
 

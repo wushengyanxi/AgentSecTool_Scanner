@@ -1,4 +1,4 @@
-"""从 scan.sqlite 生成报告：测试项实际状态 → report_templates 话术 → 拼成分析段落。
+"""从扫描结果库 data/scanner/scan_results.sqlite 生成报告：测试项实际状态 → report_templates 话术 → 拼成分析段落。
 
 格式由输出文件名后缀决定：.html（人读）/.json（机读，含完整请求响应）/.csv/.txt。
 话术与判定解耦：is_openclaw/rule 是机判结果，本模块只负责把它解释成人话。
