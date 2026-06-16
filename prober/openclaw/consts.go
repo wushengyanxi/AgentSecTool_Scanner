@@ -1,7 +1,7 @@
 package openclaw
 
 // 已实测确认的 OpenClaw 指纹常量（容器实测，版本 2026.5.17；
-// 信号与置信度论证详见 扫描研判依据与精准化路径.html §02–§03）。
+// 信号与置信度研判机制详见 docs/扫描器优化与研判机制.html §02–§03）。
 
 const (
 	// FaviconMD5 是 /favicon.ico 的 md5，跨版本稳定，是版本无关的品牌指纹。
