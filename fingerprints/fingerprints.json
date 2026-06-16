@@ -13,6 +13,39 @@
       "csp_source": "static-const"
     },
     {
+      "version": "2026.1.5-1",
+      "asset_hashes": [
+        "index-BKmK3wjK.js",
+        "index-DxN0Bq48.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.5-2",
+      "asset_hashes": [
+        "index-BKmK3wjK.js",
+        "index-DxN0Bq48.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.5-3",
+      "asset_hashes": [
+        "index-BKmK3wjK.js",
+        "index-DxN0Bq48.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
       "version": "2026.1.8",
       "asset_hashes": [
         "index-Ci9bEWV2.js",
@@ -57,7 +90,51 @@
       "csp_source": "static-const"
     },
     {
+      "version": "2026.1.11-1",
+      "asset_hashes": [
+        "index-CN7mhdU7.js",
+        "index-bmCB4WXs.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.11-2",
+      "asset_hashes": [
+        "index-CN7mhdU7.js",
+        "index-bmCB4WXs.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.11-3",
+      "asset_hashes": [
+        "index-CN7mhdU7.js",
+        "index-bmCB4WXs.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
       "version": "2026.1.12",
+      "asset_hashes": [
+        "index-BQkl4b0t.css",
+        "index-DK6hloGl.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.12-2",
       "asset_hashes": [
         "index-BQkl4b0t.css",
         "index-DK6hloGl.js"
@@ -79,10 +156,32 @@
       "csp_source": "static-const"
     },
     {
+      "version": "2026.1.14-1",
+      "asset_hashes": [
+        "index-D3UFQBLY.js",
+        "index-zCHR1MZs.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
       "version": "2026.1.15",
       "asset_hashes": [
         "index-CD4FTda1.js",
         "index-zCHR1MZs.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.16-2",
+      "asset_hashes": [
+        "index-DQjkAuVL.js",
+        "index-Dx87G5ps.css"
       ],
       "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
       "favicon_md5": "f58854f6450618729679ad33622bebaf",
@@ -138,6 +237,17 @@
       "asset_hashes": [
         "index-BvhR9FCb.css",
         "index-DsXRcnEw.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "local-build",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.1.24-1",
+      "asset_hashes": [
+        "index-Cl-Y9zqE.js",
+        "index-DEPfFcOb.css"
       ],
       "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
       "favicon_md5": "f58854f6450618729679ad33622bebaf",
@@ -204,6 +314,39 @@
       "asset_hashes": [
         "index-BoXosYY6.css",
         "index-Dm6g1E26.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.6-1",
+      "asset_hashes": [
+        "index-CUH4Z8Vq.js",
+        "index-DV4Ck_tw.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.6-2",
+      "asset_hashes": [
+        "index-CUH4Z8Vq.js",
+        "index-DV4Ck_tw.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.2.6-3",
+      "asset_hashes": [
+        "index-CUH4Z8Vq.js",
+        "index-DV4Ck_tw.css"
       ],
       "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
       "favicon_md5": "f58854f6450618729679ad33622bebaf",
@@ -420,6 +563,17 @@
       "csp_source": "static-const"
     },
     {
+      "version": "2026.3.13-1",
+      "asset_hashes": [
+        "index-DmrclaY-.css",
+        "index-UvgeZ3yV.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
       "version": "2026.3.22",
       "asset_hashes": [
         "index-BK0yXA_h.css",
@@ -435,6 +589,17 @@
       "asset_hashes": [
         "index-BK0yXA_h.css",
         "index-BxCNA5Kk.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.3.23-2",
+      "asset_hashes": [
+        "index-9skUWh_g.css",
+        "index-YUAe2Ybo.js"
       ],
       "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
       "favicon_md5": "f58854f6450618729679ad33622bebaf",
@@ -509,6 +674,17 @@
     },
     {
       "version": "2026.4.7",
+      "asset_hashes": [
+        "index-6snfzTxc.js",
+        "index-CLrV3JI-.css"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.4.7-1",
       "asset_hashes": [
         "index-6snfzTxc.js",
         "index-CLrV3JI-.css"
@@ -707,6 +883,17 @@
     },
     {
       "version": "2026.5.3",
+      "asset_hashes": [
+        "index-CZPMxUCf.css",
+        "index-jOv_K1Xj.js"
+      ],
+      "csp_sha256": "43d24669088164c2c369e198a238acf99f8ef2fd571fc30ad1e020df6e71672b",
+      "favicon_md5": "f58854f6450618729679ad33622bebaf",
+      "source": "image",
+      "csp_source": "static-const"
+    },
+    {
+      "version": "2026.5.3-1",
       "asset_hashes": [
         "index-CZPMxUCf.css",
         "index-jOv_K1Xj.js"

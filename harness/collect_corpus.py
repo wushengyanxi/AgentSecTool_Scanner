@@ -69,12 +69,23 @@ def static_csp_sha256():
 
 
 def list_release_tags(repo):
-    """repo 里所有正式 CalVer tag（vYYYY.M.D，不含 beta/rc），按版本升序，返回不带 v 的版本号。"""
+    """repo 里所有正式发布 tag，按版本升序，返回不带 v 的版本号。
+
+    覆盖两种正式格式（排除 beta/rc/alpha 等预发布）：
+      - 纯 CalVer：     vYYYY.M.D       （如 v2026.3.12）
+      - hotfix 后缀：   vYYYY.M.D-N     （如 v2026.3.13-1，同日补丁版；旧正则曾漏掉这类）
+    """
     out = sh(["git", "-C", repo, "tag"])
     if out.returncode != 0:
         sys.exit(f"git tag 失败：{out.stderr.strip()}")
-    tags = [t for t in out.stdout.split() if re.fullmatch(r"v2026\.\d+\.\d+", t)]
-    tags.sort(key=lambda t: [int(x) for x in t[1:].split(".")])
+    tags = [t for t in out.stdout.split() if re.fullmatch(r"v2026\.\d+\.\d+(?:-\d+)?", t)]
+
+    def sortkey(t):
+        m, _, suffix = t[1:].partition("-")  # "2026.3.13", "1"
+        parts = [int(x) for x in m.split(".")]
+        return parts + [int(suffix) if suffix else 0]
+
+    tags.sort(key=sortkey)
     return [t[1:] for t in tags]
 
 
