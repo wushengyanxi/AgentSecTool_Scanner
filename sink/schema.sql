@@ -1,10 +1,16 @@
--- 资产登记：按身份去重（内容指纹或 ip:port）。
+-- 资产登记：按身份去重（内容指纹或 ip:port）。作为"实例收集平台"按可信级别分桶收录。
+-- category（资产级，取历次观测中最强的一档）：
+--   confirmed            明确 OpenClaw 实例（二元白名单判 True），取到版本
+--   confirmed_no_version 明确 OpenClaw 实例，版本未取到（如未采集的新版本）
+--   suspect              中了部分特征但未达白名单——不呈现为 OpenClaw，但有复扫/优化价值，保留
+-- 探不到（timeout/down/refused/unreachable）的目标不收录（无价值，由 load 跳过）。
 CREATE TABLE IF NOT EXISTS assets (
   asset_id       TEXT PRIMARY KEY,
   identity_key   TEXT NOT NULL,
   ip             TEXT NOT NULL,
   port           INTEGER NOT NULL,
   is_openclaw    INTEGER NOT NULL DEFAULT 0,
+  category       TEXT,            -- confirmed | confirmed_no_version | suspect
   latest_version TEXT,
   version_source TEXT,
   first_seen     TEXT NOT NULL,
@@ -22,6 +28,7 @@ CREATE TABLE IF NOT EXISTS observations (
   port           INTEGER NOT NULL,
   ts             TEXT NOT NULL,
   is_openclaw    INTEGER NOT NULL,
+  category       TEXT,            -- confirmed | confirmed_no_version | suspect（本次观测的分类）
   rule           TEXT,
   version        TEXT,
   version_source TEXT,
@@ -30,6 +37,7 @@ CREATE TABLE IF NOT EXISTS observations (
   tls            INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (asset_id) REFERENCES assets(asset_id)
 );
+CREATE INDEX IF NOT EXISTS idx_obs_category ON observations(category);
 
 -- 测试项记录：每个观测的每一项测试项的完整请求与响应原文（供报告复查、争议追溯）。
 CREATE TABLE IF NOT EXISTS probe_records (

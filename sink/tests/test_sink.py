@@ -10,18 +10,33 @@ from sink import load
 
 
 class TestIdentity(unittest.TestCase):
-    def test_content_based_order_independent(self):
+    def test_ipport_per_host(self):
+        # 每台主机一条记录：按 ip:port 去重，不跨 IP 合并（即便内容相同）。
         r1 = {"ip": "1.1.1.1", "port": 18789, "is_openclaw": True,
-              "evidence": {"favicon_md5": "f", "asset_hashes": ["b.js", "a.css"], "csp_sha256": "c"}}
+              "evidence": {"favicon_md5": "f", "asset_hashes": ["b.js", "a.css"]}}
         r2 = {"ip": "9.9.9.9", "port": 18789, "is_openclaw": True,
-              "evidence": {"favicon_md5": "f", "asset_hashes": ["a.css", "b.js"], "csp_sha256": "c"}}
-        self.assertTrue(load.identity_key(r1).startswith("content:"))
-        # 同内容、不同 IP → 同身份（资产去重跨 IP）
-        self.assertEqual(load.identity_key(r1), load.identity_key(r2))
+              "evidence": {"favicon_md5": "f", "asset_hashes": ["b.js", "a.css"]}}
+        self.assertTrue(load.identity_key(r1).startswith("ipport:"))
+        # 同内容、不同 IP → 不同身份（是两台主机）
+        self.assertNotEqual(load.identity_key(r1), load.identity_key(r2))
+        # 同 IP:端口 → 同身份
+        self.assertEqual(load.identity_key(r1),
+                         load.identity_key({"ip": "1.1.1.1", "port": 18789}))
 
-    def test_ipport_fallback(self):
-        r = {"ip": "1.1.1.1", "port": 80, "is_openclaw": False, "evidence": {}}
-        self.assertTrue(load.identity_key(r).startswith("ipport:"))
+
+class TestClassify(unittest.TestCase):
+    def test_buckets(self):
+        self.assertEqual(load.classify(
+            {"is_openclaw": True, "version": "2026.5.17"}), "confirmed")
+        self.assertEqual(load.classify(
+            {"is_openclaw": True, "version_candidates": ["a", "b"]}), "confirmed")
+        self.assertEqual(load.classify(
+            {"is_openclaw": True}), "confirmed_no_version")
+        self.assertEqual(load.classify(
+            {"is_openclaw": False, "matched": ["T5", "T6"]}), "suspect")
+        # 超时/纯无命中 → None（不收录）
+        self.assertIsNone(load.classify(
+            {"is_openclaw": False, "matched": [], "error_type": "timeout"}))
 
 
 class TestUnwrap(unittest.TestCase):
@@ -66,22 +81,25 @@ class TestLoad(unittest.TestCase):
                 f.write(json.dumps(r) + "\n")
 
         n = load.load(db, jsonl)
-        self.assertEqual(n, 3)
+        # 第三条是 timeout（无命中）→ 被跳过不收录；前两条同 IP:端口 → 都收录
+        self.assertEqual(n, 2)
         summary, _ = load.stats(db)
-        self.assertEqual(summary["assets_total"], 2)     # 两条同内容 OpenClaw → 1 资产；非 OpenClaw → 1
-        self.assertEqual(summary["assets_openclaw"], 1)
-        self.assertEqual(summary["with_version"], 1)
-        self.assertEqual(summary["observations"], 3)
-        self.assertEqual(summary["probe_records"], 2)    # 两条 OpenClaw 各 1 个 probe
+        self.assertEqual(summary["assets_total"], 1)     # 同 IP:端口 → 1 台主机一条资产
+        self.assertEqual(summary["confirmed"], 1)        # 该主机确认 OpenClaw + 有版本
+        self.assertEqual(summary["suspect"], 0)
+        self.assertEqual(summary["observations"], 2)     # 两次观测
+        self.assertEqual(summary["probe_records"], 2)    # 各 1 个 probe
 
-        # observations 存了 rule/matched/error_type
+        # observations 存了 rule/matched/category
         conn = sqlite3.connect(db)
-        rule, matched = conn.execute(
-            "SELECT rule, matched FROM observations WHERE is_openclaw=1 LIMIT 1").fetchone()
+        rule, matched, category = conn.execute(
+            "SELECT rule, matched, category FROM observations WHERE is_openclaw=1 LIMIT 1").fetchone()
         self.assertEqual(rule, "C2")
         self.assertEqual(json.loads(matched), ["T2", "T3", "T5"])
-        et = conn.execute("SELECT error_type FROM observations WHERE is_openclaw=0").fetchone()[0]
-        self.assertEqual(et, "timeout")
+        self.assertEqual(category, "confirmed")
+        # timeout 那条被跳过，库里没有 is_openclaw=0 的观测
+        self.assertEqual(conn.execute(
+            "SELECT COUNT(*) FROM observations WHERE is_openclaw=0").fetchone()[0], 0)
         conn.close()
 
 
