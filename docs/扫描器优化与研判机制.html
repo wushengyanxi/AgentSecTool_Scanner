@@ -3,478 +3,419 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OpenClaw 扫描器优化方案与研判机制</title>
+<title>OpenClaw 网关暴露探测的研判机制与版本取证</title>
 <style>
-  :root {
+  :root{
     --ivory:#FAF9F5; --slate:#141413; --clay:#D97757; --olive:#788C5D;
-    --oat:#E3DACC; --plum:#8E6E8A; --gray-150:#F0EEE6; --gray-300:#D1CFC5;
-    --gray-500:#87867F; --gray-700:#3D3D3A; --white:#FFFFFF;
-    --serif:ui-serif,Georgia,"Times New Roman","Songti SC","STSong",serif;
-    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
-    --mono:ui-monospace,"SF Mono",Menlo,Monaco,Consolas,monospace;
+    --oat:#E3DACC; --plum:#8E6E8A;
+    --gray-150:#F0EEE6; --gray-300:#D1CFC5; --gray-500:#87867F; --gray-700:#3D3D3A; --white:#FFFFFF;
+    --serif: ui-serif, Georgia, "Times New Roman", "Songti SC", "STSong", serif;
+    --sans:  system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono:  ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
   }
   *{box-sizing:border-box;}
   html{-webkit-text-size-adjust:100%;}
-  body{margin:0;background:var(--ivory);color:var(--gray-700);font-family:var(--sans);font-size:14.5px;line-height:1.75;}
+  body{margin:0;background:var(--ivory);color:var(--gray-700);font-family:var(--sans);
+    font-size:14.5px;line-height:1.75;-webkit-font-smoothing:antialiased;}
   .wrap{max-width:1120px;margin:0 auto;padding:56px 32px 120px;}
-  .eyebrow{font-family:var(--mono);font-size:11.5px;text-transform:uppercase;letter-spacing:0.07em;color:var(--gray-500);margin:0 0 14px;}
-  h1{font-family:var(--serif);font-weight:500;font-size:36px;line-height:1.3;letter-spacing:0;color:var(--slate);margin:0 0 24px;max-width:900px;}
-  h2{font-family:var(--serif);font-weight:500;font-size:26px;letter-spacing:0;color:var(--slate);margin:0;display:inline;}
-  h3{font-family:var(--serif);font-weight:500;font-size:19px;letter-spacing:0;color:var(--slate);margin:0 0 8px;}
-  p{max-width:760px;}
+
+  .eyebrow{font-family:var(--mono);font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;
+    color:var(--gray-500);margin:0 0 14px;}
+  h1{font-family:var(--serif);font-weight:500;font-size:36px;line-height:1.3;letter-spacing:0;
+    color:var(--slate);margin:0 0 22px;max-width:900px;}
+
+  .tldr{background:var(--white);border:1.5px solid var(--gray-300);border-left:4px solid var(--clay);
+    border-radius:10px;padding:18px 22px;margin-bottom:40px;max-width:860px;}
+  .tldr .lbl{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.07em;
+    color:var(--clay);margin-bottom:8px;}
+  .tldr p{margin:0;line-height:1.8;}
+
+  .strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:56px;}
+  .strip .cell{background:var(--white);border:1.5px solid var(--gray-300);border-radius:10px;padding:16px 18px;}
+  .strip .k{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--gray-500);margin-bottom:8px;}
+  .strip .v{font-family:var(--serif);font-size:25px;font-weight:500;color:var(--slate);line-height:1.1;}
+  .strip .v small{font-size:13px;color:var(--gray-500);font-family:var(--sans);margin-left:4px;}
+
   section{margin-bottom:64px;}
-  .num{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--slate);background:var(--oat);border-radius:5px;padding:2px 8px;margin-right:12px;position:relative;top:-3px;}
-  .sec-head{margin-bottom:6px;}
-  .intro{color:var(--gray-500);font-size:14.5px;line-height:1.8;max-width:760px;margin:8px 0 28px;}
-  .tldr{background:var(--white);border:1.5px solid var(--gray-300);border-left:4px solid var(--clay);border-radius:10px;padding:18px 22px;margin:0 0 40px;max-width:900px;}
-  .tldr .lbl{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--clay);margin:0 0 8px;}
-  .tldr p{margin:0;font-size:14.5px;line-height:1.8;max-width:none;}
-  .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:0.02em;padding:2px 8px;border-radius:5px;border:1.5px solid var(--gray-300);background:var(--gray-150);color:var(--gray-700);white-space:nowrap;}
-  .tag.now{background:#E4E9DC;border-color:#C4D0B4;color:#3F5128;}
-  .tag.plan{background:var(--oat);border-color:#CBBEA6;color:#6B5630;}
-  .tag.no{background:#F3D9CC;border-color:#E3B49B;color:#8A3B1E;}
-  .strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:0 0 8px;}
-  .kv{background:var(--white);border:1.5px solid var(--gray-300);border-radius:10px;padding:14px 16px;}
-  .kv .k{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--gray-500);margin:0 0 6px;}
-  .kv .v{font-family:var(--serif);font-size:22px;color:var(--slate);line-height:1.2;}
-  .kv .v small{font-family:var(--sans);font-size:12.5px;color:var(--gray-500);display:block;margin-top:3px;font-weight:400;}
-  .diagram{background:var(--white);border:1.5px solid var(--gray-300);border-radius:12px;padding:20px;margin:8px 0 14px;overflow-x:auto;}
-  .diagram svg{display:block;min-width:760px;}
-  .caption{font-size:12.5px;color:var(--gray-500);line-height:1.7;margin:6px 0 0;max-width:880px;}
-  .grid{border:1.5px solid var(--gray-300);border-radius:10px;overflow:hidden;margin:8px 0 14px;background:var(--white);}
+  .num{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--clay);
+    border-bottom:2px solid var(--clay);padding-bottom:1px;margin-bottom:10px;letter-spacing:.04em;}
+  h2{font-family:var(--serif);font-weight:500;font-size:26px;letter-spacing:0;color:var(--slate);margin:0 0 14px;}
+  h3{font-family:var(--serif);font-weight:500;font-size:19px;letter-spacing:0;color:var(--slate);margin:32px 0 12px;}
+  .intro{color:var(--gray-500);font-size:14.5px;line-height:1.8;max-width:760px;margin:0 0 24px;}
+  p{max-width:760px;}
+  p.wide{max-width:none;}
+  code{font-family:var(--mono);font-size:13px;color:var(--slate);background:var(--gray-150);
+    padding:1px 5px;border-radius:4px;}
+  em{font-style:italic;color:var(--gray-700);}
+  strong{font-weight:600;color:var(--slate);}
+
+  /* 证据级别 chip */
+  .lvl{font-family:var(--mono);font-size:11px;padding:2px 9px;border-radius:5px;white-space:nowrap;
+    border:1.5px solid transparent;}
+  .lvl.cert{background:#E4E9DC;color:#3F5128;}        /* 确证级 → olive 系 */
+  .lvl.strong{background:#F3D9CC;color:#8A3B1E;}      /* 强证据 → clay 系 */
+  .lvl.weak{background:var(--gray-150);color:var(--gray-500);border-color:var(--gray-300);} /* 弱证据 → 中性 */
+
+  /* grid 表（非 <table>，1.5px 边框，表头 gray-150）*/
+  .grid{border:1.5px solid var(--gray-300);border-radius:10px;overflow:hidden;background:var(--white);margin:8px 0 4px;}
   .grid .row{display:grid;border-top:1.5px solid var(--gray-300);}
   .grid .row:first-child{border-top:none;}
   .grid .row.head{background:var(--gray-150);}
-  .grid .row.head .cell{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--gray-500);font-weight:600;}
-  .grid .cell{padding:11px 14px;font-size:13.5px;line-height:1.6;border-left:1.5px solid var(--gray-300);}
+  .grid .cell{padding:12px 15px;border-left:1.5px solid var(--gray-300);min-width:0;}
   .grid .cell:first-child{border-left:none;}
-  .grid .cell code{font-family:var(--mono);font-size:12.5px;color:var(--slate);background:var(--gray-150);padding:1px 5px;border-radius:4px;word-break:break-word;}
-  .grid .cell .ref{font-family:var(--mono);font-size:11.5px;color:var(--gray-500);}
-  .surf{grid-template-columns:1.3fr 1.4fr 1.9fr 0.9fr;}
-  .fail{grid-template-columns:1.5fr 0.9fr 2.3fr;}
-  .opt{grid-template-columns:0.5fr 1.6fr 2.4fr;}
-  p code,li code{font-family:var(--mono);font-size:13px;color:var(--slate);background:var(--gray-150);padding:1px 5px;border-radius:4px;}
-  pre.code{background:var(--slate);color:#E8E6DF;border-radius:10px;padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.7;margin:8px 0 14px;}
-  pre.code .kw{color:var(--clay);} pre.code .str{color:#9DB07C;} pre.code .fn{color:#C9B98A;} pre.code .cm{color:var(--gray-500);font-style:italic;}
-  ul.clean{list-style:none;padding:0;margin:8px 0 0;max-width:820px;}
-  ul.clean li{position:relative;padding-left:22px;margin-bottom:10px;line-height:1.7;}
-  ul.clean li::before{content:"▸";position:absolute;left:4px;color:var(--clay);}
-  .card{background:var(--white);border:1.5px solid var(--gray-300);border-radius:10px;padding:16px 18px;margin-bottom:14px;max-width:880px;}
-  .card.t1{border-left:4px solid var(--olive);}
-  .card.t2{border-left:4px solid var(--clay);}
-  .card h3{margin-bottom:6px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
-  .card p{margin:0 0 8px;max-width:none;}
-  .card p:last-child{margin-bottom:0;}
-  .card .how{font-family:var(--mono);font-size:12px;color:var(--gray-700);background:var(--gray-150);border-radius:6px;padding:8px 10px;margin:8px 0;line-height:1.6;}
-  .card .num-evi{font-size:13px;color:var(--olive);}
-  footer{border-top:1.5px solid var(--gray-300);margin-top:40px;padding-top:20px;color:var(--gray-500);font-size:13.5px;line-height:1.8;max-width:880px;}
+  .grid .row.head .cell{font-family:var(--mono);font-size:11px;text-transform:uppercase;
+    letter-spacing:.05em;color:var(--gray-500);}
+  .grid .cell .tid{font-family:var(--mono);font-size:13px;color:var(--slate);font-weight:600;}
+  .grid .cell .req{font-family:var(--mono);font-size:12px;color:var(--clay);word-break:break-all;}
+  .grid .cell .small{font-size:13px;line-height:1.65;}
+  /* 七测试项表：编号 | 名称 | 请求 | 期望观测·推断 | 级别 */
+  .t-probe .row{grid-template-columns:50px 0.95fr 1.05fr 1.7fr 80px;}
+  .t-probe .cell .name{font-family:var(--sans);font-size:13px;color:var(--slate);font-weight:600;line-height:1.55;}
+  /* down 分类表 */
+  .t-down .row{grid-template-columns:200px 1fr;}
+  /* 版本三态表 */
+  .t-ver .row{grid-template-columns:140px 1.6fr 1fr;}
+
+  .diagram{background:var(--white);border:1.5px solid var(--gray-300);border-radius:12px;
+    padding:22px;margin:18px 0 8px;overflow-x:auto;}
+  .diagram svg{display:block;min-width:760px;margin:0 auto;}
+  .caption{font-size:13px;color:var(--gray-500);line-height:1.7;margin:12px 0 0;max-width:860px;}
+
+  .callout{background:var(--white);border:1.5px solid var(--gray-300);border-left:4px solid var(--olive);
+    border-radius:10px;padding:14px 18px;margin:18px 0;max-width:860px;}
+  .callout .lbl{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--olive);margin-bottom:6px;}
+  .callout p{margin:0;}
+  .callout.warn{border-left-color:var(--clay);}
+  .callout.warn .lbl{color:var(--clay);}
+
+  ul.clean{list-style:none;padding-left:0;max-width:780px;}
+  ul.clean li{position:relative;padding-left:20px;margin-bottom:11px;line-height:1.75;}
+  ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--clay);}
+
+  footer{border-top:1.5px solid var(--gray-300);margin-top:72px;padding-top:22px;
+    color:var(--gray-500);font-size:13.5px;line-height:1.8;max-width:860px;}
+  footer em{color:var(--gray-500);}
+
   @media (max-width:900px){
     .strip{grid-template-columns:repeat(2,1fr);}
-    .surf,.fail,.opt{grid-template-columns:1fr;}
-    .grid .cell{border-left:none;border-top:1px dashed var(--gray-300);}
-    .grid .row .cell:first-child{border-top:none;} .grid .row.head{display:none;}
+    .t-probe .row,.t-ver .row{grid-template-columns:1fr;}
+    .t-probe .cell,.t-ver .cell{border-left:none;border-top:1.5px solid var(--gray-300);}
+    .t-probe .row .cell:first-child,.t-ver .row .cell:first-child{border-top:none;}
   }
-  @media (max-width:720px){.wrap{padding:40px 18px 80px;} h1{font-size:28px;} .strip{grid-template-columns:1fr;}}
+  @media (max-width:720px){
+    .wrap{padding:40px 18px 80px;}
+    h1{font-size:29px;}
+    .strip{grid-template-columns:1fr;}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <p class="eyebrow">AgentSecTool Scanner · 设计文档</p>
-  <h1>OpenClaw 扫描器优化方案与研判机制</h1>
+  <p class="eyebrow">AgentSecTool · OpenClaw 暴露面普查 · 研判机制说明</p>
+  <h1>OpenClaw 网关暴露探测的研判机制与版本取证</h1>
 
   <div class="tldr">
-    <p class="lbl">本文记录两件事</p>
-    <p>其一，<strong>扫描器以什么方式对一个目标做出有置信度的研判</strong>——不用任何拍脑袋的概率分值（没扫过全网，任何「95%」都不可辩护），而是<strong>陈述观测到的事实、按其可伪造性分级、再依一个明确的证据组合白名单做出二元研判（是 / 不是）</strong>，并把支撑证据原样交给用户。其二，<strong>下一步怎么优化、以及它该长成什么样的命令行工具</strong>——对标 nmap 的 CLI / 分级日志 / 多格式报告，连同基于真实公网测试暴露的失效模式给出分梯队改进方案。所有结论以源码或真实容器/公网实测为据；实测否定的方向（如 WS 只读取版本）明确列为不做。</p>
+    <div class="lbl">Premise</div>
+    <p>本文档说明扫描器如何对一个开放端点判定其是否为 OpenClaw 网关、并在判定为真时确定其运行版本。判定不采用概率打分，而是以一组按<strong>可伪造性</strong>分级的观测信号，经一份明确的证据组合白名单作二元裁决；版本取证则区分服务端自报的直读与基于前端资产指纹的反推。全文每一条机制均对应探测器源码 <code>prober/openclaw/</code>，可逐条复核。</p>
   </div>
 
   <div class="strip">
-    <div class="kv"><div class="k">证据级别</div><div class="v">3<small>确证/强/弱</small></div></div>
-    <div class="kv"><div class="k">最终研判</div><div class="v">二元<small>True / False</small></div></div>
-    <div class="kv"><div class="k">版本判定路径</div><div class="v">3<small>直读/反推/区间</small></div></div>
-    <div class="kv"><div class="k">指纹库版本</div><div class="v">71<small>全量正式版</small></div></div>
+    <div class="cell"><div class="k">单目标请求数</div><div class="v">5 <small>个只读探测</small></div></div>
+    <div class="cell"><div class="k">测试项</div><div class="v">7 <small>项 · 三级</small></div></div>
+    <div class="cell"><div class="k">达标白名单</div><div class="v">2 <small>条 · C1 / C2</small></div></div>
+    <div class="cell"><div class="k">版本取证</div><div class="v">3 <small>态</small></div></div>
   </div>
 
-  <!-- 01 研判机制总览 -->
+  <!-- 01 设计立场 -->
   <section>
-    <div class="sec-head"><span class="num">01</span><h2>研判机制总览：从只读探测到有置信度的结论</h2></div>
-    <p class="intro">扫描器对单个目标的研判分两层独立的判断：<strong>判定层</strong>回答「这是不是 OpenClaw」，靠证据分级 + 二元白名单（不靠概率分值）；<strong>版本层</strong>回答「是哪个版本」，用优先级回退的三条路径。两层都以「只读探测采集的证据」为唯一输入——只发 WebSocket 升级与无鉴权 GET，绝不发改状态帧。</p>
+    <span class="num">01</span>
+    <h2>判定为何是二元裁决，而非置信度打分</h2>
+    <p class="intro">对暴露面普查而言，一个目标"是不是 OpenClaw"是一个需要被负责任地呈现的二元事实，而非一个介于 0 与 1 之间的分数。本节交代这一设计立场及其前提。</p>
+
+    <p>面向公网的服务指纹识别长期采用加权打分：为每个特征赋一个权重，命中即累加，超过阈值则判为目标。打分法在特征彼此独立、且每个特征都难以单独伪造时是合理的；但对一个<strong>控制面板类</strong>的目标，它有两重失效。其一，弱特征可被廉价地批量伪造——首页标题、站点图标、若干安全响应头都是静态产物，任何第三方都能原样复制，因而把它们相加得到的高分并不代表高可信。其二，分数本身不可解释：一个 0.82 的目标与一个 0.79 的目标在运营处置上意味着什么差别，无从回答。</p>
+
+    <p>本扫描器改以<strong>证据可伪造性分级加组合白名单</strong>替代打分。每个观测信号先按"伪造它需要付出多大代价"归入确证级、强证据、弱证据三档；随后由一份穷举的白名单规定<em>哪些组合</em>才足以判真，其余一切组合一律判假。判定结果因此是二元的，且每一次判真都能追溯到它满足了哪一条白名单规则——这正是普查数据对外披露时所要求的可问责性。</p>
+
+    <div class="callout">
+      <div class="lbl">判定不变量</div>
+      <p>判定全程只读。HTTP 侧仅发起无鉴权 <code>GET</code>；WebSocket 侧在整个连接生命周期内只执行一次写操作——即升级握手请求本身，绝不发送任何 WebSocket 数据帧。探测不触发目标的任何状态变更。</p>
+    </div>
+  </section>
+
+  <!-- 02 探测协议 -->
+  <section>
+    <span class="num">02</span>
+    <h2>对单个目标实际执行的探测序列</h2>
+    <p class="intro">对每个待测端点（默认端口 <code>18789</code>），扫描器执行一组固定的只读探测，分布在 HTTP 与 WebSocket 两个协议表面。这一"跨表面"的设计是后续白名单的基础。</p>
 
     <div class="diagram">
-      <svg viewBox="0 0 980 360" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace,Menlo,monospace">
-        <rect x="20" y="140" width="150" height="80" rx="8" fill="#141413"/>
-        <text x="95" y="170" fill="#FAF9F5" font-size="12.5" text-anchor="middle" font-weight="600">只读探测</text>
-        <text x="95" y="190" fill="#C9B98A" font-size="10.5" text-anchor="middle">1 WS 升级</text>
-        <text x="95" y="206" fill="#C9B98A" font-size="10.5" text-anchor="middle">4 无鉴权 GET</text>
-        <!-- 三级证据 -->
-        <rect x="235" y="18" width="270" height="86" rx="8" fill="#FFFFFF" stroke="#788C5D" stroke-width="1.5"/>
-        <text x="251" y="40" fill="#3F5128" font-size="12" font-weight="600">确证级（运行时自报，抄不了）</text>
-        <text x="251" y="60" fill="#87867F" font-size="10.5">control-ui 200 + serverVersion</text>
-        <text x="251" y="78" fill="#87867F" font-size="10.5">服务端实时把版本塞进响应</text>
-        <text x="251" y="96" fill="#87867F" font-size="10.5">静态抄袭无法复现</text>
-        <rect x="235" y="116" width="270" height="86" rx="8" fill="#FFFFFF" stroke="#D97757" stroke-width="1.5"/>
-        <text x="251" y="138" fill="#8A3B1E" font-size="12" font-weight="600">强证据（高门槛行为，可被实现）</text>
-        <text x="251" y="158" fill="#87867F" font-size="10.5">WS connect.challenge 协议行为</text>
-        <text x="251" y="176" fill="#87867F" font-size="10.5">control-ui 401（端点存在）</text>
-        <text x="251" y="194" fill="#87867F" font-size="10.5">/healthz 特征响应体</text>
-        <rect x="235" y="214" width="270" height="86" rx="8" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
-        <text x="251" y="236" fill="#6B5630" font-size="12" font-weight="600">弱证据（静态/常见，可伪造）</text>
-        <text x="251" y="256" fill="#87867F" font-size="10.5">favicon MD5、首页 title</text>
-        <text x="251" y="274" fill="#87867F" font-size="10.5">响应头三件套</text>
-        <text x="251" y="292" fill="#87867F" font-size="10.5">单独不足以定案</text>
-        <line x1="170" y1="170" x2="235" y2="61" stroke="#788C5D" stroke-width="1.5"/>
-        <line x1="170" y1="180" x2="235" y2="159" stroke="#D97757" stroke-width="1.5"/>
-        <line x1="170" y1="190" x2="235" y2="257" stroke="#D1CFC5" stroke-width="1.5"/>
-        <!-- 二元白名单 -->
-        <rect x="560" y="100" width="190" height="160" rx="8" fill="#F0EEE6" stroke="#D1CFC5" stroke-width="1.5"/>
-        <text x="576" y="124" fill="#141413" font-size="12" font-weight="600">二元研判（证据组合白名单）</text>
-        <text x="576" y="150" fill="#3F5128" font-size="11" font-weight="600">True ←</text>
-        <text x="576" y="168" fill="#87867F" font-size="9.5">C1: T1（确证级单独）</text>
-        <text x="576" y="184" fill="#87867F" font-size="9.5">C2: T2 ∧ (T3∨T4) 跨面双强</text>
-        <text x="576" y="212" fill="#8A3B1E" font-size="11" font-weight="600">False ←</text>
-        <text x="576" y="230" fill="#87867F" font-size="9.5">其余一切组合</text>
-        <text x="576" y="246" fill="#87867F" font-size="9.5">（含纯弱证据、单强、同面双强）</text>
-        <line x1="505" y1="160" x2="560" y2="170" stroke="#788C5D" stroke-width="1.5"/>
-        <!-- 结论 -->
-        <rect x="800" y="110" width="160" height="140" rx="8" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
-        <text x="816" y="134" fill="#141413" font-size="12" font-weight="600">研判结论</text>
-        <text x="816" y="156" fill="#3D3D3A" font-size="10">verdict（True/False）</text>
-        <text x="816" y="173" fill="#3D3D3A" font-size="10">evidence[]（证据清单）</text>
-        <text x="816" y="190" fill="#3D3D3A" font-size="10">version</text>
-        <text x="816" y="207" fill="#3D3D3A" font-size="10">version_source</text>
-        <text x="816" y="224" fill="#3D3D3A" font-size="10">version_candidates</text>
-        <line x1="750" y1="180" x2="800" y2="180" stroke="#788C5D" stroke-width="1.5"/>
+      <svg viewBox="0 0 860 300" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace">
+        <rect x="20" y="120" width="120" height="56" rx="8" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="80" y="144" text-anchor="middle" font-size="12.5" fill="#141413" font-weight="600">目标端点</text>
+        <text x="80" y="162" text-anchor="middle" font-size="11" fill="#87867F">host:18789</text>
+
+        <rect x="250" y="20" width="420" height="160" rx="10" fill="#F0EEE6" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="262" y="40" font-size="11" fill="#87867F" letter-spacing="0.05em">HTTP 表面 · 4 次无鉴权 GET</text>
+
+        <rect x="266" y="52" width="388" height="26" rx="5" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="276" y="69" font-size="11" fill="#3D3D3A">GET /healthz<tspan fill="#87867F">　→ T4 健康检查特征体</tspan></text>
+
+        <rect x="266" y="82" width="388" height="26" rx="5" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="276" y="99" font-size="11" fill="#3D3D3A">GET /<tspan fill="#87867F">　→ T6 标题 · T7 响应头 · 资产指纹</tspan></text>
+
+        <rect x="266" y="112" width="388" height="26" rx="5" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="276" y="129" font-size="10.5" fill="#3D3D3A">GET /__openclaw/control-ui-config.json<tspan fill="#87867F">　→ T1/T3</tspan></text>
+
+        <rect x="266" y="142" width="388" height="26" rx="5" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="276" y="159" font-size="11" fill="#3D3D3A">GET /favicon.ico<tspan fill="#87867F">　→ T5 图标 MD5</tspan></text>
+
+        <rect x="250" y="200" width="420" height="76" rx="10" fill="#F0EEE6" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="262" y="220" font-size="11" fill="#87867F" letter-spacing="0.05em">WebSocket 表面 · 1 次升级握手（只读）</text>
+        <rect x="266" y="232" width="388" height="32" rx="5" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="276" y="252" font-size="11" fill="#3D3D3A">Upgrade: websocket<tspan fill="#87867F">　→ T2 读首帧 connect.challenge</tspan></text>
+
+        <line x1="140" y1="148" x2="250" y2="100" stroke="#D97757" stroke-width="1.5"/>
+        <line x1="140" y1="148" x2="250" y2="238" stroke="#D97757" stroke-width="1.5"/>
+
+        <path d="M670 100 L720 100 L720 238 L670 238" fill="none" stroke="#D1CFC5" stroke-width="1.5"/>
+        <rect x="720" y="134" width="120" height="58" rx="8" fill="#FFFFFF" stroke="#788C5D" stroke-width="1.5"/>
+        <text x="780" y="158" text-anchor="middle" font-size="12" fill="#141413" font-weight="600">证据汇总</text>
+        <text x="780" y="176" text-anchor="middle" font-size="10.5" fill="#87867F">evaluate()</text>
       </svg>
-      <p class="caption">深色框＝只读探测；三个彩框＝按「可伪造性」分级的证据（绿=确证、橙=强、灰=弱）；灰框＝由证据组合白名单做出的二元研判（True/False）；右框＝结构化结论，附原始证据清单供用户自查。判定与版本互不依赖：一台可「确认是 OpenClaw 但取不到版本」。</p>
+      <p class="caption">单目标探测序列：四次 HTTP GET 与一次 WebSocket 升级握手并行采集观测，汇入 <code>evaluate()</code> 作白名单裁决。两个协议表面（HTTP 路由面、WS 协议面）的分离，是 C2 规则"跨表面双强"的物理依据——见 §04。</p>
+    </div>
+
+    <p>七个测试项中，<code>GET /</code> 一次请求同时支撑三项观测（首页标题 T6、三项安全响应头 T7，以及用于版本反推的前端资产哈希），故请求数为五而测试项为七。每个测试项的完整请求与响应原文均被截断入库（响应体上限 <code>8 KiB</code>），供事后复核与争议追溯。</p>
+  </section>
+
+  <!-- 03 七个测试项 -->
+  <section>
+    <span class="num">03</span>
+    <h2>七个测试项：请求、期望观测、推断与证据级别</h2>
+    <p class="intro">下表逐项给出每个测试项发起的请求、命中所要求观测到的结果、由此可推断的事实，以及该信号的证据级别。级别由"伪造此信号需付出的代价"决定，是后续白名单的设计依据。</p>
+
+    <div class="grid t-probe">
+      <div class="row head">
+        <div class="cell">编号</div>
+        <div class="cell">测试项名称</div>
+        <div class="cell">请求与命中条件</div>
+        <div class="cell">期望观测说明了什么</div>
+        <div class="cell">证据级别</div>
+      </div>
+
+      <div class="row">
+        <div class="cell"><span class="tid">T1</span></div>
+        <div class="cell"><div class="name">版本端点<br>直读探测</div></div>
+        <div class="cell">
+          <div class="req">GET /__openclaw/control-ui-config.json</div>
+          <div class="small">返回 <code>200</code> 且响应体 JSON 含非空 <code>serverVersion</code> 字段。</div>
+        </div>
+        <div class="cell"><div class="small">服务端在运行时解析自身配置、把当前版本号写入该端点响应。这要求伪造者真实实现该端点的运行逻辑，而非复制一份静态文件——伪造的代价等同于实现。该字段同时直接给出版本。</div></div>
+        <div class="cell"><span class="lvl cert">确证级</span></div>
+      </div>
+
+      <div class="row">
+        <div class="cell"><span class="tid">T2</span></div>
+        <div class="cell"><div class="name">WebSocket<br>协议挑战探测</div></div>
+        <div class="cell">
+          <div class="req">WS Upgrade: websocket</div>
+          <div class="small">升级得到 <code>101</code> 后，服务端首帧载荷含 <code>"event":"connect.challenge"</code>。</div>
+        </div>
+        <div class="cell"><div class="small">连接建立即被服务端主动下发的协议事件（带新鲜 nonce 与时间戳）。复制静态文件无法产生此行为，伪造者须主动实现一个 WebSocket 服务端并模仿其协议交互，门槛显著高于抄文件，但低于实现完整后端，故定为强证据而非确证级。</div></div>
+        <div class="cell"><span class="lvl strong">强证据</span></div>
+      </div>
+
+      <div class="row">
+        <div class="cell"><span class="tid">T3</span></div>
+        <div class="cell"><div class="name">鉴权端点<br>存在性探测</div></div>
+        <div class="cell">
+          <div class="req">GET /__openclaw/control-ui-config.json</div>
+          <div class="small">返回 <code>401</code>（同一端点，由状态码与 T1 区分）。</div>
+        </div>
+        <div class="cell"><div class="small">该特异端点存在、且行为符合启用鉴权后的预期（<code>v2026.4.22</code> 起默认开启鉴权）。证明 HTTP 路由面上存在 OpenClaw 端点，但因鉴权阻断而无法直读版本。要伪造须实现这一特异路由及其鉴权行为。</div></div>
+        <div class="cell"><span class="lvl strong">强证据</span></div>
+      </div>
+
+      <div class="row">
+        <div class="cell"><span class="tid">T4</span></div>
+        <div class="cell"><div class="name">健康端点<br>特征校验</div></div>
+        <div class="cell">
+          <div class="req">GET /healthz</div>
+          <div class="small">返回 <code>200</code> 且响应体同时含 <code>"status":"live"</code> 与 <code>"ok":true</code>。</div>
+        </div>
+        <div class="cell"><div class="small">特定结构的健康检查响应，属 HTTP 路由面的行为特征。比静态文件难伪造（须实现该端点并返回特定结构），但比协议级交互（T2）容易，故同列强证据。</div></div>
+        <div class="cell"><span class="lvl strong">强证据</span></div>
+      </div>
+
+      <div class="row">
+        <div class="cell"><span class="tid">T5</span></div>
+        <div class="cell"><div class="name">站点图标<br>指纹校验</div></div>
+        <div class="cell">
+          <div class="req">GET /favicon.ico</div>
+          <div class="small">响应体 MD5 等于品牌指纹 <code>f58854f6…bebaf</code>。</div>
+        </div>
+        <div class="cell"><div class="small">站点图标是静态文件，<code>curl</code> 取下原样挂上即可，纯属抄袭。可作品牌线索，但单独不构成身份证据，故为弱证据。该 MD5 跨版本稳定，是版本无关的品牌指纹。</div></div>
+        <div class="cell"><span class="lvl weak">弱证据</span></div>
+      </div>
+
+      <div class="row">
+        <div class="cell"><span class="tid">T6</span></div>
+        <div class="cell"><div class="name">首页标题<br>校验</div></div>
+        <div class="cell">
+          <div class="req">GET /</div>
+          <div class="small">首页 HTML <code>&lt;title&gt;</code> 文本等于 <code>OpenClaw Control</code>。</div>
+        </div>
+        <div class="cell"><div class="small">静态 HTML 字符串，任何人都能写出 <code>&lt;title&gt;OpenClaw Control&lt;/title&gt;</code>。仅作弱线索；非官方标题则提示为改名或分叉变体。</div></div>
+        <div class="cell"><span class="lvl weak">弱证据</span></div>
+      </div>
+
+      <div class="row">
+        <div class="cell"><span class="tid">T7</span></div>
+        <div class="cell"><div class="name">安全响应头<br>校验</div></div>
+        <div class="cell">
+          <div class="req">GET /</div>
+          <div class="small">响应同时带三个安全头：<code>X-Content-Type-Options: nosniff</code>、<code>Referrer-Policy: no-referrer</code>、<code>Permissions-Policy</code> 含 <code>microphone=(self)</code>。</div>
+        </div>
+        <div class="cell"><div class="small">常见安全响应头，很多框架默认即下发，任何服务都能设置，判别力本就弱，故为弱证据。</div></div>
+        <div class="cell"><span class="lvl weak">弱证据</span></div>
+      </div>
+    </div>
+    <p class="caption">命中条件均取自探测器 <code>signals.go</code> 的 <code>evaluate()</code> 与 <code>http.go</code> 的采集逻辑。三个弱证据（T5/T6/T7）无论命中多少都不参与达标，仅在报告中列出以辅助人工复核。</p>
+  </section>
+
+  <!-- 04 白名单 -->
+  <section>
+    <span class="num">04</span>
+    <h2>判定白名单：C1 与 C2</h2>
+    <p class="intro">判真当且仅当满足以下两条规则之一，其余一切证据组合——包括三个弱证据的任意叠加——一律判假。本节给出两条规则及其设计动机。</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 820 260" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace">
+        <rect x="20" y="105" width="120" height="50" rx="8" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="80" y="135" text-anchor="middle" font-size="12.5" fill="#141413" font-weight="600">证据集合</text>
+
+        <line x1="140" y1="120" x2="250" y2="62" stroke="#788C5D" stroke-width="1.5"/>
+        <rect x="250" y="38" width="250" height="48" rx="8" fill="#E4E9DC" stroke="#788C5D" stroke-width="1.5"/>
+        <text x="263" y="59" font-size="12" fill="#3F5128" font-weight="600">C1：T1 命中</text>
+        <text x="263" y="76" font-size="10.5" fill="#3F5128">确证级单条即达标</text>
+
+        <line x1="140" y1="140" x2="250" y2="178" stroke="#D97757" stroke-width="1.5"/>
+        <rect x="250" y="152" width="250" height="62" rx="8" fill="#F3D9CC" stroke="#D97757" stroke-width="1.5"/>
+        <text x="263" y="174" font-size="12" fill="#8A3B1E" font-weight="600">C2：T2 且（T3 或 T4）</text>
+        <text x="263" y="191" font-size="10.5" fill="#8A3B1E">WS 协议面 + HTTP 路由面</text>
+        <text x="263" y="205" font-size="10.5" fill="#8A3B1E">跨表面双强互证</text>
+
+        <line x1="500" y1="62" x2="600" y2="118" stroke="#788C5D" stroke-width="1.5"/>
+        <line x1="500" y1="183" x2="600" y2="128" stroke="#D97757" stroke-width="1.5"/>
+        <rect x="600" y="103" width="120" height="50" rx="8" fill="#141413" stroke="#141413" stroke-width="1.5"/>
+        <text x="660" y="127" text-anchor="middle" font-size="12.5" fill="#FAF9F5" font-weight="600">判真</text>
+        <text x="660" y="143" text-anchor="middle" font-size="10" fill="#E3DACC">记录触发规则</text>
+
+        <rect x="250" y="226" width="250" height="24" rx="5" fill="#F0EEE6" stroke="#D1CFC5" stroke-width="1.5"/>
+        <text x="263" y="242" font-size="10.5" fill="#87867F">其余一切组合（含纯弱证据叠加）→ 判假</text>
+      </svg>
+      <p class="caption">判定决策。黑色终端节点表示一个被负责任地对外断言的二元结论——数据落地于此、不再流转。C1 走确证级单条达标，C2 要求两个独立协议表面各出一个强证据、互为佐证，二者取或。三个弱证据无论如何叠加，都不进入这张图的任何一条达标路径。</p>
+    </div>
+
+    <h3>C1：确证级单条达标</h3>
+    <p>当 <code>control-ui-config</code> 返回 <code>200</code> 且自报 <code>serverVersion</code>（即 T1），单条即判真。其正当性在于该信号的伪造代价等同于真实现：要让此端点在运行时返回结构正确、携带版本号的 JSON，伪造者实际上已经实现了 OpenClaw 该端点的逻辑。对确证级证据，"伪造"与"是真的"在可观测层面不可区分，因而无须第二个信号佐证。</p>
+
+    <h3>C2：跨表面双强互证</h3>
+    <p>当 WS 首帧命中 <code>connect.challenge</code>（T2），且 HTTP 路由面命中 T3 或 T4 之一时，判真。这条规则的关键不在"两个强证据"这个数量，而在它们<strong>分处两个独立的协议实现表面</strong>：T2 是 WebSocket 协议交互，T3 与 T4 是 HTTP 路由行为。一个仅靠抄袭静态资源的仿冒者，无法同时在这两个表面给出真实行为——它需要既实现 WS 协议端、又实现特异 HTTP 端点。跨表面的要求，把"批量复制静态特征"这一最廉价的伪造路径排除在达标之外。</p>
+
+    <div class="callout warn">
+      <div class="lbl">弱证据的地位</div>
+      <p>T5、T6、T7 三个弱证据可被任意第三方廉价复制，因而<strong>不参与任何达标规则</strong>。一个同时命中全部三个弱证据、却不满足 C1 或 C2 的目标，仍判为假。它们只被收入 <code>matched</code> 列表与报告，用于人工复核与未来调参，绝不单独支撑"是 OpenClaw"的对外断言。</p>
     </div>
   </section>
 
-  <!-- 02 判定层 -->
+  <!-- 05 版本取证 -->
   <section>
-    <div class="sec-head"><span class="num">02</span><h2>判定层：用证据分级，不用概率分值</h2></div>
-    <p class="intro">为什么不给概率分值——因为没有人扫过全互联网，任何「favicon 命中＝95% 是 OpenClaw」都是拿一个脑补的分子除以一个未知的分母，谁都可以质疑。可辩护的做法是只陈述<strong>观测到的事实</strong>，并按一个客观标准给事实<strong>分级：这条证据能不能被静态抄袭/伪造</strong>。运行时才能产生、抄不了的是确证；高门槛但可被实现的是强证据；静态文件或常见特征、谁都能仿的是弱证据。</p>
+    <span class="num">05</span>
+    <h2>版本取证：直读、指纹反推与不可区分区间</h2>
+    <p class="intro">判真之后确定运行版本。取证分两条途径：服务端自报的直读，与基于前端资产指纹的反推。反推须如实区分"精确到单版本"与"只能定位到区间"两种情形，不得谎报精度。</p>
 
-    <div class="grid surf" style="grid-template-columns:1.2fr 2fr 1fr;">
-      <div class="row head"><div class="cell">信号</div><div class="cell">为什么是这个级别（可伪造性）</div><div class="cell">证据级别</div></div>
-      <div class="row surf" style="grid-template-columns:1.2fr 2fr 1fr;"><div class="cell"><strong>control-ui 200 + serverVersion</strong></div><div class="cell">服务端运行时解析自身配置、把版本号塞进 JSON 响应。蜜罐要伪造得真去实现这个端点逻辑，抄静态文件抄不出来。</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;background:#E4E9DC;border-color:#C4D0B4;color:#3F5128;">确证级</span></div></div>
-      <div class="row surf" style="grid-template-columns:1.2fr 2fr 1fr;"><div class="cell"><strong>WS connect.challenge</strong></div><div class="cell">连上 WebSocket 即被推送的协议事件（带新鲜 nonce/ts）。可伪造，但需伪造方主动实现 WS 服务端并模仿该协议行为——门槛高，不是抄文件。</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;background:#F3D9CC;border-color:#E3B49B;color:#8A3B1E;">强证据</span></div></div>
-      <div class="row surf" style="grid-template-columns:1.2fr 2fr 1fr;"><div class="cell"><strong>control-ui 401</strong></div><div class="cell">该特异端点存在、且行为符合（鉴权挡住）。要仿得实现这个端点。</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;background:#F3D9CC;border-color:#E3B49B;color:#8A3B1E;">强证据</span></div></div>
-      <div class="row surf" style="grid-template-columns:1.2fr 2fr 1fr;"><div class="cell"><strong>/healthz 特征体</strong></div><div class="cell">特定结构的健康检查响应。比静态文件难仿，但比协议行为易。</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;background:#F3D9CC;border-color:#E3B49B;color:#8A3B1E;">强证据</span></div></div>
-      <div class="row surf" style="grid-template-columns:1.2fr 2fr 1fr;"><div class="cell"><strong>favicon MD5</strong></div><div class="cell">静态文件 <code>/favicon.ico</code>。curl 下来原样挂上即可，纯抄袭。</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;">弱证据</span></div></div>
-      <div class="row surf" style="grid-template-columns:1.2fr 2fr 1fr;"><div class="cell"><strong>首页 title</strong></div><div class="cell">静态 HTML 字符串，谁都能写 <code>&lt;title&gt;OpenClaw Control&lt;/title&gt;</code>。</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;">弱证据</span></div></div>
-      <div class="row surf" style="grid-template-columns:1.2fr 2fr 1fr;"><div class="cell"><strong>响应头三件套</strong></div><div class="cell">常见安全头，很多框架默认就设，判别力本就弱。</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;">弱证据</span></div></div>
+    <div class="grid t-ver">
+      <div class="row head">
+        <div class="cell">来源</div>
+        <div class="cell">机制</div>
+        <div class="cell">呈现</div>
+      </div>
+      <div class="row">
+        <div class="cell"><span class="tid">direct</span></div>
+        <div class="cell"><div class="small">T1 已直读到 <code>serverVersion</code> 字段。去除可能的前导 <code>v</code> 后即为版本。</div></div>
+        <div class="cell"><div class="small">精确版本，最高可信。</div></div>
+      </div>
+      <div class="row">
+        <div class="cell"><span class="tid">implicit</span></div>
+        <div class="cell"><div class="small">未直读到版本，转而以首页前端资产（生产构建的内容哈希文件名，如 <code>index-DC4lnoz-.js</code>）的集合与指纹库精确匹配，命中唯一版本。</div></div>
+        <div class="cell"><div class="small">精确版本。资产哈希集合相等才算命中。</div></div>
+      </div>
+      <div class="row">
+        <div class="cell"><span class="tid">implicit-range</span></div>
+        <div class="cell"><div class="small">资产指纹同时匹配指纹库中多个相邻版本——这些版本仅有后端改动、前端构建产物完全相同，外部不可区分。</div></div>
+        <div class="cell"><div class="small">版本区间，附全部候选。不谎报为单一精确版本。</div></div>
+      </div>
     </div>
 
-    <p style="max-width:760px;">最终结论是<strong>二元的</strong>（True / False）——证据分级只用来决定落到哪一边，不作为中间档位。判 True 由一个明确的证据组合白名单决定（完整推导与测试项编号见 §04）：</p>
-    <pre class="code"><span class="cm">// True 当且仅当满足任一，其余一切组合 = False</span>
-<span class="kw">C1</span>:  T1                  <span class="cm">// 确证级单独成立（control-ui 自报版本，伪造=真实现）</span>
-<span class="kw">C2</span>:  T2 &amp;&amp; (T3 || T4)    <span class="cm">// WS 强证据 + HTTP 路由面强证据，跨表面双强</span></pre>
+    <p>指纹库由 <code>harness/build_corpus.py</code> 逐版本起容器、记录其外部可观测签名构建而成。反推的判据是<strong>前端资产哈希集合相等</strong>，而非子集包含——内容哈希文件名随每次构建变化，集合相等才表明前端构建产物完全一致。</p>
+
+    <div class="callout warn">
+      <div class="lbl">为何不用 CSP 哈希回退反推</div>
+      <p><code>control-ui</code> 返回的那串 Content-Security-Policy 是静态常量、全版本相同，区分力为零。若以它回退匹配，会命中指纹库的全部版本，产出一个毫无意义的"全版本区间"。因此资产哈希未匹配时，扫描器如实记为版本未取到，而不退化为一个貌似携带信息、实则无区分力的版本区间。指纹反推所用的资产哈希采集自 <code>GET /</code> 这一步，与 <code>control-ui</code> 端点无关。</p>
+    </div>
+  </section>
+
+  <!-- 06 失败分类 -->
+  <section>
+    <span class="num">06</span>
+    <h2>判假与探不到：失败原因的区分</h2>
+    <p class="intro">一个目标可能因不是 OpenClaw 而判假，也可能因根本探不到而判假。当判假、无任何测试项命中、且 HTTP 侧无响应时，扫描器补做一次 TCP 连接以区分失败原因，使"非目标服务"与"不可达"不被混为一谈。</p>
+
+    <div class="grid t-down">
+      <div class="row head">
+        <div class="cell">分类</div>
+        <div class="cell">含义</div>
+      </div>
+      <div class="row">
+        <div class="cell"><span class="tid">down</span></div>
+        <div class="cell"><div class="small">TCP 端口开着，但探不出任何 OpenClaw 证据——端口上跑着别的服务，非目标。</div></div>
+      </div>
+      <div class="row">
+        <div class="cell"><span class="tid">connection_refused</span></div>
+        <div class="cell"><div class="small">端口关闭，连接被拒。</div></div>
+      </div>
+      <div class="row">
+        <div class="cell"><span class="tid">timeout</span></div>
+        <div class="cell"><div class="small">连接超时——主机不响应，或被链路丢弃。</div></div>
+      </div>
+      <div class="row">
+        <div class="cell"><span class="tid">unreachable</span></div>
+        <div class="cell"><div class="small">网络不可达 / 无路由。</div></div>
+      </div>
+    </div>
+    <p class="caption">分类逻辑见 <code>probe.go</code> 的 <code>classifyReachability()</code>。这层区分对普查统计很重要：把"端口开着但非 OpenClaw"与"主机不可达"分开，才能正确估计暴露面的真实规模。</p>
+  </section>
+
+  <!-- 07 局限 -->
+  <section>
+    <span class="num">07</span>
+    <h2>已知局限与可伪造性边界</h2>
+    <p class="intro">任何基于外部观测的判定都有其可被对抗的边界。如实陈述这些边界，是普查数据负责任披露的一部分。</p>
 
     <ul class="clean">
-      <li><strong>这套机制直接回应「分值太强」的质疑</strong>——过去 favicon 标 0.95、几乎和确证级一样高，等于默认没人会抄一个 favicon。新机制里 favicon 是弱证据，<strong>单独连 True 都判不了</strong>。一个抄了 favicon+title 的蜜罐，结论是 False（详细依据里如实列出命中项，并标「可伪造、疑似仿冒」）。</li>
-      <li><strong>跨表面冗余是 True 的硬门槛</strong>——最终结论是二元的（True/False，判据见 §04 的白名单 C1/C2），证据分级只用来决定落到哪一边。纯静态伪造（只有弱证据）一律 False；要判 True，必须命中确证级、或跨两个表面的双强证据。</li>
+      <li><strong>确证级的伪造下界。</strong>C1 把"伪造代价等同于真实现"作为单条达标的依据。一个刻意实现了完整 <code>control-ui-config</code> 端点逻辑、返回伪造版本号的蜜罐，会被判真——但这样的蜜罐在行为上已与真实现无异，本扫描器的立场是不试图区分二者。</li>
+      <li><strong>弱证据不背书。</strong>仅命中静态特征（标题、图标、安全头）的目标判为假。这意味着若某个真实 OpenClaw 实例恰好屏蔽了 WS 与两个特异 HTTP 端点、只暴露静态首页，会被本机制漏判。普查倾向于"宁可漏判，不可错断"。</li>
+      <li><strong>区间不可消解。</strong>相邻版本若仅有后端改动、前端构建产物相同，则外部无法区分，只能给出区间。这是观测能力的固有上界，非实现缺陷。</li>
+      <li><strong>指纹库覆盖。</strong>未被采集进指纹库的新版本，其资产哈希不命中，版本报为空——判真不受影响，仅版本待补。</li>
     </ul>
-  </section>
-
-  <!-- 03 版本层 -->
-  <section>
-    <div class="sec-head"><span class="num">03</span><h2>版本层：三条路径与诚实的不确定性</h2></div>
-    <p class="intro">版本判定独立于「是不是 OpenClaw」，走优先级回退。核心原则是<strong>能确定就给精确值，不能确定就如实给区间，绝不把猜测伪装成精确结论</strong>——这是真实公网验证中反复确认的正确行为。</p>
-
-    <div class="grid surf" style="grid-template-columns:0.4fr 1.2fr 2.4fr;">
-      <div class="row head"><div class="cell">优先级</div><div class="cell">路径</div><div class="cell">触发条件与可靠性</div></div>
-      <div class="row surf" style="grid-template-columns:0.4fr 1.2fr 2.4fr;"><div class="cell"><strong>①</strong></div><div class="cell"><code>direct</code> 直读</div><div class="cell">control-ui-config 返回 200 且响应含 <code>serverVersion</code> → 服务端自报版本，最可靠。前提：实例疏防（多见于 v2026.4.21 及更早，该端点自 v2026.4.22 起加鉴权）。</div></div>
-      <div class="row surf" style="grid-template-columns:0.4fr 1.2fr 2.4fr;"><div class="cell"><strong>②</strong></div><div class="cell"><code>implicit</code> 反推</div><div class="cell">直读不可得（401）时，用首页资产名集合（<code>index-*.js/css</code>，构建内容哈希）与全量指纹库精确匹配。资产名来自官方镜像逐字节提取，匹配即等于「该实例前端就是官方某版产物」。</div></div>
-      <div class="row surf" style="grid-template-columns:0.4fr 1.2fr 2.4fr;"><div class="cell"><strong>③</strong></div><div class="cell"><code>implicit-range</code> 区间</div><div class="cell">资产指纹命中多个版本（6 组相邻版本前端 bundle 相同、不可区分）时，返回候选区间而非单值，如 <code>2026.3.7 | 2026.3.8</code>。诚实表达不确定性。</div></div>
-    </div>
-
-    <div class="card" style="border-left:4px solid var(--olive);max-width:880px;">
-      <h3>为什么这套版本机制是可信的：真实公网验证 + 独立裁决</h3>
-      <p>用第三方测绘平台 ClawSec 列出的境内实例与本地 FOFA 数据交叉补全后实测：严格可一对一比对的样本中版本判定全部正确。对双方分歧的少数实例，<strong>不以自有指纹库自证，而以官方镜像作独立裁判</strong>——目标实测资产名逐字节比对官方各版镜像产物，确认分歧均为对方平台版本字段陈旧。这条「官方镜像独立裁决」是版本结论可被第三方复现、不循环论证的关键。</p>
-    </div>
-  </section>
-
-  <!-- 04 命令行交付形态 -->
-  <section>
-    <div class="sec-head"><span class="num">04</span><h2>命令行交付形态：对标 nmap 的 CLI、日志与报告</h2></div>
-    <p class="intro">它终归是个扫描器，应当像 nmap 那样作为命令行工具交付：灵活的目标输入、可控的分级日志、人读与机读两种输出、扫描汇总报告。下面给出 CLI 形态，以及<strong>对单个指定 IP，各种真实情况下日志实际长什么样</strong>——日志样例的字段、版本号、资产名均取自真实公网/容器探测结果，非虚构。</p>
-
-    <h3 style="margin-top:8px;">目标输入：四种形式</h3>
-    <div class="grid surf" style="grid-template-columns:1.3fr 0.7fr 2fr;">
-      <div class="row head"><div class="cell">形式</div><div class="cell">示例</div><div class="cell">展开</div></div>
-      <div class="row surf" style="grid-template-columns:1.3fr 0.7fr 2fr;"><div class="cell"><strong>精确 IP</strong></div><div class="cell"><code>1.2.3.4</code></div><div class="cell">单个目标</div></div>
-      <div class="row surf" style="grid-template-columns:1.3fr 0.7fr 2fr;"><div class="cell"><strong>文件路径</strong></div><div class="cell"><code>targets.txt</code></div><div class="cell">每行一个 IP，逐行展开</div></div>
-      <div class="row surf" style="grid-template-columns:1.3fr 0.7fr 2fr;"><div class="cell"><strong>通配 IP</strong></div><div class="cell"><code>123.*.*.4</code></div><div class="cell">每个 <code>*</code> 枚举该位 0–255；两个 <code>*</code> 即 256×256 = 65,536 个</div></div>
-      <div class="row surf" style="grid-template-columns:1.3fr 0.7fr 2fr;"><div class="cell"><strong>CIDR 网段</strong></div><div class="cell"><code>203.0.113.0/24</code></div><div class="cell">标准网段，展开为该段全部主机</div></div>
-    </div>
-    <p class="caption">展开后的目标总数不设上限——用户对自己输入的范围负责（通配/CIDR 一不小心可达千万级，由使用者把控）。</p>
-
-    <h3 style="margin-top:24px;">CLI 参数与配置</h3>
-    <pre class="code"><span class="cm"># 目标可为：精确IP / 文件 / 通配IP / CIDR（自动识别）</span>
-ocprobe 203.0.113.0/24 <span class="kw">--port</span> 18789,80,443 <span class="kw">--concurrency</span> 16
-
-<span class="cm"># 端口</span>      --port 18789,80,443        <span class="cm"># 支持多端口</span>
-<span class="cm"># 并发</span>      --concurrency 16           <span class="cm"># 全局同时探测数</span>
-<span class="cm"># 单IP超时</span>  --timeout 8s               <span class="cm"># 对一台主机探测的最长等待</span>
-<span class="cm"># 任务超时</span>  --deadline 30m             <span class="cm"># 整个扫描任务的总时长上限，到点即停、已扫出结果</span>
-<span class="cm"># 单IP限速</span>  --rate 50                  <span class="cm"># 对单个目标IP的每秒发包上限（可选，礼貌/兜底）</span>
-<span class="cm"># 详细日志</span>  -l                         <span class="cm"># 终端精确打印每个IP的完整研判依据（类似下文情况A–F）</span>
-<span class="cm"># 续扫</span>      --resume                   <span class="cm"># 断点续扫</span>
-<span class="cm"># 报告</span>      --report out.html          <span class="cm"># 从数据库生成报告，按文件名后缀定格式（.html/.json/.csv/.txt）</span></pre>
-
-    <p style="max-width:760px;">两个超时是不同维度，互不替代：<code>--timeout</code> 管「单台主机别死等」，<code>--deadline</code> 管「整个任务别跑太久」（扫大网段时尤其有用——到点收工、已探的照常出结果）。<code>--rate</code> 是<strong>单个 IP</strong> 的每秒发包上限，不是全局——单台一轮探测才 5 个请求（1 WS 升级 + 4 GET），50/秒 是远低于会触发目标防御的宽松兜底，主要防异常重试风暴；真正面向大网段的总量控制由 <code>--concurrency</code> 承担。</p>
-
-    <h3 style="margin-top:24px;">默认终端输出 vs <code>-l</code> 详细输出</h3>
-    <p style="max-width:760px;"><strong>不带任何参数，扫描时终端也会逐目标打一行结果</strong>——这是默认行为，不是可选项。每行说明该目标的结局：不可达 / 端口关闭 / 超时 / 非 OpenClaw（False）；或确认是 OpenClaw（True）并给出判定版本。加 <code>-l</code> 则对每个 IP 精确打印完整研判依据（命中了哪些测试项、各属什么证据级别、如何依白名单得出结论），详细度类似下文情况 A–F。</p>
-    <pre class="code"><span class="cm"># 默认输出（无参数）——每个目标一行</span>
-106.53.198.94:18789   <span class="kw">OpenClaw</span>   version=<span class="str">2026.3.7</span>
-120.226.246.96:18789  <span class="kw">OpenClaw</span>   version=<span class="str">2026.3.1</span>
-106.52.205.99:18789   <span class="kw">not-openclaw</span>   端口关闭（connection_refused）
-198.51.100.7:18789    <span class="kw">not-openclaw</span>   仅命中 favicon+title（弱证据，不足以判定）
-203.0.113.9:18789     <span class="kw">unreachable</span>   超时</pre>
-
-    <pre class="code"><span class="cm"># 所有默认值集中存放在扫描器代码的 config.toml；命令行参数覆盖之</span>
-<span class="kw">[probe]</span>
-rate            = <span class="str">50</span>        <span class="cm"># 单 IP 每秒发包上限</span>
-timeout_per_ip  = <span class="str">"8s"</span>      <span class="cm"># 单 IP 探测超时</span>
-concurrency     = <span class="str">16</span>        <span class="cm"># 全局并发</span>
-
-<span class="kw">[scan]</span>
-deadline        = <span class="str">"0"</span>       <span class="cm"># 任务总超时，0 = 不限</span>
-ports           = [<span class="str">18789</span>]   <span class="cm"># 默认端口</span>
-
-<span class="kw">[output]</span>
-verbose         = <span class="str">0</span>         <span class="cm"># 默认日志详度（0/1/2 对应 默认/-v/-vv）</span></pre>
-
-    <h3 style="margin-top:24px;">研判是二元的：True / False，没有「可能」</h3>
-    <p style="max-width:760px;">扫描器给的是确定结论——<strong>是 OpenClaw（True）或不是（False）</strong>，不输出「可能是」这种骑墙态。证据分级（确证/强/弱）仍然保留，但它的作用是<strong>决定</strong>落到 True 还是 False，而不是作为一档中间结论。七个测试项编号如下，True 由一个明确的「证据组合白名单」判定：</p>
-
-    <div class="grid surf" style="grid-template-columns:0.4fr 1.8fr 0.9fr;">
-      <div class="row head"><div class="cell">编号</div><div class="cell">测试项</div><div class="cell">证据级别</div></div>
-      <div class="row surf" style="grid-template-columns:0.4fr 1.8fr 0.9fr;"><div class="cell"><strong>T1</strong></div><div class="cell">control-ui-config 200 + serverVersion</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;background:#E4E9DC;border-color:#C4D0B4;color:#3F5128;">确证级</span></div></div>
-      <div class="row surf" style="grid-template-columns:0.4fr 1.8fr 0.9fr;"><div class="cell"><strong>T2</strong></div><div class="cell">WS connect.challenge（WS 协议面）</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;background:#F3D9CC;border-color:#E3B49B;color:#8A3B1E;">强证据</span></div></div>
-      <div class="row surf" style="grid-template-columns:0.4fr 1.8fr 0.9fr;"><div class="cell"><strong>T3</strong></div><div class="cell">control-ui-config 401（HTTP 路由面）</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;background:#F3D9CC;border-color:#E3B49B;color:#8A3B1E;">强证据</span></div></div>
-      <div class="row surf" style="grid-template-columns:0.4fr 1.8fr 0.9fr;"><div class="cell"><strong>T4</strong></div><div class="cell">/healthz 特征体（HTTP 路由面）</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;background:#F3D9CC;border-color:#E3B49B;color:#8A3B1E;">强证据</span></div></div>
-      <div class="row surf" style="grid-template-columns:0.4fr 1.8fr 0.9fr;"><div class="cell"><strong>T5</strong></div><div class="cell">favicon MD5</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;">弱证据</span></div></div>
-      <div class="row surf" style="grid-template-columns:0.4fr 1.8fr 0.9fr;"><div class="cell"><strong>T6</strong></div><div class="cell">首页 title</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;">弱证据</span></div></div>
-      <div class="row surf" style="grid-template-columns:0.4fr 1.8fr 0.9fr;"><div class="cell"><strong>T7</strong></div><div class="cell">响应头三件套</div><div class="cell"><span class="tag" style="font-size:10px;padding:1px 5px;">弱证据</span></div></div>
-    </div>
-
-    <pre class="code"><span class="cm">// True 当且仅当满足以下任一（其余一切组合 = False）</span>
-<span class="kw">C1</span>:  T1                         <span class="cm"># 确证级单独成立：服务端运行时自报版本，伪造=真实现，无意义</span>
-<span class="kw">C2</span>:  T2 <span class="kw">&amp;&amp;</span> ( T3 <span class="kw">||</span> T4 )        <span class="cm"># WS 强证据 + HTTP 路由面强证据，跨表面双强</span></pre>
-
-    <ul class="clean">
-      <li><strong>为什么纯弱证据一律 False</strong>——T5/T6/T7 都是静态文件或常见头，蜜罐全抄齐也没有任何运行时/协议行为。这正是钓鱼站/镜像站的特征，判 True 即被骗。它们只在详细依据里列出，不计入达标。</li>
-      <li><strong>为什么单个强证据不够</strong>——只有 T2（WS）或只有 T3（401）都可能被针对性伪造一个。要求<strong>跨两个不同协议表面的双强证据</strong>，伪造者得同时仿 WS 子系统与 HTTP 端点子系统，代价高到不如装个真 OpenClaw。</li>
-      <li><strong>为什么 T3∧T4 不判 True</strong>——两者都在 HTTP 路由表面，不跨表面，可能是只仿了 HTTP 端点、连 WS 都没有的残缺仿制品。它落 False，但详细依据会标「命中两个 HTTP 强证据、WS 未响应、疑似」，供人工复查。</li>
-      <li><strong>这是偏保守（高精确、低召回）的设计</strong>——为协同披露普查服务，宁可漏掉「只单面暴露」的真实例，也绝不把仿制品判 True。所有 False 目标带完整证据进数据库，可随时复查或调白名单重判。</li>
-    </ul>
-
-    <h3 style="margin-top:24px;">情况 A · True（C1）· 确证 + 直读精确版本（control-ui 返回 200）</h3>
-    <pre class="code"><span class="cm"># ocprobe --target 106.53.198.94 -vv</span>
-[19:52:03] 106.53.198.94:18789  探测开始
-  WS  升级 / → 读首帧 …… 命中 <span class="str">connect.challenge</span>          [<span class="kw">强证据</span> · WS 面]
-  GET /healthz → 200，体含 status:live ok:true       [<span class="kw">强证据</span> · 路由面]
-  GET / → title=<span class="str">"OpenClaw Control"</span>，favicon md5 命中   [<span class="kw">弱证据</span> · 静态面 ×2]
-  GET /__openclaw/control-ui-config.json → <span class="str">200</span>
-       serverVersion=<span class="str">"2026.3.7"</span>                       [<span class="kw">确证级</span> · 路由面]
-  ── 研判 ──────────────────────────────────────
-  verdict   = <span class="kw">True</span>   （命中 C1：T1 确证级）
-  version   = <span class="str">2026.3.7</span>    source=direct（服务端自报）</pre>
-
-    <h3 style="margin-top:24px;">情况 B · True（C2）· 指纹反推版本（control-ui 401，靠资产名）</h3>
-    <pre class="code"><span class="cm"># ocprobe --target 120.226.246.96 -vv</span>
-[19:52:05] 120.226.246.96:18789  探测开始
-  WS  升级 / → 命中 <span class="str">connect.challenge</span>               [<span class="kw">强证据</span> · WS 面]
-  GET / → title=<span class="str">"OpenClaw Control"</span>，favicon 命中     [<span class="kw">弱证据</span> · 静态面 ×2]
-       资产名 = index-DbbaBUkl.js, index-DPmPMREA.css
-  GET /__openclaw/control-ui-config.json → <span class="str">401</span>      [<span class="kw">强证据</span> · 路由面，端点存在]
-       serverVersion 直读不可得 → 转指纹反推
-  指纹库匹配资产名集合 → 唯一命中 2026.3.1
-  ── 研判 ──────────────────────────────────────
-  verdict   = <span class="kw">True</span>   （命中 C2：T2 ∧ T3，跨表面双强）
-  version   = <span class="str">2026.3.1</span>    source=implicit（资产指纹反推）</pre>
-
-    <h3 style="margin-top:24px;">情况 C · True（C2）· 版本区间（落在不可区分组）</h3>
-    <pre class="code"><span class="cm"># ocprobe --target &lt;5.5/5.6 实例&gt; -vv</span>
-  WS 命中 connect.challenge / favicon 命中 / title 命中 / 401
-  资产名集合 → 命中 2 个版本（前端 bundle 相同，不可区分）
-  ── 研判 ──────────────────────────────────────
-  verdict            = <span class="kw">True</span>   （命中 C2）
-  version            = <span class="str">2026.5.5</span>   source=implicit-range
-  version_candidates = [<span class="str">2026.5.5, 2026.5.6</span>]   <span class="cm"># 诚实给区间，不谎报单值</span></pre>
-
-    <h3 style="margin-top:24px;">情况 D · False（边界）· 只单面命中、未跨表面（品牌变体）</h3>
-    <pre class="code"><span class="cm"># ocprobe --target 114.215.178.217 -vv</span>
-  WS  升级 / → 命中 <span class="str">connect.challenge</span>               [T2 <span class="kw">强证据</span> · WS 面]
-  GET / → title=<span class="str">"Moltbot Control"</span>（非 OpenClaw Control）
-       favicon md5 命中                              [T5 <span class="kw">弱证据</span> · 静态面]
-  GET /__openclaw/control-ui-config.json → 200 但<span class="str">无 serverVersion</span>  <span class="cm"># 非 T1、非 T3</span>
-  GET /healthz → 不匹配                              <span class="cm"># 非 T4</span>
-  ── 研判 ──────────────────────────────────────
-  verdict   = <span class="kw">False</span>   命中 T2+T5，但 T2 是唯一强证据、未跨到 HTTP 路由面 → 不满足 C1/C2
-  note      = title 为 Moltbot Control，疑为分叉/改名变体；带完整证据入库，
-              可人工复查或调白名单。这是「偏保守」设计的代价：宁可漏，不误判。</pre>
-    <p class="caption">情况 D 诚实呈现白名单的边界后果——一个很可能是 OpenClaw 系的品牌变体，因只暴露了 WS（单一强证据）、HTTP 路由面强证据未命中，被判 False。它不会被丢弃：完整证据进数据库，人工可复查，或据此调整白名单（如把品牌变体的 title 纳入识别，见优化②）。</p>
-
-    <h3 style="margin-top:24px;">情况 E · False · 仅弱证据（疑似蜜罐/仿冒）</h3>
-    <pre class="code"><span class="cm"># 某只抄了静态文件的目标</span>
-  WS  升级 / → 无 connect.challenge                  <span class="cm"># 无 T2</span>
-  GET / → title=<span class="str">"OpenClaw Control"</span>，favicon md5 命中   [T6+T5 <span class="kw">弱证据</span> · 静态面 ×2]
-  GET /healthz → 404   /__openclaw/control-ui-config.json → 404  <span class="cm"># 无 T3/T4</span>
-  ── 研判 ──────────────────────────────────────
-  verdict   = <span class="kw">False</span>   仅命中弱证据（T5+T6），无任何确证/强证据 → 不满足白名单
-  note      = favicon+title 均可静态抄袭，无运行时/协议行为；疑为蜜罐、镜像站或仿冒</pre>
-
-    <h3 style="margin-top:24px;">情况 F · 探不到（区分失败原因，对应优化①）</h3>
-    <pre class="code"><span class="cm"># 三种当前混为一谈、优化后可分的情况</span>
-  106.52.205.99:18789  verdict=<span class="kw">down</span>        error_type=<span class="str">connection_refused</span>   <span class="cm"># 端口关闭</span>
-  &lt;ip&gt;:18789           verdict=<span class="kw">unknown</span>     error_type=<span class="str">timeout</span>              <span class="cm"># 超时，未必下线</span>
-  &lt;ip&gt;:18789           verdict=<span class="kw">unknown</span>     error_type=<span class="str">unreachable</span>          <span class="cm"># 不可达/被墙</span></pre>
-    <p class="caption">情况 A–E 的字段、版本号、资产名、title 均取自真实探测结果（106.53.198.94、120.226.246.96、114.215.178.217 等为真实公网实例的实测数据）；情况 F 的 error_type 区分是优化①落地后的形态。默认（无参数）每个目标只打一行结论；加 <code>-l</code> 打上面的完整研判依据。</p>
-
-    <h3 style="margin-top:24px;">扫描结果入库：留下完整请求与响应，报告才有据</h3>
-    <p style="max-width:760px;">扫描器本质是「对每个目标跑若干测试项」。每次扫描的结果都写入数据库，<strong>每条记录保存：测试时间、测试对象、每一项测试项的完整请求与响应、最终二元研判结果</strong>。完整请求/响应是关键——有了它，任何一条研判都能被复查（为什么判 True/False）、争议可追溯、报告有据，也为日后调整白名单后重判留下原始材料。</p>
-    <pre class="code"><span class="cm">// 每个目标一条记录，每个测试项一条子记录（完整请求+响应原文）</span>
-scan_result {
-  ts            <span class="str">"2026-06-16T11:20:03Z"</span>      <span class="cm"># 测试时间</span>
-  target        <span class="str">"106.53.198.94:18789"</span>      <span class="cm"># 测试对象</span>
-  verdict       <span class="str">true</span>                         <span class="cm"># 最终研判（二元）</span>
-  matched       [<span class="str">"T1","T2","T4","T5","T6"</span>]   <span class="cm"># 命中的测试项</span>
-  rule          <span class="str">"C1"</span>                         <span class="cm"># 触发的白名单条件</span>
-  version       <span class="str">"2026.3.7"</span>   version_source <span class="str">"direct"</span>
-  probes [
-    { id <span class="str">"T2"</span>  request <span class="str">"&lt;WS 升级请求原文&gt;"</span>  response <span class="str">"&lt;首帧原文&gt;"</span>  hit true }
-    { id <span class="str">"T1"</span>  request <span class="str">"GET /__openclaw/control-ui-config.json"</span>
-            response <span class="str">"&lt;状态码 + 响应头 + body 原文&gt;"</span>  hit true }
-    …… 每个测试项都留完整请求与响应原文
-  ]
-}</pre>
-
-    <h3 style="margin-top:24px;">生成报告：<code>--report</code> 按文件名后缀定格式</h3>
-    <p style="max-width:760px;">报告从数据库生成，不在扫描时即时拼装——扫描只管落库，出报告是独立动作（可对历史扫描随时出）。格式由 <code>--report</code> 给的文件名后缀决定：</p>
-    <pre class="code">ocprobe --report out.<span class="kw">html</span>     <span class="cm"># 人读报告（汇总 + 每目标研判依据）</span>
-ocprobe --report out.<span class="kw">json</span>     <span class="cm"># 机读，含完整请求/响应，供二次处理</span>
-ocprobe --report out.<span class="kw">csv</span>      <span class="cm"># 表格：target, verdict, version, matched, ts</span>
-ocprobe --report out.<span class="kw">txt</span>      <span class="cm"># 纯文本摘要</span></pre>
-
-    <h3 style="margin-top:24px;">报告话术：测试项 × 状态 → 模板渲染成分析段落</h3>
-    <p style="max-width:760px;">数据库里存的是原始请求/响应，太硬，不能直接给人看。报告生成时走一层<strong>模板渲染</strong>：每个测试项穷举它「有语义区别」的所有状态，每种状态配一段半写死的话术（留变量槽由实际值填入）；渲染时把目标各测试项的实际状态逐个匹配到话术、填值，拼成一段连贯的分析。话术与判定逻辑解耦，单独放 <code>report_templates.toml</code>（与 <code>config.toml</code> 平级），非技术人员也能改措辞、不必动代码或重编译。下面的状态枚举均取自真实探测中实际出现过的状态，非设想。</p>
-
-    <pre class="code"><span class="cm"># report_templates.toml —— 每个测试项枚举其有语义区别的状态，各配话术（{} 为变量槽）</span>
-<span class="kw">[T1]</span>  <span class="cm"># control-ui-config 端点</span>
-status_200_version = <span class="str">"control-ui-config 返回 200 并自报 serverVersion={version}，服务端运行时身份，确证级。"</span>
-status_200_noversion = <span class="str">"control-ui-config 返回 200 但无 serverVersion 字段（该版本尚未引入），转指纹反推。"</span>
-status_401 = <span class="str">"control-ui-config 返回 401，端点存在但已启用鉴权（v2026.4.22+），无法直读版本。"</span>
-status_404 = <span class="str">"control-ui-config 返回 404，未发现该特异端点。"</span>
-no_response = <span class="str">"control-ui-config 无响应。"</span>
-
-<span class="kw">[T2]</span>  <span class="cm"># WS connect.challenge</span>
-hit = <span class="str">"WebSocket 握手收到 connect.challenge 协议事件，OpenClaw 强特征。"</span>
-miss = <span class="str">"WebSocket 升级后未收到 connect.challenge。"</span>
-
-<span class="kw">[T6]</span>  <span class="cm"># 首页 title（实测见过的变体）</span>
-openclaw = <span class="str">"首页标题为 OpenClaw Control。"</span>
-variant  = <span class="str">"首页标题为 {title}，非标准 OpenClaw Control，疑为改名/分叉变体（如 Clawdbot、Moltbot）。"</span>
-none     = <span class="str">"未取到首页标题。"</span>
-<span class="cm"># T3/T4/T5/T7 同理，各枚举命中/未命中等状态……</span></pre>
-
-    <p style="max-width:760px;">渲染示例——对真实目标 <code>114.215.178.217</code>（实测：control-ui 200 但无 serverVersion、WS 命中、healthz 未命中、favicon 命中、title 为 Moltbot Control），逐项匹配话术、填值、拼接，再缀上机判的二元结论与白名单依据：</p>
-    <pre class="code"><span class="cm"># --report 生成的分析段落（由上面模板渲染，非手写）</span>
-目标 114.215.178.217:18789　研判：<span class="kw">False</span>
-
-WebSocket 握手收到 connect.challenge 协议事件，OpenClaw 强特征（T2）。control-ui-config
-返回 200 但无 serverVersion 字段，转指纹反推（非 T1、非 T3）。/healthz 未返回特征体
-（非 T4）。favicon 命中品牌 MD5（T5）。首页标题为 <span class="str">Moltbot Control</span>，非标准
-OpenClaw Control，疑为改名/分叉变体（T6）。
-
-依据：命中 T2 + T5 + T6。唯一的强证据是 T2（WS 面），HTTP 路由面无强证据
-（T3/T4 均未命中）→ 不满足 C1（无 T1），不满足 C2（T2 未跨到路由面）→ <span class="kw">False</span>。
-注：完整请求/响应已入库；若日后把品牌变体纳入识别，可据此重判。</pre>
-    <p class="caption">话术模板只负责「把机器判定的结果与证据解释成人话」，<strong>不参与判定</strong>——True/False 永远由白名单 C1/C2 机判，二者解耦。本例真实状态决定了 False（T2 单强证据未跨表面）。模板放 <code>report_templates.toml</code>，改话术不影响判定。状态枚举（T1 的 200+版本/200无版本/401/404/无响应，T6 的 OpenClaw/变体/无）均取自真实探测实际出现过的状态。</p>
-  </section>
-
-  <!-- 05 失效模式 -->
-  <section>
-    <div class="sec-head"><span class="num">05</span><h2>优化的依据：大规模真实公网测试暴露的失效模式</h2></div>
-    <p class="intro">以下问题是真实公网测试（容器测试照不出、只有打真实目标才暴露）实测到的，每条带数字。它们决定了下一步优化的方向——优化不是凭空设想，是对着这些已量化的失效去修。</p>
-
-    <div class="grid fail">
-      <div class="row head"><div class="cell">失效模式</div><div class="cell">实测频次</div><div class="cell">成因</div></div>
-      <div class="row fail"><div class="cell"><strong>隐位补全歧义</strong></div><div class="cell">67.9% 的隐位 IP 对应多个完整 IP</div><div class="cell">测绘源隐藏一位地址，补全时一对多（平均 2.6 个）。但实测同段活实例版本一致性 100%——这是优化的抓手。</div></div>
-      <div class="row fail"><div class="cell"><strong>「下线」误判</strong></div><div class="cell">84.6% 的「下线」实为探错对象</div><div class="cell">补全选错了同段里另一台（已下线）主机，而真正活着的实例在该段别处。直接判「下线」是错的。</div></div>
-      <div class="row fail"><div class="cell"><strong>失败原因不可分</strong></div><div class="cell">全部 false 记录无 error_type</div><div class="cell">结果只有 <code>confidence=0</code>，分不清真下线、超时、连接拒绝、还是 IP 段被墙。</div></div>
-      <div class="row fail"><div class="cell"><strong>品牌变体反推落空</strong></div><div class="cell">实测出现 <code>Clawdbot/Moltbot Control</code></div><div class="cell">改名前旧品牌或分叉，title 不等于 <code>OpenClaw Control</code>，确认为 OpenClaw 后却反推不出版本。</div></div>
-      <div class="row fail"><div class="cell"><strong>401 占比高</strong></div><div class="cell">样本中约 24% 返回 401</div><div class="cell">该端点自 v2026.4.22 加鉴权；现实新版实例多无法直读版本、只能靠指纹反推——指纹库质量是命门。</div></div>
-    </div>
-    <p class="caption">数字来自 scan_test/ 下几轮真实公网测试产物。这些失效与《研判机制》本身无关，是「拿测绘种子打真实公网」这条作业链上的工程问题——也正是最该优化的地方。</p>
-  </section>
-
-  <!-- 05 优化梯队 -->
-  <section>
-    <div class="sec-head"><span class="num">06</span><h2>优化方案：分梯队，每条对着一个实测失效</h2></div>
-    <p class="intro">按「实测证据强度 × 成本 × 收益」排序。可信级别标注：<span class="tag now" style="font-size:10px;padding:1px 5px;">实测证实</span> 已由真实数据证明问题存在、改法明确；<span class="tag plan" style="font-size:10px;padding:1px 5px;">需先验证</span> 方向合理但效果待真实样本确认。改动集中在 prober，不依赖任何不可行前提。</p>
-
-    <div class="card t1">
-      <h3>① 失败原因分类 <span class="tag now" style="font-size:10px;padding:1px 5px;">实测证实</span> <span style="font-family:var(--mono);font-size:11px;color:var(--gray-500);">第一梯队</span></h3>
-      <p>当前探不到目标时只记一个空结论，无法区分真下线、超时、连接拒绝、不可达（见 §04 情况 F）。</p>
-      <p class="how">result.go 加 <code>error_type</code>（timeout / connection_refused / unreachable / down）；probe.go 在连接失败时按错误类型填写。</p>
-      <p class="num-evi">→ 解锁「真下线 vs 假下线」诊断，是下面 ② ③ 两项的前提。改动约 20 行，零风险。</p>
-    </div>
-
-    <div class="card t1">
-      <h3>② 品牌变体识别 <span class="tag now" style="font-size:10px;padding:1px 5px;">实测证实</span> <span style="font-family:var(--mono);font-size:11px;color:var(--gray-500);">第一梯队</span></h3>
-      <p>实测出现 title 为 <code>Clawdbot Control</code>（改名前旧名）、<code>Moltbot Control</code>（分叉）的实例，确认是 OpenClaw 却取不到版本。</p>
-      <p class="how">判定与指纹库加入品牌变体的 title 与资产映射；版本反推对变体品牌的资产名同样查库。</p>
-      <p class="num-evi">→ 直接修复实测中「is_openclaw=true 但 version 为空」的落空。</p>
-    </div>
-
-    <div class="card t1">
-      <h3>③ 隐位段采样验证替代全枚举 <span class="tag now" style="font-size:10px;padding:1px 5px;">实测证实</span> <span style="font-family:var(--mono);font-size:11px;color:var(--gray-500);">第一梯队</span></h3>
-      <p>测绘源隐藏一位地址，补全一对多（67.9%）。当前对下线候选要在整段枚举 256 个，成本高。</p>
-      <p class="how">基于实测规律「同隐位段内活实例版本一致性 100%」，改为采样验证：先探该段 2–3 个候选，确认版本一致即代表全段，不必逐个全扫；补全选错对象时也在段内有限枚举确认而非直接判下线。</p>
-      <p class="num-evi">→ 砍掉约一半冗余探测；同时修复「84.6% 假下线」。这是大规模真实测试才提炼出的、纯数据驱动的优化。</p>
-    </div>
-
-    <div class="card t2">
-      <h3>④ 资产反推加相似度兜底 <span class="tag plan" style="font-size:10px;padding:1px 5px;">需先验证</span> <span style="font-family:var(--mono);font-size:11px;color:var(--gray-500);">第二梯队</span></h3>
-      <p>资产指纹当前要求集合精确相等，差一个文件名（CDN 改名、漏采一个资产）就整体落空、退回无版本。</p>
-      <p class="how">精确匹配失败后，按观测资产集与库中各版的 Jaccard 相似度，≥0.75 时返回候选并标 <code>implicit-fuzzy</code>。落地前须先在 71 版库上统计 js/css 单独命中的碰撞率，确认不会引入误配。</p>
-      <p class="num-evi">→ 缓解部分升级/CDN 改名导致的整体丢失，提升反推召回。</p>
-    </div>
-
-    <div class="card t2">
-      <h3>⑤ 探测并行化 + 可配超时重试 <span class="tag now" style="font-size:10px;padding:1px 5px;">实测证实</span> <span style="font-family:var(--mono);font-size:11px;color:var(--gray-500);">第二梯队</span></h3>
-      <p>probe.go 当前串行跑 HTTP 与 WS 探测（最坏 16 秒），固定 8 秒超时对不稳定公网偏短、无重试——直接抬高「假超时下线」率与拉低吞吐。</p>
-      <p class="how">HTTP 与 WS 探测并行；超时与重试次数参数化（如 ConnectTimeout、Retries、RetryDelay）。</p>
-      <p class="num-evi">→ 提升真实公网扫描吞吐，降低把慢目标误判成下线的概率。</p>
-    </div>
-
-    <div class="card t2">
-      <h3>⑥ 留存响应头与完整 config 键集合 <span class="tag plan" style="font-size:10px;padding:1px 5px;">需先验证</span> <span style="font-family:var(--mono);font-size:11px;color:var(--gray-500);">第二梯队</span></h3>
-      <p>http.go 读到完整响应头却几乎全丢（<code>Server</code>、<code>ETag</code> 等）；control-ui-config 只取 <code>serverVersion</code> 一个字段，完整 JSON 键集合未看。</p>
-      <p class="how">Evidence 增 <code>map[string]string</code> 存关键响应头快照；200 时多存 config 的 JSON 键集合。先在多台同版本实例上验证这些头/键的来源与稳定性（区分 OpenClaw 自身 vs 反代注入），再决定是否纳入判定。</p>
-      <p class="num-evi">→ 低成本留证据；可能为版本判别提供补充维度。顺带清理 <code>consts.go</code> 中定义却未用的 <code>detectConfidenceFloor</code> 死常量。</p>
-    </div>
-  </section>
-
-  <!-- 06 不可行边界 -->
-  <section>
-    <div class="sec-head"><span class="num">07</span><h2>不可行边界：实测/源码双重否定的方向</h2></div>
-    <p class="intro">划清这条线本身是优化分析的一部分——它告诉团队不要在这些方向上投入工程。每条都经源码确认或真实容器实测否定。</p>
-
-    <div class="grid fail">
-      <div class="row head"><div class="cell">设想方向</div><div class="cell">结论</div><div class="cell">为什么走不通</div></div>
-      <div class="row fail"><div class="cell"><strong>用 WS hello-ok 取 server.version</strong></div><div class="cell"><span class="tag no" style="font-size:10px;padding:1px 5px;">实测否定</span></div><div class="cell">源码里 hello-ok 帧确含 <code>server.version</code>，但实测：只读握手只收到 <code>connect.challenge</code>（仅 nonce/ts）；触发 hello-ok 须先发携带设备认证（公钥+签名）的 <code>connect</code> 帧——属改状态/认证动作，违反只读不变量。空 payload 的 connect 实测也不返回版本。</div></div>
-      <div class="row fail"><div class="cell"><strong>区分 1.23/1.24、3.7/3.8</strong></div><div class="cell"><span class="tag no" style="font-size:10px;padding:1px 5px;">违反只读</span></div><div class="cell">源码确认这 2 组确有差异，但只体现在 chat send 请求/响应中，触发需发 chat 消息（改状态动作），越界。</div></div>
-      <div class="row fail"><div class="cell"><strong>区分另外 4 组纯后端版本</strong></div><div class="cell"><span class="tag no" style="font-size:10px;padding:1px 5px;">原理不可行</span></div><div class="cell">1.12=1.13、4.7=4.8、4.20=4.21、5.5=5.6 的改动全在后端逻辑，不产生任何外部可观测差异。任何只读手段都无法区分。</div></div>
-    </div>
-    <p class="caption">结论：6 组不可区分版本无法在只读约束下进一步区分——这不是缺陷，是这些版本「前端无变化 / 差异仅在需鉴权交互中」的固有性质。对它们，<code>implicit-range</code> 候选区间就是诚实且最优的研判输出。</p>
   </section>
 
   <footer>
-    本文记录扫描器的研判机制（§01–§03）、命令行交付形态（§04）与下一步优化方案（§05–§07）。研判以只读探测为唯一输入；判定层<strong>不用任何概率分值</strong>——没扫过全网，分值不可辩护——而是按可伪造性给证据分级（确证/强/弱），由一个明确的证据组合白名单（C1/C2）做出<strong>二元研判</strong>（True/False）并附原始证据清单；版本层用三路径回退并诚实表达不确定性。其可信性经真实公网验证与官方镜像独立裁决支撑。作为命令行工具，它对标 nmap 提供分级日志与人读/机读报告，§04 给出各种情况下单 IP 的真实日志样例。优化方向全部对着大规模真实测试暴露的、已量化的失效模式；实测否定的方向（WS 取版本、缩小不可区分区间）明确列为不做。
+    <p><em>本文档随探测器源码 <code>prober/openclaw/</code> 同步维护，所述每一条请求、命中条件、白名单规则与版本取证逻辑均可在对应源文件中复核。其服务于一个更大的目标：对中国大陆 OpenClaw 网关的暴露面做一次只读、可问责、可追溯的普查，使每一条"是 OpenClaw"的断言都站得住脚。</em></p>
   </footer>
 
 </div>

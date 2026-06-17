@@ -9,6 +9,7 @@ import html as _html
 import io
 import json
 import os
+import re
 import sqlite3
 
 try:
@@ -53,18 +54,55 @@ def _t(tpl, section, key, default=""):
     return (tpl.get(section) or {}).get(key, _FALLBACK.get(section, {}).get(key, default))
 
 
-def _control_ui_status(probes):
-    """从 control-ui 探测记录的响应原文里取 HTTP 状态码。"""
-    for p in probes:
-        if p["test_id"] == "control-ui":
-            resp = p["response"] or ""
-            if resp.startswith("HTTP/1.1 "):
-                try:
-                    return int(resp[9:12].strip())
-                except ValueError:
-                    return None
+def _status_of(resp):
+    """从一条响应原文的状态行取 HTTP 状态码（'HTTP/1.1 200 …' → 200）；取不到返回 None。"""
+    resp = resp or ""
+    if resp.startswith("HTTP/1.1 "):
+        try:
+            return int(resp[9:12].strip())
+        except ValueError:
             return None
     return None
+
+
+def _probe_by_id(probes, test_id):
+    for p in probes:
+        if p["test_id"] == test_id:
+            return p
+    return None
+
+
+def _control_ui_status(probes):
+    """从 control-ui 探测记录的响应原文里取 HTTP 状态码。"""
+    p = _probe_by_id(probes, "control-ui")
+    return _status_of(p["response"]) if p else None
+
+
+def _title_of(probes):
+    """从 home 探针响应里取首页 <title> 文本（用于 T6 变体话术的 {title} 槽）。"""
+    p = _probe_by_id(probes, "home")
+    if not p:
+        return ""
+    m = re.search(r"<title>([^<]*)</title>", p["response"] or "", re.I)
+    return m.group(1).strip() if m else ""
+
+
+# 与探测器 prober/openclaw/http.go 的 assetRe 同口径：只取 index-*.js / index-*.css，
+# 这些内容哈希文件名正是版本指纹反推的依据。
+_ASSET_RE = re.compile(r"assets/(index-[A-Za-z0-9_.\-]+\.(?:js|css))")
+
+
+def _assets_of(probes):
+    """从 home 响应提取用于指纹反推的前端资产文件名（去重、保序）。"""
+    p = _probe_by_id(probes, "home")
+    if not p:
+        return []
+    seen, out = set(), []
+    for a in _ASSET_RE.findall(p["response"] or ""):
+        if a not in seen:
+            seen.add(a)
+            out.append(a)
+    return out
 
 
 def render_analysis(tpl, obs, probes):
@@ -115,6 +153,156 @@ def render_analysis(tpl, obs, probes):
         verdict_line = _t(tpl, "verdict", "false").format(matched="+".join(sorted(matched)) or "无")
 
     return " ".join(lines), verdict_line
+
+
+def version_note(tpl, obs):
+    """版本取证方式说明（放报告概况，不归属任何探针）。direct 直读 / implicit 资产指纹反推。"""
+    ver = obs["version"] or ""
+    src = obs["version_source"] or ""
+    if not ver:
+        return _t(tpl, "version", "none")
+    if src == "direct":
+        return _t(tpl, "version", "direct").format(version=ver)
+    if src == "implicit":
+        return _t(tpl, "version", "implicit").format(version=ver)
+    if src == "implicit-range":
+        return _t(tpl, "version", "implicit_range").format(version=ver, candidates="候选版本见下方列表")
+    return ""
+
+
+def analysis_by_probe(tpl, obs, probes):
+    """生成每个探针的「观测」：返回 {探针test_id: {"desc":观测文本, "highlights":[特征词]}}。
+
+    desc 只陈述该探针自身的观测事实，不提证据级别/C1/C2/跨探针引用——达标逻辑由
+    verdict_summary() 收口。highlights 是命中时该探针的「关键特征词」：这些子串同时出现在
+    观测文案和该探针的请求/响应原文里，前端在三处统一染色，使读者一眼对应。
+    占位符 {status}/{version}/{title} 由该探针真实响应提取后填入。
+    """
+    matched = set(json.loads(obs["matched"] or "[]"))
+    ev_status = _control_ui_status(probes)
+    server_version = obs["version"] or ""
+    out = {}
+
+    # control-ui 探针 → T1（200+serverVersion）/ T3（401）/ 其它，{status} 填真实状态码
+    st = f"{ev_status}" if ev_status else "（无响应）"
+    hl = []
+    if "T1" in matched:
+        d = _t(tpl, "T1", "status_200_version").format(status=st, version=server_version or "?")
+        hl = ["serverVersion", server_version] if server_version else ["serverVersion"]
+    elif ev_status == 401:
+        d = _t(tpl, "T3", "hit").format(status=st)
+        hl = ["401"]
+    elif ev_status == 200:
+        d = _t(tpl, "T1", "status_200_noversion").format(status=st)
+    elif ev_status == 404:
+        d = _t(tpl, "T1", "status_404").format(status=st)
+    else:
+        d = _t(tpl, "T1", "no_response")
+    out["control-ui"] = {"desc": d, "highlights": hl}
+
+    # home 探针 → T6（首页 title）+ T7（三个安全响应头）+ 指纹反推证据；T6 变体填 {title}
+    hl = []
+    if "T6" in matched:
+        t6 = _t(tpl, "T6", "openclaw")
+        hl.append("<title>OpenClaw Control</title>")
+    else:
+        title = _title_of(probes)
+        t6 = _t(tpl, "T6", "variant").format(title=title) if title else _t(tpl, "T6", "miss")
+    t7 = _t(tpl, "T7", "hit" if "T7" in matched else "miss")
+    if "T7" in matched:
+        hl += ["X-Content-Type-Options", "Referrer-Policy", "Permissions-Policy"]
+
+    # 指纹反推证据落地：列出本次反推用到的资产文件名（高亮，与响应原文对应）+ 反推结果
+    src = obs["version_source"] or ""
+    assets = _assets_of(probes)
+    if assets and src in ("implicit", "implicit-range"):
+        astr = "、".join(assets)
+        key = "infer_range" if src == "implicit-range" else "infer"
+        asset_clause = _t(tpl, "home_extra", key).format(assets=astr, version=server_version or "?")
+        hl += assets
+        if server_version:
+            hl.append(server_version)
+    elif assets and not src and "T6" in matched:
+        # 提取到资产但未匹配指纹库（判真无版本时）
+        asset_clause = _t(tpl, "home_extra", "infer_nomatch").format(assets="、".join(assets))
+        hl += assets
+    else:
+        asset_clause = _t(tpl, "home_extra", "asset")
+
+    home = " ".join(x for x in (t6, t7) if x)
+    if home:
+        home += " " + asset_clause
+    out["home"] = {"desc": home.strip(), "highlights": hl}
+
+    # T2
+    if "T2" in matched:
+        out["T2"] = {"desc": _t(tpl, "T2", "hit"),
+                     "highlights": ["101 Switching Protocols", "connect.challenge"]}
+    else:
+        out["T2"] = {"desc": _t(tpl, "T2", "miss"), "highlights": []}
+
+    # T4
+    if "T4" in matched:
+        p4 = _probe_by_id(probes, "T4")
+        out["T4"] = {"desc": _t(tpl, "T4", "hit").format(status=_status_of(p4["response"]) if p4 else "200"),
+                     "highlights": ['"status":"live"', '"ok":true']}
+    else:
+        out["T4"] = {"desc": _t(tpl, "T4", "miss"), "highlights": []}
+
+    # T5（favicon 响应已折为二进制摘要，高亮 MD5 值）
+    if "T5" in matched:
+        p5 = _probe_by_id(probes, "T5")
+        md5 = ""
+        if p5:
+            m = re.search(r"MD5=([0-9a-f]+)", p5["response"] or "")
+            md5 = m.group(1) if m else ""
+        out["T5"] = {"desc": _t(tpl, "T5", "hit"), "highlights": [md5] if md5 else []}
+    else:
+        out["T5"] = {"desc": _t(tpl, "T5", "miss"), "highlights": []}
+    return out
+
+
+# 每个测试项的研判标准与含义（前端横幅 T1..T7 / C1 / C2 悬停提示）。
+TEST_MEANINGS = {
+    "T1": "control-ui-config 端点返回 200 且自报 serverVersion。确证级证据：伪造它须真实实现该端点逻辑。",
+    "T2": "WebSocket 升级后服务端首帧下发 connect.challenge 协议事件。强证据（WS 协议面）。",
+    "T3": "control-ui-config 端点返回 401，端点存在但已启用鉴权。强证据（HTTP 路由面）。",
+    "T4": "GET /healthz 返回特征健康体（\"status\":\"live\" 与 \"ok\":true）。强证据（HTTP 路由面）。",
+    "T5": "favicon.ico 的 MD5 命中 OpenClaw 品牌指纹。弱证据（静态文件可复制）。",
+    "T6": "首页 <title> 为「OpenClaw Control」。弱证据（静态文本可仿冒）。",
+    "T7": "响应同时带三项安全响应头。弱证据（常见框架默认，任何服务可设置）。",
+    "C1": "白名单条件 C1：命中 T1 即判真（确证级单条达标）。",
+    "C2": "白名单条件 C2：T2 且（T3 或 T4）——WebSocket 协议面叠加 HTTP 路由面，跨表面双强互证。",
+}
+
+
+def verdict_summary(tpl, obs):
+    """研判小结：收口达标逻辑（证据级别、C1/C2、版本来源），每例讲一次。
+
+    基于观测的全局结果（rule/matched/version_source/error_type）渲染，与单条探针无关。
+    """
+    rule = obs["rule"]
+    matched = json.loads(obs["matched"] or "[]")
+    if obs["error_type"]:
+        return _t(tpl, "verdict_summary", "down").format(error_type=obs["error_type"])
+    if rule == "C1":
+        return _t(tpl, "verdict_summary", "c1")
+    if rule == "C2":
+        # 版本子句按来源拼接，嵌入 c2_t3 / c2_t4
+        ver = obs["version"] or ""
+        src = obs["version_source"] or ""
+        if not ver:
+            vc = _t(tpl, "verdict_summary_version", "none")
+        elif src == "implicit-range":
+            vc = _t(tpl, "verdict_summary_version", "implicit_range").format(version=ver)
+        elif src == "implicit":
+            vc = _t(tpl, "verdict_summary_version", "implicit").format(version=ver)
+        else:
+            vc = _t(tpl, "verdict_summary_version", "direct")
+        key = "c2_t3" if "T3" in matched else "c2_t4"
+        return _t(tpl, "verdict_summary", key).format(version_clause=vc)
+    # 判假
+    return _t(tpl, "verdict_summary", "false").format(matched="、".join(matched) or "无")
 
 
 def _fetch(db_path):

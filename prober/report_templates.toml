@@ -1,43 +1,87 @@
-# 报告话术模板 —— 每个测试项穷举其「有语义区别」的状态，各配一段半写死话术。
-# {} 是变量槽，渲染时由实际探测值填入（如 {version}、{title}）。
-# 话术与判定逻辑解耦：True/False 永远由白名单 C1/C2 机判，本文件只负责把结果解释成人话。
-# 非技术人员可直接改这里的措辞，不必动代码、不必重编译。
-# 状态枚举取自真实探测中实际出现过的状态。
+# 报告话术模板。{} 是变量槽，渲染时由该探针真实响应中提取的值填入（如 {version}、{status}、{title}）。
+# 设计原则（与 docs/研判用例样例报告.html 的呈现一致）：
+#   - 探针话术（[T1]…[T7]）只陈述「这一步观测到什么、该测试项是否命中」，不提证据级别、
+#     不提 C1/C2 达标逻辑、不跨探针引用。措辞为 ACM CCS 学术口吻，命中状态只用「命中/未命中」。
+#   - 证据级别与达标逻辑（C1/C2）统一在 [verdict_summary] 的研判小结里讲一次。
+#   - 文案可由非开发者直接编辑，不必动代码。
+#
+# 探针 → 测试项映射（权威来源 prober/openclaw/http.go、signals.go）：
+#   T2 探针         → T2：WebSocket 升级握手
+#   T4 探针         → T4：GET /healthz
+#   T5 探针         → T5：GET /favicon.ico
+#   home 探针       → T6（首页 <title>）+ T7（三个安全响应头），同一次 GET / 取得
+#   control-ui 探针 → T1（200 且自报 serverVersion）/ T3（401，端点存在但需鉴权）
 
-[T1]  # control-ui-config 端点（确证级来源）
-status_200_version   = "control-ui-config 返回 200 并自报 serverVersion={version}，服务端运行时身份，确证级。"
-status_200_noversion = "control-ui-config 返回 200 但无 serverVersion 字段（该版本尚未引入），转指纹反推。"
-status_401           = "control-ui-config 返回 401，端点存在但已启用鉴权（v2026.4.22+），无法直读版本。"
-status_404           = "control-ui-config 返回 404，未发现该特异端点。"
-no_response          = "control-ui-config 无响应。"
+# ── 探针观测话术（纯观测，带占位符；{status} 为该响应状态码，由后端从响应行提取）──
 
-[T2]  # WS connect.challenge（强证据）
-hit  = "WebSocket 握手收到 connect.challenge 协议事件，OpenClaw 强特征。"
-miss = "WebSocket 升级后未收到 connect.challenge。"
+[T1]  # control-ui-config 端点
+status_200_version   = "对 GET /__openclaw/control-ui-config.json 的响应为 {status}，响应体 JSON 含 serverVersion={version}。该字段非空，T1 命中，并直接给出版本号。"
+status_200_noversion = "对 GET /__openclaw/control-ui-config.json 的响应为 {status}，但响应体不含 serverVersion 字段，T1 未命中，无法直读版本。"
+status_404           = "对 GET /__openclaw/control-ui-config.json 的响应为 {status}，未发现该特异端点，T1 未命中。"
+no_response          = "GET /__openclaw/control-ui-config.json 无响应，T1 未命中。"
 
-[T3]  # control-ui 401（强证据，HTTP 路由面）
-hit  = "control-ui-config 端点以 401 响应，特异路由存在。"
-miss = "control-ui-config 未以 401 响应。"
+[T2]  # WebSocket connect.challenge
+hit  = "WebSocket 升级握手得到 101 Switching Protocols，服务端首帧含 \"event\":\"connect.challenge\"。T2 命中。"
+miss = "WebSocket 升级握手完成后，未收到 connect.challenge 协议事件。T2 未命中。"
 
-[T4]  # /healthz 特征体（强证据，HTTP 路由面）
-hit  = "/healthz 返回特征健康体（status:live, ok:true）。"
-miss = "/healthz 未返回特征体。"
+[T3]  # control-ui-config 401（与 T1 同探针，由状态码区分）
+hit  = "对 GET /__openclaw/control-ui-config.json 的响应为 {status}：端点存在但已启用鉴权。T3 命中。鉴权阻断了 serverVersion 的读取，该探针不产出版本信息。"
+miss = "对 GET /__openclaw/control-ui-config.json 的响应状态码非 401，T3 未命中。"
 
-[T5]  # favicon MD5（弱证据，可静态伪造）
-hit  = "favicon 命中品牌 MD5。"
-miss = "favicon 未命中品牌 MD5。"
+[T4]  # /healthz 特征体
+hit  = "对 GET /healthz 的响应为 {status}，响应体含 \"status\":\"live\" 与 \"ok\":true。T4 命中。"
+miss = "对 GET /healthz 的响应未包含 OpenClaw 特征健康内容（\"status\":\"live\"），T4 未命中。"
 
-[T6]  # 首页 title（弱证据，可静态伪造）
-openclaw = "首页标题为 OpenClaw Control。"
-variant  = "首页标题为 {title}，非标准 OpenClaw Control，疑为改名/分叉变体（如 Clawdbot、Moltbot）。"
-none     = "未取到首页标题。"
+[T5]  # favicon MD5
+hit  = "对 GET /favicon.ico 取回的图标，其 MD5 与 OpenClaw 品牌指纹（f58854f6…bebaf）一致。T5 命中。响应体为二进制，落库时折为摘要。"
+miss = "对 GET /favicon.ico 取回图标的 MD5 与 OpenClaw 品牌指纹不一致，T5 未命中。"
 
-[T7]  # 响应头三件套（弱证据，常见框架默认）
-hit  = "命中响应头三件套（X-Content-Type-Options / Referrer-Policy / Permissions-Policy）。"
-miss = "未命中响应头三件套。"
+[T6]  # 首页 title
+openclaw = "对 GET / 的响应，首页 <title>OpenClaw Control</title> 与官方一致。T6 命中。"
+variant  = "对 GET / 的响应，首页 <title> 为「{title}」，非官方「OpenClaw Control」，疑为改名或分叉变体。T6 未命中。"
+miss     = "对 GET / 的响应，首页 <title> 非官方「OpenClaw Control」或未取到。T6 未命中。"
 
-[verdict]  # 结论收尾话术
-true_c1  = "依据：命中确证级证据 T1（control-ui 自报版本），满足 C1 → True。"
-true_c2  = "依据：命中跨表面双强证据（T2 WS 面 + HTTP 路由面强证据），满足 C2 → True。"
-false    = "依据：命中 {matched}，不满足白名单 C1（需 T1）与 C2（需 T2 且跨到 HTTP 路由面）→ False。完整请求/响应已入库，可复查或调白名单重判。"
-down     = "依据：探不到目标（{error_type}），无任何 OpenClaw 证据 → False。"
+[T7]  # 响应头三件套
+hit  = "同一 GET / 响应同时带有 X-Content-Type-Options: nosniff、Referrer-Policy: no-referrer、Permissions-Policy 含 microphone=(self) 三项安全响应头。T7 命中。"
+miss = "同一 GET / 响应中三项安全响应头（X-Content-Type-Options / Referrer-Policy / Permissions-Policy）未同时满足，T7 未命中。"
+
+[home_extra]  # home 探针附注：该响应同时用于采集前端资产哈希、做版本指纹反推
+asset           = "该响应亦用于采集前端资产哈希，供版本指纹反推。"
+# 反推命中唯一版本：列出实际用于反推的资产文件名（{assets}）与反推结果（{version}）
+infer           = "从该响应提取到前端资产 {assets}，其内容哈希集合与指纹库精确匹配，反推出版本 {version}（implicit）。"
+# 反推命中多个不可区分版本：给出区间
+infer_range     = "从该响应提取到前端资产 {assets}，其内容哈希集合同时匹配指纹库中多个相邻版本（前端 bundle 一致、不可区分），反推得到版本区间 {version}（implicit-range）。"
+# 提取到资产但未匹配指纹库：无版本
+infer_nomatch   = "从该响应提取到前端资产 {assets}，但其哈希集合未匹配指纹库任何条目，无法反推版本。"
+
+# ── 版本取证说明（报告概况，不归属任何单一探针）──
+
+[version]
+direct         = "版本 {version}（direct）：从 control-ui-config 端点直读服务端自报的 serverVersion。"
+implicit       = "版本 {version}（implicit）：服务端未暴露版本号，由首页前端资产（JS/CSS bundle）哈希集合与指纹库精确匹配反推得到。"
+implicit_range = "版本 {version}（implicit-range）：首页资产指纹同时匹配指纹库中多个相邻版本（纯后端改动、前端 bundle 未变，无法区分），只能定位到版本区间，{candidates}。"
+none           = "版本未取到：control-ui 响应不含 serverVersion，首页资产哈希亦未匹配指纹库。不构造无依据的版本区间，留待补充指纹后重新判定。"
+
+# ── 研判小结（每例末尾收口达标逻辑，证据级别与 C1/C2 只在此讲）──
+
+[verdict_summary]
+c1    = "命中确证级证据 T1（control-ui-config 自报版本），满足白名单 C1，单条证据即判 True。版本由 T1 直读取得，来源为 direct。其余命中项为辅助证据，不影响此结论。"
+c2_t3 = "T2（WebSocket 协议面）与 T3（HTTP 路由面，鉴权端点存在）分处两个独立协议表面命中，满足白名单 C2，判 True。{version_clause}"
+c2_t4 = "T2（WebSocket 协议面）与 T4（HTTP 路由面，/healthz 特征体）分处两个独立协议表面命中，满足白名单 C2，判 True。{version_clause}"
+false = "命中 {matched}，未满足任一白名单条件（C1 需 T1；C2 需 T2 且叠加 T3 或 T4）。判 False。命中的弱证据不参与判定；如有可反推的版本，因未达判定标准，不作为 OpenClaw 实例对外呈现，仅纳入待复核集合。"
+down  = "探测无法触达目标（{error_type}），未取得任何 OpenClaw 证据，判 False。此类不计入资产收录。"
+
+# version_clause 由后端按版本来源拼接，嵌入 c2_* 小结：
+[verdict_summary_version]
+direct        = "版本由 control-ui 直读取得。"
+implicit      = "鉴权或缺字段使版本无法直读，由首页资产指纹反推为 {version}（implicit）。"
+implicit_range = "版本经资产指纹反推命中多个不可区分的相邻版本，如实给出区间 {version}（implicit-range），不谎报单一精确版本。"
+none          = "两条版本取证途径均未产出结果，如实记为版本未取到。"
+
+# ── 旧版整段话术（render_analysis 仍在用，保留兼容）──
+
+[verdict]
+true_c1  = "研判 True，依据 C1：命中确证级证据 T1（control-ui-config 自报版本），单条即达标。"
+true_c2  = "研判 True，依据 C2：跨表面命中双强证据——T2（WebSocket 协议面）叠加 T3 或 T4（HTTP 路由面），两面互证。"
+false    = "研判 False：命中 {matched}，未满足任一白名单条件（C1 需 T1；C2 需 T2 且叠加 T3 或 T4）。完整请求/响应已入库，可据此复查或调整白名单后重判。"
+down     = "研判 False：探测无法触达目标（{error_type}），未取得任何 OpenClaw 证据。"
