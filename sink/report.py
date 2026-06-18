@@ -264,15 +264,15 @@ def analysis_by_probe(tpl, obs, probes):
 
 # 每个测试项的研判标准与含义（前端横幅 T1..T7 / C1 / C2 悬停提示）。
 TEST_MEANINGS = {
-    "T1": "control-ui-config 端点返回 200 且自报 serverVersion。确证级证据：伪造它须真实实现该端点逻辑。",
-    "T2": "WebSocket 升级后服务端首帧下发 connect.challenge 协议事件。强证据（WS 协议面）。",
-    "T3": "control-ui-config 端点返回 401，端点存在但已启用鉴权。强证据（HTTP 路由面）。",
-    "T4": "GET /healthz 返回特征健康体（\"status\":\"live\" 与 \"ok\":true）。强证据（HTTP 路由面）。",
-    "T5": "favicon.ico 的 MD5 命中 OpenClaw 品牌指纹。弱证据（静态文件可复制）。",
-    "T6": "首页 <title> 为「OpenClaw Control」。弱证据（静态文本可仿冒）。",
-    "T7": "响应同时带三项安全响应头。弱证据（常见框架默认，任何服务可设置）。",
-    "C1": "白名单条件 C1：命中 T1 即判真（确证级单条达标）。",
-    "C2": "白名单条件 C2：T2 且（T3 或 T4）——WebSocket 协议面叠加 HTTP 路由面，跨表面双强互证。",
+    "T1": "control-ui-config 端点返回 200 且自报 serverVersion。确证级：该响应由 OpenClaw 运行时实际实现并自报版本，为其独有，单条即可定论。",
+    "T2": "WebSocket 升级后服务端首帧下发 connect.challenge 协议事件。强证据（WS 协议面）：此协议交互为 OpenClaw 运行时所特有。",
+    "T3": "control-ui-config 端点返回 401，端点存在但已启用鉴权。强证据（HTTP 路由面）：该路由由 OpenClaw 运行时提供。",
+    "T4": "GET /healthz 返回特征健康体（\"status\":\"live\" 与 \"ok\":true）。强证据（HTTP 路由面）：该健康体结构为 OpenClaw 运行时所特有。",
+    "T5": "favicon.ico 的 MD5 命中 OpenClaw 品牌指纹。弱证据：favicon 属静态资源，非运行时独有，须与强证据合证以避免误判。",
+    "T6": "首页 <title> 为「OpenClaw Control」。弱证据：标题属静态文本，非运行时独有，须与强证据合证以避免误判。",
+    "T7": "响应同时带三项安全响应头。弱证据：安全响应头为通用配置、多类服务皆可呈现，非运行时独有，须与强证据合证以避免误判。",
+    "C1": "白名单条件 C1：命中 T1 即判真——确证级特征为 OpenClaw 运行时独有，单条达标。",
+    "C2": "白名单条件 C2：T2 且（T3 或 T4）——WebSocket 协议面叠加 HTTP 路由面，两类运行时独有特征跨表面互证。",
 }
 
 

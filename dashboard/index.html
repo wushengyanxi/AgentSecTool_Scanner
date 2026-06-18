@@ -66,16 +66,17 @@
   .hint:hover::after,.hint:hover::before{opacity:1;visibility:visible;transition-delay:.3s;}
 
   /* 研判标记的悬停提示：tooltip 文字是真实 DOM 子节点（.tipbox），不靠 ::after content，
-     在表格展开行里也能稳定显示、不被裁空 */
+     在表格展开行里也能稳定显示、不被裁空。
+     向下弹出（标记位于展开区顶部 meta 行，向上弹会冲出展开行被上方表格行遮成黑块）。 */
   .tipw{position:relative;cursor:help;border-bottom:1px dotted var(--indigo-3);}
   .tipbox{
-    position:absolute;left:50%;bottom:calc(100% + 9px);transform:translateX(-50%);
+    position:absolute;left:50%;top:calc(100% + 9px);transform:translateX(-50%);
     background:var(--ink-strong);color:#fff;font-family:var(--sans);font-size:12px;line-height:1.55;
     font-weight:400;letter-spacing:0;text-align:left;white-space:normal;width:max-content;max-width:260px;
     padding:8px 11px;border-radius:7px;box-shadow:0 6px 18px rgba(43,50,66,.22);
     opacity:0;visibility:hidden;pointer-events:none;z-index:50;transition:opacity .12s ease;}
-  .tipbox::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);
-    border:5px solid transparent;border-top-color:var(--ink-strong);}
+  .tipbox::after{content:"";position:absolute;left:50%;bottom:100%;transform:translateX(-50%);
+    border:5px solid transparent;border-bottom-color:var(--ink-strong);}
   .tipw:hover .tipbox{opacity:1;visibility:visible;transition-delay:.3s;}
 
   /* 可信级别：同一靛蓝的深浅，不用多色 */
