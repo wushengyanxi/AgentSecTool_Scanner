@@ -119,7 +119,7 @@
 
   <div class="tldr">
     <div class="lbl">Premise</div>
-    <p>本文档说明扫描器如何对一个开放端点判定其是否为 OpenClaw 网关、并在判定为真时确定其运行版本。判定不采用概率打分，而是以一组按<strong>可伪造性</strong>分级的观测信号，经一份明确的证据组合白名单作二元裁决；版本取证则区分服务端自报的直读与基于前端资产指纹的反推。全文每一条机制均对应探测器源码 <code>prober/openclaw/</code>，可逐条复核。</p>
+    <p>本文档说明扫描器如何对一个开放端点判定其是否为 OpenClaw 网关、并在判定为真时确定其运行版本。判定不采用概率打分，而是以一组按<strong>对 OpenClaw 身份的指示性</strong>分级的观测信号，经一份明确的证据组合白名单作二元裁决；版本取证则区分服务端自报的直读与基于前端资产指纹的反推。全文每一条机制均对应探测器源码 <code>prober/openclaw/</code>，可逐条复核。</p>
   </div>
 
   <div class="strip">
@@ -135,9 +135,9 @@
     <h2>判定为何是二元裁决，而非置信度打分</h2>
     <p class="intro">对暴露面普查而言，一个目标"是不是 OpenClaw"是一个需要被负责任地呈现的二元事实，而非一个介于 0 与 1 之间的分数。本节交代这一设计立场及其前提。</p>
 
-    <p>面向公网的服务指纹识别长期采用加权打分：为每个特征赋一个权重，命中即累加，超过阈值则判为目标。打分法在特征彼此独立、且每个特征都难以单独伪造时是合理的；但对一个<strong>控制面板类</strong>的目标，它有两重失效。其一，弱特征可被廉价地批量伪造——首页标题、站点图标、若干安全响应头都是静态产物，任何第三方都能原样复制，因而把它们相加得到的高分并不代表高可信。其二，分数本身不可解释：一个 0.82 的目标与一个 0.79 的目标在运营处置上意味着什么差别，无从回答。</p>
+    <p>面向公网的服务指纹识别长期采用加权打分：为每个特征赋一个权重，命中即累加，超过阈值则判为目标。打分法在每个特征都足以单独指示目标身份时是合理的；但对一个<strong>控制面板类</strong>的目标，它有两重失效。其一，弱特征并非目标所独有——首页标题、站点图标、若干安全响应头等，其它服务也可能恰好具备，把它们相加得到的高分并不代表高可信，反而容易将非目标服务误判为目标。其二，分数本身不可解释：一个 0.82 的目标与一个 0.79 的目标在运营处置上意味着什么差别，无从回答。</p>
 
-    <p>本扫描器改以<strong>证据可伪造性分级加组合白名单</strong>替代打分。每个观测信号先按"伪造它需要付出多大代价"归入确证级、强证据、弱证据三档；随后由一份穷举的白名单规定<em>哪些组合</em>才足以判真，其余一切组合一律判假。判定结果因此是二元的，且每一次判真都能追溯到它满足了哪一条白名单规则——这正是普查数据对外披露时所要求的可问责性。</p>
+    <p>本扫描器改以<strong>证据指示性分级加组合白名单</strong>替代打分。每个观测信号先按"它在多大程度上是 OpenClaw 运行时所独有"归入确证级、强证据、弱证据三档；随后由一份穷举的白名单规定<em>哪些组合</em>才足以判真，其余一切组合一律判假。判定结果因此是二元的，且每一次判真都能追溯到它满足了哪一条白名单规则——这正是普查数据对外披露时所要求的可问责性。</p>
 
     <div class="callout">
       <div class="lbl">判定不变量</div>
@@ -195,7 +195,7 @@
   <section>
     <span class="num">03</span>
     <h2>七个测试项：请求、期望观测、推断与证据级别</h2>
-    <p class="intro">下表逐项给出每个测试项发起的请求、命中所要求观测到的结果、由此可推断的事实，以及该信号的证据级别。级别由"伪造此信号需付出的代价"决定，是后续白名单的设计依据。</p>
+    <p class="intro">下表逐项给出每个测试项发起的请求、命中所要求观测到的结果、由此可推断的事实，以及该信号的证据级别。级别由"该信号在多大程度上是 OpenClaw 运行时所独有"决定，是后续白名单的设计依据。</p>
 
     <div class="grid t-probe">
       <div class="row head">
@@ -213,7 +213,7 @@
           <div class="req">GET /__openclaw/control-ui-config.json</div>
           <div class="small">返回 <code>200</code> 且响应体 JSON 含非空 <code>serverVersion</code> 字段。</div>
         </div>
-        <div class="cell"><div class="small">服务端在运行时解析自身配置、把当前版本号写入该端点响应。这要求伪造者真实实现该端点的运行逻辑，而非复制一份静态文件——伪造的代价等同于实现。该字段同时直接给出版本。</div></div>
+        <div class="cell"><div class="small">该响应由 OpenClaw 服务端在运行时解析自身配置、把当前版本号写入而成。其它服务不会恰好在此路径返回结构正确、携带版本号的 JSON，故该信号是 OpenClaw 运行时所独有的确证级证据。该字段同时直接给出版本。</div></div>
         <div class="cell"><span class="lvl cert">确证级</span></div>
       </div>
 
@@ -224,7 +224,7 @@
           <div class="req">WS Upgrade: websocket</div>
           <div class="small">升级得到 <code>101</code> 后，服务端首帧载荷含 <code>"event":"connect.challenge"</code>。</div>
         </div>
-        <div class="cell"><div class="small">连接建立即被服务端主动下发的协议事件（带新鲜 nonce 与时间戳）。复制静态文件无法产生此行为，伪造者须主动实现一个 WebSocket 服务端并模仿其协议交互，门槛显著高于抄文件，但低于实现完整后端，故定为强证据而非确证级。</div></div>
+        <div class="cell"><div class="small">连接建立即被服务端主动下发的协议事件（带新鲜 nonce 与时间戳）。这是 OpenClaw 特有的 WebSocket 协议行为，普通服务极少与之巧合，故定为强证据；但因仅凭此一项仍不及确证级独有，故不单独定案。</div></div>
         <div class="cell"><span class="lvl strong">强证据</span></div>
       </div>
 
@@ -235,7 +235,7 @@
           <div class="req">GET /__openclaw/control-ui-config.json</div>
           <div class="small">返回 <code>401</code>（同一端点，由状态码与 T1 区分）。</div>
         </div>
-        <div class="cell"><div class="small">该特异端点存在、且行为符合启用鉴权后的预期（<code>v2026.4.22</code> 起默认开启鉴权）。证明 HTTP 路由面上存在 OpenClaw 端点，但因鉴权阻断而无法直读版本。要伪造须实现这一特异路由及其鉴权行为。</div></div>
+        <div class="cell"><div class="small">该特异路径存在、且行为符合启用鉴权后的预期（<code>v2026.4.22</code> 起默认开启鉴权）。这一特异端点与其鉴权行为是 OpenClaw 路由面的特征，证明 HTTP 路由面上存在 OpenClaw 端点，但因鉴权阻断而无法直读版本。</div></div>
         <div class="cell"><span class="lvl strong">强证据</span></div>
       </div>
 
@@ -246,7 +246,7 @@
           <div class="req">GET /healthz</div>
           <div class="small">返回 <code>200</code> 且响应体同时含 <code>"status":"live"</code> 与 <code>"ok":true</code>。</div>
         </div>
-        <div class="cell"><div class="small">特定结构的健康检查响应，属 HTTP 路由面的行为特征。比静态文件难伪造（须实现该端点并返回特定结构），但比协议级交互（T2）容易，故同列强证据。</div></div>
+        <div class="cell"><div class="small">特定结构的健康检查响应，属 HTTP 路由面的行为特征。该端点与其特定响应结构是 OpenClaw 所特有，普通服务极少与之巧合，故列为强证据。</div></div>
         <div class="cell"><span class="lvl strong">强证据</span></div>
       </div>
 
@@ -257,7 +257,7 @@
           <div class="req">GET /favicon.ico</div>
           <div class="small">响应体 MD5 等于品牌指纹 <code>f58854f6…bebaf</code>。</div>
         </div>
-        <div class="cell"><div class="small">站点图标是静态文件，<code>curl</code> 取下原样挂上即可，纯属抄袭。可作品牌线索，但单独不构成身份证据，故为弱证据。该 MD5 跨版本稳定，是版本无关的品牌指纹。</div></div>
+        <div class="cell"><div class="small">站点图标是静态文件，其它服务也可能放置相同图标，并非 OpenClaw 运行时所独有。可作品牌线索，但单独不构成身份证据，故为弱证据。该 MD5 跨版本稳定，是版本无关的品牌指纹。</div></div>
         <div class="cell"><span class="lvl weak">弱证据</span></div>
       </div>
 
@@ -321,10 +321,10 @@
     </div>
 
     <h3>C1：确证级单条达标</h3>
-    <p>当 <code>control-ui-config</code> 返回 <code>200</code> 且自报 <code>serverVersion</code>（即 T1），单条即判真。其正当性在于该信号的伪造代价等同于真实现：要让此端点在运行时返回结构正确、携带版本号的 JSON，伪造者实际上已经实现了 OpenClaw 该端点的逻辑。对确证级证据，"伪造"与"是真的"在可观测层面不可区分，因而无须第二个信号佐证。</p>
+    <p>当 <code>control-ui-config</code> 返回 <code>200</code> 且自报 <code>serverVersion</code>（即 T1），单条即判真。其正当性在于该信号是 OpenClaw 运行时所独有：能在此端点返回结构正确、携带版本号的 JSON，本身即表明运行的是 OpenClaw 该端点的逻辑，其它服务不会恰好产生这一响应。对确证级证据，单条命中即足以定案，无须第二个信号佐证。</p>
 
     <h3>C2：跨表面双强互证</h3>
-    <p>当 WS 首帧命中 <code>connect.challenge</code>（T2），且 HTTP 路由面命中 T3 或 T4 之一时，判真。这条规则的关键不在"两个强证据"这个数量，而在它们<strong>分处两个独立的协议实现表面</strong>：T2 是 WebSocket 协议交互，T3 与 T4 是 HTTP 路由行为。一个仅靠抄袭静态资源的仿冒者，无法同时在这两个表面给出真实行为——它需要既实现 WS 协议端、又实现特异 HTTP 端点。跨表面的要求，把"批量复制静态特征"这一最廉价的伪造路径排除在达标之外。</p>
+    <p>当 WS 首帧命中 <code>connect.challenge</code>（T2），且 HTTP 路由面命中 T3 或 T4 之一时，判真。这条规则的关键不在"两个强证据"这个数量，而在它们<strong>分处两个独立的协议实现表面</strong>：T2 是 WebSocket 协议交互，T3 与 T4 是 HTTP 路由行为。非 OpenClaw 的服务即便在某一表面与之偶然相似，也极难在 WebSocket 协议面与 HTTP 路由面同时呈现 OpenClaw 特有的行为。跨表面的要求，把"仅凭单一表面的偶然相似即判真"这一最易产生误判的情形排除在达标之外。</p>
 
     <div class="callout warn">
       <div class="lbl">弱证据的地位</div>
@@ -403,12 +403,12 @@
   <!-- 07 局限 -->
   <section>
     <span class="num">07</span>
-    <h2>已知局限与可伪造性边界</h2>
-    <p class="intro">任何基于外部观测的判定都有其可被对抗的边界。如实陈述这些边界，是普查数据负责任披露的一部分。</p>
+    <h2>已知局限</h2>
+    <p class="intro">基于外部观测的判定有其固有的能力边界。如实陈述这些边界，是普查数据负责任披露的一部分。</p>
 
     <ul class="clean">
-      <li><strong>确证级的伪造下界。</strong>C1 把"伪造代价等同于真实现"作为单条达标的依据。一个刻意实现了完整 <code>control-ui-config</code> 端点逻辑、返回伪造版本号的蜜罐，会被判真——但这样的蜜罐在行为上已与真实现无异，本扫描器的立场是不试图区分二者。</li>
-      <li><strong>弱证据不背书。</strong>仅命中静态特征（标题、图标、安全头）的目标判为假。这意味着若某个真实 OpenClaw 实例恰好屏蔽了 WS 与两个特异 HTTP 端点、只暴露静态首页，会被本机制漏判。普查倾向于"宁可漏判，不可错断"。</li>
+      <li><strong>弱证据不独有。</strong>站点图标、首页标题与常见安全响应头并非 OpenClaw 运行时所独有，其它服务也可能恰好具备。若仅凭这些特征即判真，会把非目标服务误判为 OpenClaw，故它们不参与白名单达标——这是为降低误判而付出的设计取舍。</li>
+      <li><strong>宁可漏判，不可错断。</strong>相应地，若某个真实 OpenClaw 实例恰好屏蔽了 WebSocket 协议面与两个特异 HTTP 端点、只暴露静态首页，则会被本机制漏判。系统在「漏判」与「误判」之间，明确偏向前者，以保证已收录资产的可靠性。</li>
       <li><strong>区间不可消解。</strong>相邻版本若仅有后端改动、前端构建产物相同，则外部无法区分，只能给出区间。这是观测能力的固有上界，非实现缺陷。</li>
       <li><strong>指纹库覆盖。</strong>未被采集进指纹库的新版本，其资产哈希不命中，版本报为空——判真不受影响，仅版本待补。</li>
     </ul>
