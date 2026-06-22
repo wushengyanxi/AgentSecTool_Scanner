@@ -113,14 +113,24 @@ func probeRec(id, reqLine, host string, port uint16, status int, hdr http.Header
 	return ProbeRecord{ID: id, Request: req, Response: resp.String(), Hit: hit}
 }
 
+// sharedTransport 是全进程共用的一个 Transport。http.Transport 自带并发安全的连接池，
+// 多 goroutine 共享一个即可——这正是它被设计的用法。每台目标各 new 一个 Transport 会
+// 让用完的空闲连接（keep-alive）变成无人回收的孤儿 fd，高并发下累积撞穿 ulimit；共享一个
+// 池子则受 MaxIdleConns / IdleConnTimeout 约束，空闲连接有上限、会自动超时回收。
+var sharedTransport = &http.Transport{
+	TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+	DisableKeepAlives:   false,
+	ForceAttemptHTTP2:   false,
+	MaxIdleConns:        256,             // 全局空闲连接上限
+	MaxIdleConnsPerHost: 4,              // 单台目标本就只发几个 GET，无需更多
+	IdleConnTimeout:     5 * time.Second, // 空闲连接超时自动关，不靠 GC、不靠对端
+}
+
+// newHTTPClient 复用全进程共享的 Transport，只把每台不同的总超时绑到轻量的 Client 上。
 func newHTTPClient(timeout time.Duration) *http.Client {
 	return &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
-			DisableKeepAlives: false,
-			ForceAttemptHTTP2: false,
-		},
+		Timeout:   timeout,
+		Transport: sharedTransport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 2 {
 				return http.ErrUseLastResponse

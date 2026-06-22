@@ -160,8 +160,9 @@
       <li><a href="#s05">目标来源与测试用例集</a></li>
       <li><a href="#s06">数据记录：四种写入方式与取舍</a></li>
       <li><a href="#s07">地理富化：IP 到城市</a></li>
-      <li><a href="#s08">数据模型与库表清单</a></li>
-      <li><a href="#s09">命令行参考</a></li>
+      <li><a href="#s08">看板：只读数据展示端</a></li>
+      <li><a href="#s09">数据模型与库表清单</a></li>
+      <li><a href="#s10">命令行参考</a></li>
     </ol>
   </nav>
 
@@ -302,13 +303,16 @@
         <p class="lab">探测全程只读</p>
         <p>探测只发送 HTTP 升级请求与无鉴权 GET，<strong>绝不发送 <code>connect</code> 帧或 <code>config.apply</code></strong>——后者本身属于漏洞利用面。这一约束由单元测试固化：<code>probe_test.go</code> 断言探测过程发送的字节中不含越界帧。</p>
       </div>
+      <h3>探测流程：先过可达性门槛</h3>
+      <p>对单台目标，<code>Probe()</code> 先做一次 TCP 连接作为<strong>可达性门槛</strong>：连不上的目标（被墙、黑洞、端口关闭）直接返回失败原因，不再发 HTTP/WS。这一步是必要的——公网扫描里不可达目标占绝大多数，若对它们也走完整流程，每个都要白白耗掉四个 HTTP GET 加 WebSocket 各自的超时（串行累加可达数十秒），把固定数量的并发 worker 长期钉死、有效并发塌方。可达的目标才继续走 HTTP 与 WebSocket 探测、再做研判。HTTP 探测复用一个全进程共享的连接池（而非每台新建），使空闲连接受上限与超时约束、不会在高并发下累积成耗尽文件描述符的孤儿连接。</p>
     </div>
     <div class="coderef">
       <div class="cr">实现位置</div>
+      <div><span class="f">openclaw/probe.go</span> · <span class="fn">Probe()</span> —— 编排：可达性门槛 → HTTP/WS → 研判，产出 Result</div>
+      <div><span class="f">openclaw/probe.go</span> · <span class="fn">dialReachable()</span> —— TCP 可达性门槛，区分 timeout/refused/unreachable/down</div>
       <div><span class="f">openclaw/ws.go</span> · <span class="fn">probeWS()</span> —— WebSocket 升级，读取首帧，只读</div>
-      <div><span class="f">openclaw/http.go</span> · <span class="fn">probeHTTP()</span> —— 四个 GET，抽取标题 / favicon / healthz / CSP / 响应头</div>
+      <div><span class="f">openclaw/http.go</span> · <span class="fn">probeHTTP()</span> —— 四个 GET（复用进程级共享连接池），抽取标题 / favicon / healthz / CSP / 响应头</div>
       <div><span class="f">openclaw/signals.go</span> · <span class="fn">evaluate()</span> —— 证据组合白名单二元研判</div>
-      <div><span class="f">openclaw/probe.go</span> · <span class="fn">Probe()</span> —— 编排上述步骤，产出 Result</div>
     </div>
     <p class="note"><span class="st ok">已验证</span> 对本地靶机与真实公网实例，C1 / C2 判定与单元测试一致。完整的判别力与证据分级论证见 <code>docs/扫描器优化与研判机制.html</code>。</p>
   </section>
@@ -424,9 +428,44 @@
     </div>
   </section>
 
-  <!-- 08 数据模型 -->
+  <!-- 08 看板 -->
   <section id="s08">
-    <div class="sec-head"><span class="num">08</span><h2>数据模型与库表清单</h2></div>
+    <div class="sec-head"><span class="num">08</span><h2>看板：只读数据展示端</h2></div>
+    <p class="intro">看板是系统的数据消费端，把入库的扫描结果呈现为可浏览的页面：实例总数与版本分布、按可信级别的分桶、地理分布地图、资产列表，以及单台主机的完整探测报告。它<strong>只读查库、不参与扫描与判定</strong>，默认只监听本机回环、不对公网暴露。</p>
+
+    <h3>后端：纯标准库的只读查询服务</h3>
+    <p class="prose">后端是一个基于 <code>http.server.ThreadingHTTPServer</code> 的小服务，<strong>零第三方依赖</strong>（仅用 <code>sqlite3</code> / <code>json</code> / <code>hashlib</code> 等标准库），默认监听 <code>127.0.0.1:8787</code>、只读查 <code>data/scanner/scan_results.sqlite</code>，全程没有任何写库操作。它对前端暴露几个查询接口，并伺服前端用到的静态资源。</p>
+    <div class="grid g3">
+      <div class="row head"><div class="c">接口</div><div class="c">参数</div><div class="c">返回</div></div>
+      <div class="row"><div class="c loc">/api/overview</div><div class="c">无</div><div class="c">数字卡统计、可信级别分桶、版本分布、版本来源分布</div></div>
+      <div class="row"><div class="c loc">/api/assets</div><div class="c">category · q · limit · offset</div><div class="c">资产列表（可按级别过滤、按 IP/版本搜索、分页）</div></div>
+      <div class="row"><div class="c loc">/api/geo</div><div class="c">scope=china|world</div><div class="c">按坐标聚合的地理散点（地名 + 经纬度 + 节点数 + 明确实例数）</div></div>
+      <div class="row"><div class="c loc">/api/report</div><div class="c">ip（必填）· port</div><div class="c">单台主机最近一次观测的完整报告：研判、版本、逐项探针、请求/响应原文、研判小结</div></div>
+      <div class="row"><div class="c loc">/assets/&lt;file&gt;</div><div class="c">—</div><div class="c">静态资源（字体、logo、echarts 库、地图 GeoJSON），按后缀定 content-type，<code>basename</code> 取名防目录穿越</div></div>
+    </div>
+    <p class="note"><code>/api/report</code> 的报告话术复用 <code>store.report</code> 的模板渲染（观测描述、研判小结、版本来源说明）；请求/响应原文经 <code>_safe_text</code> 清洗——二进制体折成 MD5 摘要、控制字符转占位，前端再做 HTML 转义防 XSS（响应原文是探测目标返回的内容，不可信）。</p>
+
+    <h3>前端：自包含的深色大屏单页</h3>
+    <p class="prose">前端是单文件 <code>index.html</code>，CSS 与业务 JS 全部内联，唯一的本地外链是 <code>/assets/</code> 下的 echarts 库与按需加载的地图 GeoJSON——页面整体离线、零网络外链。视觉是深色科技大屏：近黑底叠冷色辉光、靛紫与亮青为主色、标题用 YouSheBiaoTiHei、数字用 D-DIN。页面板块自上而下为标题栏、四张数字卡、版本分布与可信级别两栏、地理分布地图、资产列表。</p>
+
+    <h3>地理分布地图</h3>
+    <p class="prose">地理分布用 echarts 的 2D 地图（<code>geo</code> + <code>effectScatter</code> 涟漪散点）呈现，右上角可在<strong>中国 / 世界</strong>视图间切换。底图 GeoJSON（<code>china.json</code> 含港澳台与南海、<code>world.json</code>）首次切到该视图时异步加载并 <code>registerMap</code> 注册、之后复用。散点数据来自 <code>/api/geo</code>：每个点是一处地点的经纬度，点的大小按该地节点数对数缩放（避免节点最多的城市把小点压没），悬停显示地名、节点数与明确实例数。坐标来自入库时写入 <code>assets</code> 的 <code>lat</code> / <code>lng</code> 列，因此后端只需读库聚合、不必在查询时调用 GeoIP。</p>
+
+    <h3>探测报告展开</h3>
+    <p class="prose">资产列表里双击一行，会在其下展开该主机的探测报告（调 <code>/api/report</code>）：顶部是研判结论、版本与命中标记（<code>T1</code>/<code>C1</code> 等带悬停含义），其下逐项列出探针——每项可再展开看观测描述、原始请求与响应，三处用统一的特征词高亮相互对应；末尾是研判小结，把达标逻辑（C1/C2、证据级别）收口讲一次。一次只展开一台，列表更清爽。</p>
+
+    <div class="coderef">
+      <div class="cr">实现位置</div>
+      <div><span class="f">dashboard/server.py</span> · <span class="fn">api_overview / api_assets / api_geo / api_report</span> —— 只读查询接口</div>
+      <div><span class="f">dashboard/index.html</span> —— 自包含单页（深色大屏 UI、echarts 地图、报告展开）</div>
+      <div><span class="f">dashboard/__main__.py</span> —— CLI 入口（<span class="fn">python3 -m dashboard</span>）</div>
+      <div><span class="f">store/report.py</span> —— 报告话术模板，被 /api/report 复用</div>
+    </div>
+  </section>
+
+  <!-- 09 数据模型 -->
+  <section id="s09">
+    <div class="sec-head"><span class="num">09</span><h2>数据模型与库表清单</h2></div>
     <p class="intro">数据按子系统分库存放（均为本地 SQLite，模块自建表 <code>CREATE … IF NOT EXISTS</code>）。下表列出各权威表的所属库、实现位置与写入方式，作为查阅索引；每种写入方式的做法与取舍见第 06 节。</p>
     <div class="grid g4">
       <div class="row head"><div class="c">表</div><div class="c">所属库</div><div class="c">实现位置</div><div class="c">作用与写入语义</div></div>
@@ -440,9 +479,9 @@
     <p class="note">另有少量状态表（<code>fofa_state</code> / <code>clawsec_state</code>）记录拉取断点与基准日期，仅服务于各自模块的断点续传。</p>
   </section>
 
-  <!-- 09 命令行参考 -->
-  <section id="s09">
-    <div class="sec-head"><span class="num">09</span><h2>命令行参考</h2></div>
+  <!-- 10 命令行参考 -->
+  <section id="s10">
+    <div class="sec-head"><span class="num">10</span><h2>命令行参考</h2></div>
     <p class="intro">本节逐一说明每个命令行入口：它做什么、有哪些参数、每个参数是否必填、默认值与含义。所有 Python 命令都<strong>在项目根目录运行</strong>（模块以 <code>python3 -m</code> 方式调用，Makefile 已设 <code>PYTHONPATH</code>；在子目录内运行会报 <code>No module named …</code>）。凡参数表中“必填”为否、且未列默认值的，表示该参数缺省时功能跳过或取空。</p>
 
     <h3>通用约定：凭据与授权</h3>

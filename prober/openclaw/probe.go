@@ -31,6 +31,16 @@ func Probe(ctx context.Context, host string, port uint16, opts Options) Result {
 		}
 	}
 
+	// 可达性门槛：先做一次 TCP 连接探端口。连不上的目标（被墙/黑洞/端口关）占公网扫描的
+	// 绝大多数，对它们直接返回失败原因，不再发 HTTP/WS——否则每个不可达目标都要白白耗掉
+	// 4 个 HTTP GET + WS 各自的超时（串行累加可达数十秒），把 worker 长期钉死、有效并发塌方。
+	if reach, ok := dialReachable(ctx, dial, host, port, opts.Timeout); !ok {
+		return Result{
+			IP: host, Port: port, TLS: opts.TLS, ErrorType: reach,
+			TS: time.Now().UTC().Format(time.RFC3339),
+		}
+	}
+
 	var ev Evidence
 	probeHTTP(ctx, host, port, opts.TLS, opts.Timeout, &ev)
 	probeWS(ctx, host, port, opts.TLS, opts.Timeout, dial, &ev)
@@ -51,31 +61,33 @@ func Probe(ctx context.Context, host string, port uint16, opts Options) Result {
 		Evidence:          ev,
 		TS:                time.Now().UTC().Format(time.RFC3339),
 	}
-	// 探不到任何东西时，分类失败原因（timeout/refused/unreachable/down），供默认终端输出。
+	// 端口可达但探不出 OpenClaw（连得上、非目标服务）：标 down，供默认终端输出。
 	if !verdict && len(matched) == 0 && ev.ControlUIStatus == 0 {
-		res.ErrorType = classifyReachability(ctx, dial, host, port, opts.Timeout)
+		res.ErrorType = ErrDown
 	}
 	return res
 }
 
-// classifyReachability 在判定不出 OpenClaw 且无任何 HTTP 响应时，做一次 TCP 连接以区分失败原因。
-func classifyReachability(ctx context.Context, dial dialFunc, host string, port uint16, timeout time.Duration) string {
+// dialReachable 做一次 TCP 连接探端口，作为 HTTP/WS 探测前的可达性门槛。
+// 返回 (失败原因, 是否可达)：可达时第二个返回值为 true（连接已关闭，原因为空）；
+// 不可达时为 false，并按错误区分 timeout/refused/unreachable/down 供报告。
+func dialReachable(ctx context.Context, dial dialFunc, host string, port uint16, timeout time.Duration) (string, bool) {
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	conn, err := dial(cctx, "tcp", net.JoinHostPort(host, itoa(port)))
 	if err == nil {
 		_ = conn.Close()
-		return ErrDown // 端口开着但探不出 OpenClaw —— 非目标服务
+		return "", true // 端口开着，放行去做 HTTP/WS 探测
 	}
 	switch {
 	case errors.Is(err, context.DeadlineExceeded), isTimeout(err):
-		return ErrTimeout
+		return ErrTimeout, false
 	case strings.Contains(err.Error(), "refused"):
-		return ErrRefused
+		return ErrRefused, false
 	case strings.Contains(err.Error(), "no route") || strings.Contains(err.Error(), "unreachable"):
-		return ErrUnreach
+		return ErrUnreach, false
 	default:
-		return ErrDown
+		return ErrDown, false
 	}
 }
 
