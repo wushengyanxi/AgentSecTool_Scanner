@@ -15,7 +15,11 @@ CREATE TABLE IF NOT EXISTS assets (
   version_source TEXT,
   first_seen     TEXT NOT NULL,
   last_seen      TEXT NOT NULL,
-  observations   INTEGER NOT NULL DEFAULT 0
+  observations   INTEGER NOT NULL DEFAULT 0,
+  -- 物理位置（GeoLite2 离线库按 IP 解析，入库时富化；解析不到留空）
+  country        TEXT,
+  region         TEXT,            -- 省/区域
+  city           TEXT
 );
 
 -- 时序观测：每次扫描一行，append-only。

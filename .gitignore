@@ -2,6 +2,10 @@
 config/scanner.yaml
 config/blocklist.txt
 fofa/fofa.ini
+geoip/geoip.ini
+
+# --- GeoIP 库文件（体积大，本地下载，不入库）---
+*.mmdb
 
 # --- 扫描产物 ---
 *.jsonl

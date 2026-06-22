@@ -42,7 +42,16 @@ def _connect(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     with open(SCHEMA_PATH) as f:
         conn.executescript(f.read())
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection):
+    """对已存在的旧库补齐新列（CREATE TABLE IF NOT EXISTS 不会改已有表）。幂等。"""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(assets)")}
+    for col in ("country", "region", "city"):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE assets ADD COLUMN {col} TEXT")
 
 
 # category 的可信级别排序（资产取历次观测中最强的一档）
@@ -72,6 +81,9 @@ def load(db_path: str, jsonl_path) -> int:
     返回收录条数（不含被跳过的超时/探不到目标）。"""
     conn = _connect(db_path)
     src = sys.stdin if jsonl_path in (None, "-") else open(jsonl_path)
+    # IP→城市富化（软依赖：库缺失时 geo.ok=False，lookup 返回空，不阻断入库）
+    from geoip.lookup import GeoResolver
+    geo = GeoResolver()
     n = 0
     try:
         for line in src:
@@ -91,25 +103,32 @@ def load(db_path: str, jsonl_path) -> int:
             ver = r.get("version") or None
             vsrc = r.get("version_source") or None
             rank = _CATEGORY_RANK[category]
+            # 物理位置：每次入库都按 IP 重新解析（库更新后能跟上变化）
+            country, region, city = geo.lookup(r.get("ip"))
             # 资产的 category 取历次观测中最强的一档（rank 高者胜）
             conn.execute(
                 """
                 INSERT INTO assets
-                  (asset_id, identity_key, ip, port, is_openclaw, category, latest_version, version_source, first_seen, last_seen, observations)
-                VALUES (?,?,?,?,?,?,?,?,?,?,1)
+                  (asset_id, identity_key, ip, port, is_openclaw, category, latest_version, version_source, first_seen, last_seen, observations, country, region, city)
+                VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?,?)
                 ON CONFLICT(asset_id) DO UPDATE SET
                   last_seen      = excluded.last_seen,
                   observations   = assets.observations + 1,
                   is_openclaw    = MAX(assets.is_openclaw, excluded.is_openclaw),
                   latest_version = COALESCE(excluded.latest_version, assets.latest_version),
                   version_source = COALESCE(excluded.version_source, assets.version_source),
+                  -- 复扫每次重新解析：有新值则覆盖，解析不到（NULL）时保留旧值
+                  country        = COALESCE(excluded.country, assets.country),
+                  region         = COALESCE(excluded.region, assets.region),
+                  city           = COALESCE(excluded.city, assets.city),
                   category       = CASE
                     WHEN ? > (CASE assets.category
                                 WHEN 'confirmed' THEN 3 WHEN 'confirmed_no_version' THEN 2
                                 WHEN 'suspect' THEN 1 ELSE 0 END)
                     THEN excluded.category ELSE assets.category END
                 """,
-                (aid, key, r.get("ip"), int(r.get("port")), isoc, category, ver, vsrc, ts, ts, rank),
+                (aid, key, r.get("ip"), int(r.get("port")), isoc, category, ver, vsrc, ts, ts,
+                 country, region, city, rank),
             )
             cur = conn.execute(
                 """
@@ -139,6 +158,7 @@ def load(db_path: str, jsonl_path) -> int:
             n += 1
         conn.commit()
     finally:
+        geo.close()
         if src is not sys.stdin:
             src.close()
         conn.close()

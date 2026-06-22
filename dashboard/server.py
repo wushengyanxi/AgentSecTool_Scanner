@@ -95,7 +95,8 @@ def api_assets(category=None, q=None, limit=200, offset=0):
         wc = ("WHERE " + " AND ".join(where)) if where else ""
         total = conn.execute(f"SELECT COUNT(*) FROM assets {wc}", args).fetchone()[0]
         rows = conn.execute(
-            f"""SELECT ip, port, category, latest_version, version_source, last_seen
+            f"""SELECT ip, port, category, latest_version, version_source, last_seen,
+                       region, city
                 FROM assets {wc}
                 ORDER BY (category='confirmed') DESC, last_seen DESC
                 LIMIT ? OFFSET ?""",
@@ -104,12 +105,38 @@ def api_assets(category=None, q=None, limit=200, offset=0):
         out = []
         for r in rows:
             d = dict(r)
-            # 省份归属暂未实现：占位填北京，将来跨库 join FOFA 的 IP 归属时改这一处。
-            d["province"] = "北京"
+            # 物理位置（GeoLite2 入库时富化）：优先城市，回退省，再回退占位
+            d["province"] = d.get("city") or d.get("region") or "—"
             # 披露日期：以日期为单位（取 last_seen 的日期段），弃用 first_seen/observations
             d["disclosed"] = (d.pop("last_seen") or "")[:10]
             out.append(d)
         return {"total": total, "rows": out}
+    finally:
+        conn.close()
+
+
+def api_geo(limit=20):
+    """地理分布：按城市聚合实例数（明确 OpenClaw 优先口径）。城市缺失则归到省级。"""
+    conn = _conn()
+    try:
+        rows = conn.execute(
+            """SELECT COALESCE(city, region, '(未知)') AS place,
+                      COUNT(*) AS n,
+                      SUM(CASE WHEN category IN ('confirmed','confirmed_no_version')
+                               THEN 1 ELSE 0 END) AS openclaw
+               FROM assets
+               GROUP BY place ORDER BY n DESC LIMIT ?""",
+            (int(limit),),
+        ).fetchall()
+        located = conn.execute(
+            "SELECT COUNT(*) FROM assets WHERE city IS NOT NULL OR region IS NOT NULL"
+        ).fetchone()[0]
+        total = conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
+        return {
+            "cities": [{"place": r["place"], "count": r["n"], "openclaw": r["openclaw"]}
+                       for r in rows],
+            "located": located, "total": total,
+        }
     finally:
         conn.close()
 
@@ -226,6 +253,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._send({"error": "not found"}, 404)
             elif u.path == "/api/overview":
                 self._send(api_overview())
+            elif u.path == "/api/geo":
+                self._send(api_geo(limit=qs.get("limit", ["20"])[0]))
             elif u.path == "/api/assets":
                 self._send(api_assets(
                     category=qs.get("category", [None])[0],
