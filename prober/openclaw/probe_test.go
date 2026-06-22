@@ -101,13 +101,13 @@ func TestEvaluate(t *testing.T) {
 		// C2：跨表面双强
 		{"T2+T3 ws+401", Evidence{WSChallenge: true, ControlUIStatus: 401}, true, "C2"},
 		{"T2+T4 ws+healthz", Evidence{WSChallenge: true, HealthzMatch: true}, true, "C2"},
-		// 单个强证据不够（防单点伪造）
+		// 单个强证据不够（防单信号被仿冒）
 		{"T2 ws alone", Evidence{WSChallenge: true}, false, ""},
 		{"T3 401 alone", Evidence{ControlUIStatus: 401}, false, ""},
 		{"T4 healthz alone", Evidence{HealthzMatch: true}, false, ""},
 		// 同表面双强不跨表面 → False
 		{"T3+T4 same surface", Evidence{ControlUIStatus: 401, HealthzMatch: true}, false, ""},
-		// 纯弱证据，无论多少都 False（防蜜罐）
+		// 纯弱证据，无论多少都 False（防止仅凭可静态仿冒的弱信号即误判）
 		{"T5 favicon alone", Evidence{FaviconMD5: FaviconMD5}, false, ""},
 		{"T5+T6 favicon+title", Evidence{FaviconMD5: FaviconMD5, Title: TitleMarker}, false, ""},
 		{"T5+T6+T7 all weak", Evidence{FaviconMD5: FaviconMD5, Title: TitleMarker, HeaderTriplet: true}, false, ""},

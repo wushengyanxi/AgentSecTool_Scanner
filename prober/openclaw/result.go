@@ -7,8 +7,8 @@ const (
 	T2 = "T2" // WS connect.challenge（强证据，WS 协议面）
 	T3 = "T3" // control-ui-config 401（强证据，HTTP 路由面，端点存在）
 	T4 = "T4" // /healthz 特征体（强证据，HTTP 路由面）
-	T5 = "T5" // favicon MD5（弱证据，可静态伪造）
-	T6 = "T6" // 首页 title（弱证据，可静态伪造）
+	T5 = "T5" // favicon MD5（弱证据，可被静态仿冒）
+	T6 = "T6" // 首页 title（弱证据，可被静态仿冒）
 	T7 = "T7" // 响应头三件套（弱证据，常见框架默认）
 )
 
