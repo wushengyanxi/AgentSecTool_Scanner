@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS assets (
   -- 物理位置（GeoLite2 离线库按 IP 解析，入库时富化；解析不到留空）
   country        TEXT,
   region         TEXT,            -- 省/区域
-  city           TEXT
+  city           TEXT,
+  lat            REAL,            -- 纬度（城市级近似坐标，供地图打点）
+  lng            REAL             -- 经度
 );
 
 -- 时序观测：每次扫描一行，append-only。

@@ -139,6 +139,16 @@
   /* 地理分布标题旁的来源/覆盖注脚 */
   .geo-meta{font-family:var(--sans);font-size:11.5px;font-weight:400;color:var(--muted);
     margin-left:10px;letter-spacing:0;text-shadow:none;}
+  /* 地理分布标题行：标题 + 世界/中国切换 */
+  .geo-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  .geo-head h3{margin:0;}
+  .geo-switch{display:flex;gap:0;border:1px solid var(--line);border-radius:6px;overflow:hidden;}
+  .geo-tab{font-family:var(--sans);font-size:13px;padding:5px 16px;cursor:pointer;border:none;
+    background:rgba(20,26,46,.6);color:var(--muted);letter-spacing:.02em;transition:all .15s;}
+  .geo-tab + .geo-tab{border-left:1px solid var(--line);}
+  .geo-tab:hover{color:var(--ink);}
+  .geo-tab.active{background:linear-gradient(135deg,var(--indigo-2),var(--indigo-3));color:#fff;
+    text-shadow:0 0 8px rgba(122,112,255,.6);}
 
   /* 表格 */
   .filters{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
@@ -251,10 +261,16 @@
     </div>
   </div>
 
-  <!-- 地理分布：按城市聚合（GeoLite2 离线库按 IP 解析） -->
+  <!-- 地理分布：echarts 2D 地图散点（世界 / 中国切换，按节点坐标打点） -->
   <div class="panel" style="margin-bottom:18px;">
-    <h3>地理分布（按城市）<span id="geoMeta" class="geo-meta"></span></h3>
-    <div class="bars" id="geo"></div>
+    <div class="geo-head">
+      <h3>地理分布<span id="geoMeta" class="geo-meta"></span></h3>
+      <div class="geo-switch">
+        <button id="btnChina" class="geo-tab active" onclick="switchGeo('china')">中国</button>
+        <button id="btnWorld" class="geo-tab" onclick="switchGeo('world')">世界</button>
+      </div>
+    </div>
+    <div id="geoMap" style="width:100%;height:460px;"></div>
   </div>
 
   <!-- 资产列表 -->
@@ -288,6 +304,8 @@
   </div>
 </div>
 
+<!-- echarts（本地自包含，零外链）+ 地图底图 GeoJSON 按需异步加载 -->
+<script src="/assets/echarts.min.js"></script>
 <script>
 // 同一紫系的深浅，不用多色（亮→暗 = 可信度高→低，深色大屏适配，提亮一档贴模板）
 const CAT_COLOR = {confirmed:'#8B82FF', confirmed_no_version:'#5C8CFF', suspect:'#7077A6'};
@@ -464,22 +482,112 @@ async function loadReport(box, ip, port){
 function pageMove(dir){ loadAssets(Math.max(0, PAGE+dir)); }
 let _t; function debouncedSearch(){ clearTimeout(_t); _t=setTimeout(()=>loadAssets(0), 300); }
 
-// 地理分布：按城市排行（条形图复用 .bars 样式）
-async function loadGeo(){
-  const d = await getJSON('/api/geo?limit=15');
-  if(d.error){ document.getElementById('geo').innerHTML =
-    '<div class="loading">'+d.error+'</div>'; return; }
-  const pct = d.total ? (d.located/d.total*100).toFixed(0) : 0;
-  document.getElementById('geoMeta').textContent =
-    `GeoLite2 离线库解析 · 已定位 ${fmt(d.located)}/${fmt(d.total)}（${pct}%）`;
-  const max = Math.max(1, ...d.cities.map(c=>c.count));
-  document.getElementById('geo').innerHTML = d.cities.map(c=>`
-    <div class="bar-row"><div class="label">${c.place}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${(c.count/max*100).toFixed(1)}%"></div></div>
-      <div class="num">${fmt(c.count)}</div></div>`).join('');
+// 地理分布：echarts 2D 地图散点（世界 / 中国切换，按节点坐标打点）
+let GEO_CHART = null;          // echarts 实例（复用）
+let GEO_SCOPE = 'china';       // 当前视图
+const MAP_LOADED = {};         // 已注册的底图 {china:true, world:true}
+
+// 按需异步加载并注册底图 GeoJSON（注册一次，切换时复用）
+async function ensureMap(scope){
+  if(MAP_LOADED[scope]) return;
+  const json = await getJSON(scope === 'china' ? '/assets/china.json' : '/assets/world.json');
+  echarts.registerMap(scope, json);
+  MAP_LOADED[scope] = true;
 }
 
-function loadAll(){ loadOverview(); loadGeo(); loadAssets(0); }
+// 散点大小：按节点数对数缩放（避免上海一家独大把小点压没）
+function symSize(count, max){
+  const s = Math.log(count + 1) / Math.log(max + 1);  // 0~1
+  return 6 + s * 22;                                   // 6~28 px
+}
+
+function geoOption(scope, points){
+  const max = Math.max(1, ...points.map(p => p.count));
+  const data = points.map(p => ({
+    name: p.name,
+    value: [p.lng, p.lat, p.count],
+    openclaw: p.openclaw,
+  }));
+  return {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: '#192032',
+      borderColor: '#4A5978',
+      textStyle: { color: '#fff', fontSize: 12 },
+      formatter: p => {
+        if(!p.value) return p.name;
+        return `${p.data.name}<br/>节点 <b>${fmt(p.value[2])}</b>　明确 ${fmt(p.data.openclaw)}`;
+      },
+    },
+    geo: {
+      map: scope,
+      roam: true,
+      zoom: scope === 'china' ? 1.2 : 1.0,
+      // 中国视图把地图重心稍微上移，让南海诸岛也在视野内
+      layoutCenter: ['50%', '50%'],
+      layoutSize: '118%',
+      itemStyle: {
+        areaColor: 'rgba(20,26,46,.7)',
+        borderColor: 'rgba(118,120,174,.45)',
+        borderWidth: 0.8,
+      },
+      emphasis: {
+        itemStyle: { areaColor: 'rgba(122,112,255,.18)' },
+        label: { show: false },
+      },
+      label: { show: false },
+    },
+    series: [{
+      type: 'effectScatter',
+      coordinateSystem: 'geo',
+      data,
+      symbolSize: v => symSize(v[2], max),
+      rippleEffect: { brushType: 'stroke', scale: 3 },
+      itemStyle: {
+        color: '#4BDFFF',
+        shadowBlur: 10,
+        shadowColor: '#4BDFFF',
+      },
+      // 节点最多的几个用更亮的紫，形成层次
+      emphasis: { scale: 1.4 },
+    }],
+  };
+}
+
+async function loadGeo(scope){
+  scope = scope || GEO_SCOPE;
+  const el = document.getElementById('geoMap');
+  if(!GEO_CHART) GEO_CHART = echarts.init(el);
+  GEO_CHART.showLoading({ text: '加载地图…', textColor: '#9AA0C2',
+    maskColor: 'rgba(11,16,32,.4)', color: '#4BDFFF' });
+  try{
+    await ensureMap(scope);
+    const d = await getJSON('/api/geo?scope=' + scope);
+    GEO_CHART.hideLoading();
+    if(d.error){ document.getElementById('geoMeta').textContent = d.error; return; }
+    const pct = d.total ? (d.located/d.total*100).toFixed(0) : 0;
+    document.getElementById('geoMeta').textContent =
+      `GeoLite2 离线库定位 · ${fmt(d.located)}/${fmt(d.total)}（${pct}%）· ${fmt(d.points.length)} 个节点位置`;
+    GEO_CHART.setOption(geoOption(scope, d.points), true);
+  }catch(e){
+    GEO_CHART.hideLoading();
+    document.getElementById('geoMeta').textContent = '地图加载失败：' + e.message;
+  }
+}
+
+function switchGeo(scope){
+  if(scope === GEO_SCOPE) return;
+  GEO_SCOPE = scope;
+  document.getElementById('btnChina').classList.toggle('active', scope === 'china');
+  document.getElementById('btnWorld').classList.toggle('active', scope === 'world');
+  loadGeo(scope);
+}
+
+// 容器随窗口变化自适应
+window.addEventListener('resize', () => { if(GEO_CHART) GEO_CHART.resize(); });
+
+function loadAll(){ loadOverview(); loadGeo('china'); loadAssets(0); }
 loadAll();
 </script>
 </body>

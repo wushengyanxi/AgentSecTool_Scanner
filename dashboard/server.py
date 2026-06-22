@@ -115,27 +115,40 @@ def api_assets(category=None, q=None, limit=200, offset=0):
         conn.close()
 
 
-def api_geo(limit=20):
-    """地理分布：按城市聚合实例数（明确 OpenClaw 优先口径）。城市缺失则归到省级。"""
+def api_geo(scope="china"):
+    """地理分布散点：按坐标聚合实例数，供地图打点。
+
+    scope=china：只取落在中国大致经纬度范围内的点（含港澳台、南海），按城市/坐标聚合；
+    scope=world：全部点，按国家/坐标聚合。
+    每个点返回 name（地名）+ lng/lat（坐标）+ count（节点数）+ openclaw（其中明确实例数）。
+    """
     conn = _conn()
     try:
+        # 中国大致经纬度范围（含港澳台与南海诸岛）
+        cn_box = "lat BETWEEN 3 AND 54 AND lng BETWEEN 73 AND 136"
+        if scope == "china":
+            where = f"WHERE lat IS NOT NULL AND ({cn_box})"
+            name_col = "COALESCE(city, region, country, '未知')"
+        else:
+            where = "WHERE lat IS NOT NULL"
+            name_col = "COALESCE(country, region, city, '未知')"
         rows = conn.execute(
-            """SELECT COALESCE(city, region, '(未知)') AS place,
-                      COUNT(*) AS n,
-                      SUM(CASE WHEN category IN ('confirmed','confirmed_no_version')
-                               THEN 1 ELSE 0 END) AS openclaw
-               FROM assets
-               GROUP BY place ORDER BY n DESC LIMIT ?""",
-            (int(limit),),
+            f"""SELECT {name_col} AS name, lng, lat,
+                       COUNT(*) AS n,
+                       SUM(CASE WHEN category IN ('confirmed','confirmed_no_version')
+                                THEN 1 ELSE 0 END) AS openclaw
+                FROM assets {where}
+                GROUP BY lat, lng
+                ORDER BY n DESC""",
         ).fetchall()
         located = conn.execute(
-            "SELECT COUNT(*) FROM assets WHERE city IS NOT NULL OR region IS NOT NULL"
+            "SELECT COUNT(*) FROM assets WHERE lat IS NOT NULL"
         ).fetchone()[0]
         total = conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
         return {
-            "cities": [{"place": r["place"], "count": r["n"], "openclaw": r["openclaw"]}
-                       for r in rows],
-            "located": located, "total": total,
+            "points": [{"name": r["name"], "lng": r["lng"], "lat": r["lat"],
+                        "count": r["n"], "openclaw": r["openclaw"]} for r in rows],
+            "located": located, "total": total, "scope": scope,
         }
     finally:
         conn.close()
@@ -246,6 +259,8 @@ class Handler(BaseHTTPRequestHandler):
                     ctype = ("image/png" if name.endswith(".png")
                              else "image/svg+xml" if name.endswith(".svg")
                              else "font/ttf" if name.endswith(".ttf")
+                             else "application/javascript" if name.endswith(".js")
+                             else "application/json" if name.endswith(".json")
                              else "application/octet-stream")
                     with open(fp, "rb") as f:
                         self._send(f.read(), ctype=ctype)
@@ -254,7 +269,7 @@ class Handler(BaseHTTPRequestHandler):
             elif u.path == "/api/overview":
                 self._send(api_overview())
             elif u.path == "/api/geo":
-                self._send(api_geo(limit=qs.get("limit", ["20"])[0]))
+                self._send(api_geo(scope=qs.get("scope", ["china"])[0]))
             elif u.path == "/api/assets":
                 self._send(api_assets(
                     category=qs.get("category", [None])[0],

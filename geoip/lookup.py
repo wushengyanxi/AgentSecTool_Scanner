@@ -64,13 +64,14 @@ class GeoResolver:
         return self.reader is not None
 
     def lookup(self, ip: str):
-        """返回 (country, region, city)，任一解析不到的位置为 None。
+        """返回 (country, region, city, lat, lng)，任一解析不到的位置为 None。
 
         city/region 取库的英文名后经本地映射表转简体中文；未收录的英文名原样保留。
         country 取库的中文名（国家名简体可靠，无需自建映射）。
+        lat/lng 是该 IP 的经纬度（GeoLite2 给的城市级近似坐标），供地图打点。
         """
         if not self.reader or not ip:
-            return (None, None, None)
+            return (None, None, None, None, None)
         try:
             import geoip2.errors
             r = self.reader.city(ip)
@@ -80,11 +81,13 @@ class GeoResolver:
             city_en = _en(r.city)
             region = (REGION_ZH.get(region_en) or region_en) or None
             city = (CITY_ZH.get(city_en) or city_en) or None
-            return (country, region, city)
+            lat = r.location.latitude
+            lng = r.location.longitude
+            return (country, region, city, lat, lng)
         except geoip2.errors.AddressNotFoundError:
-            return (None, None, None)
+            return (None, None, None, None, None)
         except Exception:  # noqa: BLE001 — 非法 IP 等，降级
-            return (None, None, None)
+            return (None, None, None, None, None)
 
     def close(self):
         if self.reader:

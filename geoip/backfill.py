@@ -23,6 +23,9 @@ def _ensure_columns(conn: sqlite3.Connection):
     for col in ("country", "region", "city"):
         if col not in cols:
             conn.execute(f"ALTER TABLE assets ADD COLUMN {col} TEXT")
+    for col in ("lat", "lng"):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE assets ADD COLUMN {col} REAL")
 
 
 def backfill(db_path: str = DB_PATH, refresh_all: bool = False) -> dict:
@@ -36,10 +39,10 @@ def backfill(db_path: str = DB_PATH, refresh_all: bool = False) -> dict:
         rows = conn.execute(f"SELECT asset_id, ip FROM assets {where}").fetchall()
         filled = located = 0
         for aid, ip in rows:
-            country, region, city = geo.lookup(ip)
+            country, region, city, lat, lng = geo.lookup(ip)
             conn.execute(
-                "UPDATE assets SET country=?, region=?, city=? WHERE asset_id=?",
-                (country, region, city, aid),
+                "UPDATE assets SET country=?, region=?, city=?, lat=?, lng=? WHERE asset_id=?",
+                (country, region, city, lat, lng, aid),
             )
             filled += 1
             if city or region or country:

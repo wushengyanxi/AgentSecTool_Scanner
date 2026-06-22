@@ -52,6 +52,9 @@ def _migrate(conn: sqlite3.Connection):
     for col in ("country", "region", "city"):
         if col not in cols:
             conn.execute(f"ALTER TABLE assets ADD COLUMN {col} TEXT")
+    for col in ("lat", "lng"):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE assets ADD COLUMN {col} REAL")
 
 
 # category 的可信级别排序（资产取历次观测中最强的一档）
@@ -104,13 +107,13 @@ def load(db_path: str, jsonl_path) -> int:
             vsrc = r.get("version_source") or None
             rank = _CATEGORY_RANK[category]
             # 物理位置：每次入库都按 IP 重新解析（库更新后能跟上变化）
-            country, region, city = geo.lookup(r.get("ip"))
+            country, region, city, lat, lng = geo.lookup(r.get("ip"))
             # 资产的 category 取历次观测中最强的一档（rank 高者胜）
             conn.execute(
                 """
                 INSERT INTO assets
-                  (asset_id, identity_key, ip, port, is_openclaw, category, latest_version, version_source, first_seen, last_seen, observations, country, region, city)
-                VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?,?)
+                  (asset_id, identity_key, ip, port, is_openclaw, category, latest_version, version_source, first_seen, last_seen, observations, country, region, city, lat, lng)
+                VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?)
                 ON CONFLICT(asset_id) DO UPDATE SET
                   last_seen      = excluded.last_seen,
                   observations   = assets.observations + 1,
@@ -121,6 +124,8 @@ def load(db_path: str, jsonl_path) -> int:
                   country        = COALESCE(excluded.country, assets.country),
                   region         = COALESCE(excluded.region, assets.region),
                   city           = COALESCE(excluded.city, assets.city),
+                  lat            = COALESCE(excluded.lat, assets.lat),
+                  lng            = COALESCE(excluded.lng, assets.lng),
                   category       = CASE
                     WHEN ? > (CASE assets.category
                                 WHEN 'confirmed' THEN 3 WHEN 'confirmed_no_version' THEN 2
@@ -128,7 +133,7 @@ def load(db_path: str, jsonl_path) -> int:
                     THEN excluded.category ELSE assets.category END
                 """,
                 (aid, key, r.get("ip"), int(r.get("port")), isoc, category, ver, vsrc, ts, ts,
-                 country, region, city, rank),
+                 country, region, city, lat, lng, rank),
             )
             cur = conn.execute(
                 """
