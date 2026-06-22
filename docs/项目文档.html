@@ -330,17 +330,25 @@
         <li><strong>直读（高置信）</strong>：<code>GET /__openclaw/control-ui-config.json</code> 若返回 200，响应体中的 <code>serverVersion</code> 字段即为精确版本。仅<strong>未启用鉴权（auth=none）</strong>的实例可得；已防护实例此端点返回 401。</li>
         <li><strong>隐式反推（中置信）</strong>：当端点返回 401 时，改用主机无需鉴权即可观测、且随版本变化的量去匹配<strong>指纹库</strong>。主信号是首页引用的 <code>assets/index-&lt;hash&gt;.js/.css</code>（构建产物的内容哈希，同版本恒定、跨版本不同），备用信号是 CSP 的 sha256。匹配时以资产哈希集合的精确匹配优先。</li>
       </ul>
-      <h3>指纹库的来源</h3>
-      <p>指纹库由 <code>fingerprint/build_corpus.py</code> 离线构建：在容器内逐个启动已知版本的 OpenClaw，用 ocprobe 采集其资产哈希、CSP、favicon，写入 <code>fingerprints/fingerprints.json</code>。指纹库本身按版本号去重，重新采集同一版本时整条覆盖。</p>
+      <h3>指纹库的来源与覆盖范围</h3>
+      <p>指纹库由 <code>fingerprint/collect_corpus.py</code> 离线构建：优先从官方分发镜像（<code>ghcr.io/openclaw/openclaw:&lt;版本&gt;</code>）直接取出 <code>dist/control-ui</code> 提取资产哈希、CSP、favicon——这条路径取的是官方产物本身、与公网真实例逐字节一致，比本机构建可靠（本机构建的内容哈希可能因 buildId 含 git sha 而与官方分发不符）。单版本采集另有 <code>build_corpus.py</code>。指纹库按版本号去重，重采同版本时整条覆盖，写入 <code>fingerprints/fingerprints.json</code>。</p>
+      <p>当前覆盖范围需如实说明，它直接决定隐式反推能命中哪些实例：</p>
+      <ul>
+        <li><strong>正式版</strong>：2026.1.5 ~ 2026.6.9，基本连续收录（约 100 个）。</li>
+        <li><strong>预发布版（alpha / beta）</strong>：<strong>仅收录 2026.5.16 起</strong>至 2026.6.10-beta.2（约 60 个）；<strong>2026.5.16 之前的预发布版均未收录</strong>。之所以纳入预发布版，是因为公网上确有相当数量的实例运行 beta 版本，不收录则这些真实例无法定版。</li>
+        <li><strong>已知缺口</strong>：部分纯 alpha 版未发布官方镜像（拉取报 <code>manifest unknown</code>），无法按上述可靠路径采集，故不在库中。</li>
+      </ul>
+      <p>覆盖范围之外的版本，其资产哈希匹配不到任何条目，隐式反推会返回空、版本记为未知。OpenClaw 持续发版，指纹库需要定期增量补录新版本（含新出的 beta），这是一项常态维护。</p>
     </div>
     <div class="coderef">
       <div class="cr">实现位置</div>
       <div><span class="f">openclaw/version.go</span> · <span class="fn">determineVersion()</span> —— 先尝试直读，否则走隐式反推</div>
       <div><span class="f">openclaw/fingerprints.go</span> · <span class="fn">MatchImplicit()</span> / <span class="fn">LoadFingerprintDB()</span> —— 资产哈希 / CSP 匹配版本</div>
-      <div><span class="f">fingerprint/build_corpus.py</span> · <span class="fn">record_signature()</span> —— 逐版本采集签名入库</div>
+      <div><span class="f">fingerprint/collect_corpus.py</span> · <span class="fn">try_image()</span> —— 从官方镜像批量采集签名入库（主路径）</div>
+      <div><span class="f">fingerprint/build_corpus.py</span> · <span class="fn">record_signature()</span> —— 单版本采集</div>
       <div><span class="f">fingerprints/fingerprints.json</span> —— 版本指纹库（version → 资产哈希 / CSP / favicon）</div>
     </div>
-    <p class="note"><span class="st part">部分</span> 机制完整、单元测试通过、真实实例可直读出版本号。当前指纹库收录版本有限，对未收录版本的已防护实例，隐式反推可能匹配不到、版本记为未知；扩充指纹库即可覆盖更多版本。</p>
+    <p class="note"><span class="st ok">已验证</span> 机制完整、单元测试通过、真实实例可直读出版本号。指纹库已覆盖正式版 2026.1.5~2026.6.9 与 2026.5.16 起的预发布版；落在覆盖范围之外的版本（尤其 5.16 前的预发布版、无镜像的 alpha 版）仍会反推为未知，需按上节所述定期增量补录。</p>
   </section>
 
   <!-- 05 目标来源 -->
