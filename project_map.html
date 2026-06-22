@@ -149,7 +149,7 @@
 <span class="ln">└─ </span><b>schema.sql</b>               <i>assets / observations 表</i>
 
 <span class="ln">progress/</span>                        <i>Python：主动扫描进度（断点续 / 可分片）</i>
-<span class="ln">├─ </span><b>blocks.py</b>                <i>seed_campaign / claim_block / mark_done — 块队列（战役制）</i>
+<span class="ln">├─ </span><b>blocks.py</b>                <i>seed_campaign / claim_block / mark_done — 块队列（扫描轮次制）</i>
 <span class="ln">└─ </span><b>__main__.py</b>              <i>CLI：python -m progress</i>
 
 <span class="ln">scope/</span><b>cn_ranges.py</b>              <i>fetch_cn_ranges() — APNIC → 中国 CIDR（5489 段 / 3.43 亿）</i>
@@ -283,7 +283,7 @@
       <div class="row"><div class="c mod">observations</div><div class="c">store</div><div class="c loc">store/load.py · schema.sql</div><div class="c">每次探测一行，时序，按 ip:port——这个是对的，按省×版本报表就靠它</div></div>
       <div class="row"><div class="c mod">fofa_candidates</div><div class="c">fofa</div><div class="c loc">fofa/pull.py（SCHEMA）</div><div class="c">FOFA 候选，含 region/city + 原始字段 JSON；按 (ip,port) 去重</div></div>
       <div class="row"><div class="c mod">fofa_state</div><div class="c">fofa</div><div class="c loc">fofa/pull.py（SCHEMA）</div><div class="c">Search After 游标（带 <code>_q</code> 校验查询是否一致，只续一次运行内）、上次拉取日期（增量基准）</div></div>
-      <div class="row"><div class="c mod">scan_blocks</div><div class="c">progress</div><div class="c loc">progress/blocks.py（SCHEMA）</div><div class="c">主动扫描块进度（战役 × 块 × 状态），可续可分片</div></div>
+      <div class="row"><div class="c mod">scan_blocks</div><div class="c">progress</div><div class="c loc">progress/blocks.py（SCHEMA）</div><div class="c">主动扫描块进度（扫描轮次 × 块 × 状态），可续可分片</div></div>
     </div>
     <p class="note" style="margin-top:12px;">按省规划资产：<code>fofa/pull.py · province_breakdown()</code>（候选数/省）与 <code>province_versions()</code>（join observations，按省×版本）。后者已在真实数据出过结果（北京/广东/上海的版本分布）。</p>
   </section>
@@ -292,7 +292,7 @@
   <section>
     <div class="sec-head"><span class="num">07</span><h2>进度机制：主动扫描怎么断点续、跨设备分</h2></div>
     <div class="prose">
-      <p>这套是为<strong>主动全网扫描</strong>准备的（被动 FOFA 不需要它，翻页即可）。思路：把"待扫范围"切成 <strong>CIDR 块</strong>（不是逐 IP——中国大陆 3.43 亿地址，逐 IP 记录不现实），按<strong>战役（campaign）</strong>组织（暴露面随时间变，要能定期重扫），块状态 pending→in_progress→done，原子领取、断点续、超时回收。</p>
+      <p>这套是为<strong>主动全网扫描</strong>准备的（被动 FOFA 不需要它，翻页即可）。思路：把"待扫范围"切成 <strong>CIDR 块</strong>（不是逐 IP——中国大陆 3.43 亿地址，逐 IP 记录不现实），按<strong>扫描轮次（campaign）</strong>组织（暴露面随时间变，要能定期重扫），块状态 pending→in_progress→done，原子领取、断点续、超时回收。</p>
       <p>"待扫范围"全集 = <code>scope/cn_ranges.py</code> 从 APNIC 生成的中国大陆 CIDR（实测 5489 段 / 3.43 亿地址，切 /16 块共 9713 个）。跨设备：同一 SQLite 文件只支持同机多进程；真要多设备，要么 masscan/ZMap 分片（<code>--shard</code>，无需共享状态），要么把状态库换成共享 DB。</p>
     </div>
     <div class="coderef">

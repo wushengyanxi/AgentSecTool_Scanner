@@ -14,13 +14,13 @@ def main(argv=None) -> None:
     ap = argparse.ArgumentParser("progress")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("seed", help="从 CIDR 文件切块登记一个战役")
+    s = sub.add_parser("seed", help="从 CIDR 文件切块登记一个扫描轮次")
     s.add_argument("--db", default="data/scanner/scan_results.sqlite")
     s.add_argument("--campaign", required=True)
     s.add_argument("--cidrs", required=True, help="CIDR 列表文件，如 scope/cn-cidrs.txt")
     s.add_argument("--prefix", type=int, default=16, help="块大小（/prefix），默认 /16")
 
-    t = sub.add_parser("status", help="查看战役进度")
+    t = sub.add_parser("status", help="查看扫描轮次进度")
     t.add_argument("--db", default="data/scanner/scan_results.sqlite")
     t.add_argument("--campaign", required=True)
 
@@ -35,7 +35,7 @@ def main(argv=None) -> None:
         with open(args.cidrs) as f:
             cidrs = [ln.strip() for ln in f if ln.strip() and not ln.startswith("#")]
         n = blocks.seed_campaign(args.db, args.campaign, cidrs, args.prefix)
-        print(f"战役 {args.campaign}: 新增 {n} 个块（/{args.prefix}）")
+        print(f"扫描轮次 {args.campaign}: 新增 {n} 个块（/{args.prefix}）")
         print("进度:", blocks.progress(args.db, args.campaign))
     elif args.cmd == "status":
         print("进度:", blocks.progress(args.db, args.campaign))

@@ -37,7 +37,7 @@ def split_blocks(cidrs, prefix: int = 16):
 
 
 def seed_campaign(db: str, campaign: str, cidrs, prefix: int = 16) -> int:
-    """把一个范围切块并登记为某战役的待扫块（已存在则忽略）。返回新增块数。"""
+    """把一个范围切块并登记为某扫描轮次的待扫块（已存在则忽略）。返回新增块数。"""
     conn = _conn(db)
     n = 0
     try:

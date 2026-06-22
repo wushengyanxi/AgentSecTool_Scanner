@@ -59,6 +59,15 @@
   .coderef .fn{color:#3F5230;}
   .coderef div{white-space:normal;}
 
+  /* 命令示例块：slate 底，命令亮、注释灰、轮次/标签标题 */
+  .example{background:var(--slate); border-radius:8px; padding:14px 16px; margin:10px 0 16px;
+    max-width:790px; overflow-x:auto;}
+  .example .lab{font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:0.06em;
+    color:#9a988f; margin:0 0 8px;}
+  .example pre{margin:0; font-family:var(--mono); font-size:12px; line-height:1.7; color:#E8E6DF; white-space:pre;}
+  .example .c{color:#87867F;}  /* 注释 */
+  .example .k{color:#C9B98A;}  /* 命令名 / 子命令，柔金 */
+
   .note{font-size:13px; color:var(--gray-500); line-height:1.7; max-width:790px; margin:8px 0 0;}
   .note.gap{color:#8A5A1E;}
 
@@ -422,7 +431,7 @@
       <div class="row"><div class="c mod">probe_records</div><div class="c">data/scanner/</div><div class="c loc">store/load.py · schema.sql</div><div class="c">每个观测的每项测试的完整请求 / 响应原文，<span class="tag">追加时序</span>，供复查追溯</div></div>
       <div class="row"><div class="c mod">fofa_candidates</div><div class="c">data/fofa/</div><div class="c loc">fofa/pull.py</div><div class="c">FOFA 候选，含 region / city 与原始字段 JSON。<span class="tag">当前态 upsert</span>，按 (ip,port) 去重</div></div>
       <div class="row"><div class="c mod">clawsec_snapshots</div><div class="c">data/clawsec/</div><div class="c loc">clawsec/pull.py</div><div class="c">ClawSec 每日全量快照，含隐位 IP / 省市 / 平台标注版本。<span class="tag">每日快照</span>，按 (snapshot_date, id)</div></div>
-      <div class="row"><div class="c mod">scan_blocks</div><div class="c">data/scanner/</div><div class="c loc">progress/blocks.py</div><div class="c">主动扫描块进度（战役 × 块 × 状态），可断点续、可分片，按 (campaign, block_cidr)</div></div>
+      <div class="row"><div class="c mod">scan_blocks</div><div class="c">data/scanner/</div><div class="c loc">progress/blocks.py</div><div class="c">主动扫描块进度（扫描轮次 × 块 × 状态），可断点续、可分片，按 (campaign, block_cidr)</div></div>
     </div>
     <p class="note">另有少量状态表（<code>fofa_state</code> / <code>clawsec_state</code>）记录拉取断点与基准日期，仅服务于各自模块的断点续传。</p>
   </section>
@@ -470,6 +479,14 @@
       <div class="row"><div class="c loc">--shodan-max</div><div class="c">否</div><div class="c">10000</div><div class="c">Shodan 最多拉取条数</div></div>
       <div class="row"><div class="c loc">--out</div><div class="c">否</div><div class="c">candidates.csv</div><div class="c">输出文件</div></div>
     </div>
+    <div class="example"><p class="lab">示例</p><pre><span class="c"># 本地小范围验证：内置后端扫 127.0.0.0/30 的 18789 端口（无需 root，含保留段需 --allow-reserved）</span>
+python3 -m discovery --cidr 127.0.0.0/30 --ports 18789 --backend internal --allow-reserved
+
+<span class="c"># 全网主动扫描：masscan 后端，限速，带排除文件（需 root）</span>
+sudo python3 -m discovery --cidr 0.0.0.0/0 --backend masscan --rate 20000 --excludefile config/blocklist.txt
+
+<span class="c"># 叠加 FOFA 被动种子（凭据走环境变量），与主动结果合并去重</span>
+FOFA_EMAIL=... FOFA_KEY=... python3 -m discovery --cidr 1.2.3.0/24 --backend internal --fofa</pre></div>
 
     <h3><code>python3 -m fofa</code>：FOFA 归档与分析</h3>
     <p class="prose">必须带子命令。凭据走 <code>FOFA_EMAIL</code> / <code>FOFA_KEY</code> 环境变量。各子命令的 <code>--db</code> 默认均为 <code>data/fofa/fofa.sqlite</code>。</p>
@@ -486,6 +503,19 @@
       <div class="row"><div class="c mod">province-versions</div><div class="c">—</div><div class="c">—</div><div class="c">按省×版本统计已探测资产；<code>--scanner-db</code> 默认 data/scanner/scan_results.sqlite</div></div>
       <div class="row"><div class="c mod">info</div><div class="c">—</div><div class="c">—</div><div class="c">打印账号信息与剩余额度（无参数）</div></div>
     </div>
+    <div class="example"><p class="lab">示例</p><pre><span class="c"># 凭据走环境变量（也可写入 fofa/fofa.ini）</span>
+export FOFA_EMAIL=... FOFA_KEY=...
+
+<span class="c"># 先查账号额度，再全量拉取（用时间窗切片、可断点续，封顶 5000 条省额度）</span>
+python3 -m <span class="k">fofa info</span>
+python3 -m <span class="k">fofa pull</span> --full --before 2026-05-30 --max-records 5000
+
+<span class="c"># 按省统计候选数量；导出候选为 candidates.csv 交给探测器</span>
+python3 -m <span class="k">fofa provinces</span>
+python3 -m <span class="k">fofa export</span> --out candidates.csv
+
+<span class="c"># 跨库统计：已探测确认的 OpenClaw 按省 × 版本分布</span>
+python3 -m <span class="k">fofa province-versions</span></pre></div>
 
     <h3><code>python3 -m clawsec</code>：ClawSec 每日快照</h3>
     <p class="prose">必须带子命令，免凭据。<code>--db</code> 默认 <code>data/clawsec/clawsec.sqlite</code>。</p>
@@ -500,6 +530,17 @@
       <div class="row"><div class="c mod">versions</div><div class="c">—</div><div class="c">—</div><div class="c">最新快照按平台标注版本统计</div></div>
       <div class="row"><div class="c mod">info</div><div class="c">—</div><div class="c">—</div><div class="c">平台汇总计数（无参数）</div></div>
     </div>
+    <div class="example"><p class="lab">示例</p><pre><span class="c"># 免凭据。拉当日全量快照（默认全量范围，含 Inactive 作完整记录）</span>
+python3 -m <span class="k">clawsec pull</span>
+
+<span class="c"># 只拉境内、只要 Active 的当日快照</span>
+python3 -m <span class="k">clawsec pull</span> --scope china --active-only
+
+<span class="c"># 分析至少在 3 个快照日都 Active 的长期暴露实例</span>
+python3 -m <span class="k">clawsec longlived</span> --min-days 3
+
+<span class="c"># 最新快照与 FOFA 候选的隐位重叠统计</span>
+python3 -m <span class="k">clawsec overlap</span></pre></div>
 
     <h3><code>ocprobe</code>：探测引擎</h3>
     <p class="prose">对每个目标做只读探测、二元研判与版本测定，默认逐行打印结论。<strong>目标作为位置参数</strong>给出，支持精确 IP、CIDR、通配 IP（如 <code>203.0.113.*</code>），或每行一个目标的文件路径。部分默认值取自 <code>config.toml</code>（<code>[probe] rate/concurrency/timeout_per_ip</code> 等），下表“默认”列为无 config 时的内置值。<code>443 / 8443 / 9443</code> 端口即使不加 <code>-tls</code> 也自动走 TLS。</p>
@@ -517,6 +558,17 @@
       <div class="row"><div class="c loc">-tls</div><div class="c">否</div><div class="c">关</div><div class="c">强制所有目标用 TLS（缺省按端口自动）</div></div>
     </div>
     <p class="note"><code>-report</code> 与 <code>-resume</code> 为占位参数，当前未实现。</p>
+    <div class="example"><p class="lab">示例</p><pre><span class="c"># 探测单个 IP，打印逐行结论</span>
+ocprobe 203.0.113.10
+
+<span class="c"># 探测一个文件里的目标（每行一个 IP），带指纹库做版本反推，结果落盘供入库</span>
+ocprobe -fingerprints fingerprints/fingerprints.json -o results.jsonl targets.txt
+
+<span class="c"># 探测整段 CIDR 与一段通配 IP，详细日志，限单 IP 每秒发包上限</span>
+ocprobe -l -rate 30 203.0.113.0/24 198.51.100.*
+
+<span class="c"># 指定多个端口、强制 TLS</span>
+ocprobe -port 18789,8443 -tls 203.0.113.10</pre></div>
 
     <h3><code>python3 -m store</code>：入库与报告</h3>
     <p class="prose">把 <code>results.jsonl</code> 入扫描库（assets / observations / probe_records）、打印统计，或按文件后缀生成报告。给 <code>--report</code> 时只出报告；否则未给 <code>--stats</code> 则先导入，最后都打印统计。地理富化依赖 <code>geoip2</code>，故入库须用项目 venv：<code>.venv/bin/python3 -m store …</code>。</p>
@@ -527,18 +579,38 @@
       <div class="row"><div class="c loc">--stats</div><div class="c">否</div><div class="c">关</div><div class="c">只打印统计，不导入</div></div>
       <div class="row"><div class="c loc">--report</div><div class="c">否</div><div class="c">—</div><div class="c">生成报告到该文件，格式按后缀 <code>.html</code> / <code>.json</code> / <code>.csv</code> / <code>.txt</code></div></div>
     </div>
+    <div class="example"><p class="lab">示例</p><pre><span class="c"># 入库（用 venv，因地理富化依赖 geoip2）</span>
+.venv/bin/python3 -m <span class="k">store</span> --in results.jsonl
+
+<span class="c"># 从管道入库（探测与入库串起来）</span>
+ocprobe -o /dev/stdout targets.txt | .venv/bin/python3 -m <span class="k">store</span>
+
+<span class="c"># 只看库统计，不导入</span>
+.venv/bin/python3 -m <span class="k">store</span> --stats
+
+<span class="c"># 生成 HTML 报告（格式由文件后缀决定）</span>
+.venv/bin/python3 -m <span class="k">store</span> --report out.html</pre></div>
 
     <h3><code>python3 -m progress</code>：主动扫描进度</h3>
-    <p class="prose">必须带子命令，把待扫范围切块按战役登记，支持原子领取与断点续。<code>--db</code> 默认 <code>data/scanner/scan_results.sqlite</code>。</p>
+    <p class="prose">必须带子命令，把待扫范围切块、按扫描轮次登记，支持原子领取与断点续。一个扫描轮次（<code>campaign</code>）是一轮有组织、可重复的扫描任务——因为暴露面随时间变化、需要定期重扫，每一轮以一个名字标识（如按周命名 <code>cn-2026w24</code>）。<code>--db</code> 默认 <code>data/scanner/scan_results.sqlite</code>。</p>
     <div class="grid g4">
       <div class="row head"><div class="c">子命令 · 参数</div><div class="c">必填</div><div class="c">默认</div><div class="c">含义</div></div>
-      <div class="row"><div class="c mod">seed</div><div class="c">—</div><div class="c">—</div><div class="c">从 CIDR 文件切块登记一个战役</div></div>
-      <div class="row"><div class="c loc">　--campaign</div><div class="c">是</div><div class="c">—</div><div class="c">战役名</div></div>
+      <div class="row"><div class="c mod">seed</div><div class="c">—</div><div class="c">—</div><div class="c">从 CIDR 文件切块登记一个扫描轮次</div></div>
+      <div class="row"><div class="c loc">　--campaign</div><div class="c">是</div><div class="c">—</div><div class="c">扫描轮次名</div></div>
       <div class="row"><div class="c loc">　--cidrs</div><div class="c">是</div><div class="c">—</div><div class="c">CIDR 列表文件，如 scope/cn-cidrs.txt</div></div>
       <div class="row"><div class="c loc">　--prefix</div><div class="c">否</div><div class="c">16</div><div class="c">块大小（/prefix）</div></div>
-      <div class="row"><div class="c mod">status</div><div class="c">—</div><div class="c">—</div><div class="c">查看战役进度；<code>--campaign</code> 必填</div></div>
+      <div class="row"><div class="c mod">status</div><div class="c">—</div><div class="c">—</div><div class="c">查看某扫描轮次进度；<code>--campaign</code> 必填</div></div>
       <div class="row"><div class="c mod">claim</div><div class="c">—</div><div class="c">—</div><div class="c">原子领取一个待扫块；<code>--campaign</code> 与 <code>--worker</code> 必填</div></div>
     </div>
+    <div class="example"><p class="lab">示例</p><pre><span class="c"># 先生成中国大陆 CIDR 全集，再按 /16 切块登记一个名为 cn-2026w24 的扫描轮次</span>
+python3 -m scope.cn_ranges
+python3 -m <span class="k">progress seed</span> --campaign cn-2026w24 --cidrs scope/cn-cidrs.txt --prefix 16
+
+<span class="c"># 查看该轮次进度（已完成 / 进行中 / 待扫的块数）</span>
+python3 -m <span class="k">progress status</span> --campaign cn-2026w24
+
+<span class="c"># 一个 worker 原子领取一个待扫块（打印该块 CIDR，供随后扫描）</span>
+python3 -m <span class="k">progress claim</span> --campaign cn-2026w24 --worker dev-a</pre></div>
 
     <h3><code>python3 -m geoip.backfill</code>：地理回填</h3>
     <p class="prose">给扫描库 assets 已有资产回填或刷新城市归属，幂等可重跑。依赖 <code>geoip2</code>，须用项目 venv 运行；配置与离线库下载见 <code>geoip/README.md</code>。</p>
@@ -547,6 +619,11 @@
       <div class="row"><div class="c loc">--db</div><div class="c">否</div><div class="c">data/scanner/scan_results.sqlite</div><div class="c">扫描库路径</div></div>
       <div class="row"><div class="c loc">--all</div><div class="c">否</div><div class="c">关</div><div class="c">重刷全部资产（默认只填三列皆空的）</div></div>
     </div>
+    <div class="example"><p class="lab">示例</p><pre><span class="c"># 给尚无城市的存量资产补全归属</span>
+.venv/bin/python3 -m <span class="k">geoip.backfill</span>
+
+<span class="c"># GeoLite2 库更新后，重刷全部资产的城市</span>
+.venv/bin/python3 -m <span class="k">geoip.backfill</span> --all</pre></div>
 
     <h3><code>python3 fingerprint/build_corpus.py</code>：指纹库采集</h3>
     <p class="prose">逐版本起一个 OpenClaw 容器，用 ocprobe 记录其外部可观测签名，写入指纹库。同名版本的 <code>collect_corpus.py</code> 则遍历全部正式版 tag 批量采集（<code>--repo</code> 必填）。</p>
@@ -558,9 +635,22 @@
       <div class="row"><div class="c loc">--db</div><div class="c">否</div><div class="c">fingerprints/fingerprints.json</div><div class="c">指纹库路径</div></div>
       <div class="row"><div class="c loc">--ocprobe</div><div class="c">否</div><div class="c">prober/bin/ocprobe</div><div class="c">ocprobe 二进制路径</div></div>
     </div>
+    <div class="example"><p class="lab">示例</p><pre><span class="c"># 采集单个版本：起容器、用 ocprobe 记录其可观测签名，写入指纹库</span>
+python3 <span class="k">fingerprint/build_corpus.py</span> --image openclaw:local --version 2026.5.17
+
+<span class="c"># 批量采集：遍历本地 openclaw 仓库的全部正式版 tag</span>
+python3 <span class="k">fingerprint/collect_corpus.py</span> --repo /path/to/openclaw
+
+<span class="c"># 只采指定几个版本</span>
+python3 <span class="k">fingerprint/collect_corpus.py</span> --repo /path/to/openclaw --only 2026.1.8,2026.5.12</pre></div>
 
     <h3>看板</h3>
     <p class="prose"><code>python3 -m dashboard</code> 启动实例收集看板，纯标准库、只读查 store 库（默认 <code>data/scanner/scan_results.sqlite</code>，可用 <code>--db</code> 指定，<code>--port</code> 改监听端口，默认 8787）。它不写任何扫描数据。</p>
+    <div class="example"><p class="lab">示例</p><pre><span class="c"># 默认端口 8787 起看板，浏览器开 http://127.0.0.1:8787/</span>
+python3 -m <span class="k">dashboard</span>
+
+<span class="c"># 指定库与端口</span>
+python3 -m <span class="k">dashboard</span> --db data/scanner/scan_results.sqlite --port 9000</pre></div>
   </section>
 
   <footer>
