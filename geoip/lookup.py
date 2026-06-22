@@ -3,19 +3,21 @@
 入库时按 IP 富化城市归属。设计为"软依赖"：库文件或 geoip2 缺失时不报错、不阻断
 入库，lookup() 返回三个 None——geo 只是富化字段，不该让扫描入库失败。
 
+地名口径：只取 GeoLite2 的「标准英文」名（其中文名不可信，见 geoip/cn_names.py），
+再经本地映射表 cn_names 转成简体中文；映射表未收录的英文名原样保留。
+
 配置见 geoip/geoip.ini（[geoip] city_db 指向 .mmdb 路径）；凭据与库均不入库。
 """
 
 import configparser
 import os
 
+from .cn_names import CITY_ZH, REGION_ZH
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 _CONFIG = os.path.join(_HERE, "geoip.ini")
 _DEFAULT_DB = "data/geoip/GeoLite2-City.mmdb"
-
-# 中文优先，回退英文，再回退空串
-_LANGS = ("zh-CN", "en")
 
 
 def _db_path() -> str:
@@ -28,27 +30,10 @@ def _db_path() -> str:
     return path if os.path.isabs(path) else os.path.join(_ROOT, path)
 
 
-def _name(node) -> str:
-    """从 geoip2 的 names 字典按语言优先级取名字。"""
+def _en(node) -> str:
+    """从 geoip2 的 names 字典取标准英文名。"""
     names = getattr(node, "names", None) or {}
-    for lang in _LANGS:
-        if names.get(lang):
-            return names[lang]
-    return getattr(node, "name", None) or ""
-
-
-# GeoLite2 的中文城市名后缀不统一（"北京" vs "北京市"），归一时去掉，避免同城拆成两行。
-_CITY_SUFFIX = ("特别行政区", "自治州", "地区", "盟", "市")
-
-
-def _normalize_city(city: str) -> str:
-    """城市名归一：去掉行政区后缀。仅对纯中文名生效（英文名如 Hong Kong 不动）。"""
-    if not city:
-        return city
-    for suf in _CITY_SUFFIX:
-        if city.endswith(suf) and len(city) > len(suf):
-            return city[: -len(suf)]
-    return city
+    return names.get("en") or getattr(node, "name", None) or ""
 
 
 class GeoResolver:
@@ -79,15 +64,22 @@ class GeoResolver:
         return self.reader is not None
 
     def lookup(self, ip: str):
-        """返回 (country, region, city)，任一解析不到的位置为 None。"""
+        """返回 (country, region, city)，任一解析不到的位置为 None。
+
+        city/region 取库的英文名后经本地映射表转简体中文；未收录的英文名原样保留。
+        country 取库的中文名（国家名简体可靠，无需自建映射）。
+        """
         if not self.reader or not ip:
             return (None, None, None)
         try:
             import geoip2.errors
             r = self.reader.city(ip)
-            country = _name(r.country) or None
-            region = _name(r.subdivisions.most_specific) or None
-            city = _normalize_city(_name(r.city)) or None
+            cn = (r.country.names or {}).get("zh-CN") or _en(r.country)
+            country = cn or None
+            region_en = _en(r.subdivisions.most_specific)
+            city_en = _en(r.city)
+            region = (REGION_ZH.get(region_en) or region_en) or None
+            city = (CITY_ZH.get(city_en) or city_en) or None
             return (country, region, city)
         except geoip2.errors.AddressNotFoundError:
             return (None, None, None)
