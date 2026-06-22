@@ -216,7 +216,10 @@ class Handler(BaseHTTPRequestHandler):
                 name = os.path.basename(u.path)
                 fp = os.path.join(HERE, "assets", name)
                 if os.path.isfile(fp):
-                    ctype = "image/png" if name.endswith(".png") else "application/octet-stream"
+                    ctype = ("image/png" if name.endswith(".png")
+                             else "image/svg+xml" if name.endswith(".svg")
+                             else "font/ttf" if name.endswith(".ttf")
+                             else "application/octet-stream")
                     with open(fp, "rb") as f:
                         self._send(f.read(), ctype=ctype)
                 else:
