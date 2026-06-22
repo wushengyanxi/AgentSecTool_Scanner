@@ -10,8 +10,10 @@
 命令在项目根目录跑（python3 -m clawsec）。数据入 data/clawsec/clawsec.sqlite 的 clawsec_snapshots 表。
 """
 import argparse
+import datetime
 import os
 import sqlite3
+import time
 
 from . import pull as pullmod
 from .client import ClawSecClient
@@ -26,6 +28,45 @@ def _ensure_dir(path):
         os.makedirs(d, exist_ok=True)
 
 
+def _ts():
+    return datetime.datetime.now().strftime("%H:%M:%S")
+
+
+def _watch_loop(args, pull_once):
+    """持续运营：每 watch_interval 秒查平台 lastScanTime；比库内最新快照日期更新即拉新日期全量。
+
+    启动即查一次（不必干等一个间隔），日期不变时只打心跳、不拉取（不做无谓全量）。Ctrl-C 退出。"""
+    cli = ClawSecClient()
+    conn = sqlite3.connect(args.db)
+    try:
+        have = pullmod.latest_snapshot(conn)
+    finally:
+        conn.close()
+    print(f"\n[watch] 持续运营中：库内最新快照 {have}，每 {args.watch_interval}s 轮询一次，"
+          f"平台出现更新日期即拉取（Ctrl-C 退出）", flush=True)
+    try:
+        while True:
+            try:
+                platform_date = cli.last_scan_time()
+            except Exception as e:  # noqa: BLE001 — 单次轮询失败不该中断运营，下轮重试
+                print(f"[{_ts()}] 轮询平台失败：{e}（{args.watch_interval}s 后重试）", flush=True)
+                time.sleep(args.watch_interval)
+                continue
+            conn = sqlite3.connect(args.db)
+            try:
+                have = pullmod.latest_snapshot(conn)
+            finally:
+                conn.close()
+            if platform_date and platform_date != have:
+                print(f"[{_ts()}] 平台快照更新 {have} → {platform_date}，开始拉取新日期全量", flush=True)
+                pull_once()
+            else:
+                print(f"[{_ts()}] 平台快照日期未变（{have}），等待下一轮", flush=True)
+            time.sleep(args.watch_interval)
+    except KeyboardInterrupt:
+        print("\n[watch] 已停止持续运营", flush=True)
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser("clawsec")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -38,6 +79,8 @@ def main(argv=None) -> None:
                    help="只拉 Active（默认含 Inactive，作完整记录）")
     p.add_argument("--snapshot-date", default=None,
                    help="指定快照日期（默认取平台 lastScanTime）")
+    p.add_argument("--watch-interval", type=int, default=600,
+                   help="轮询平台快照日期的间隔秒数（默认 600=10 分钟）")
 
     ll = sub.add_parser("longlived", help="跨快照分析长期有效实例")
     ll.add_argument("--db", default=DEFAULT_DB)
@@ -67,10 +110,16 @@ def main(argv=None) -> None:
             tag = "（被日期变更中断，标 incomplete）" if interrupted else "（完整）"
             print(f"\n  快照 {sd}：{n:,} 条 {tag}", flush=True)
 
-        n, n_total, sd = pullmod.pull(
-            args.db, scope=args.scope, active_only=args.active_only,
-            snapshot_date=args.snapshot_date, on_progress=_progress, on_snapshot_done=_snap_done)
-        print(f"完成。本次新增 {n:,} 条 → clawsec_snapshots（最终快照 {sd} 共 {n_total:,} 条）")
+        def _pull_once():
+            n, n_total, sd = pullmod.pull(
+                args.db, scope=args.scope, active_only=args.active_only,
+                snapshot_date=args.snapshot_date, on_progress=_progress, on_snapshot_done=_snap_done)
+            print(f"完成。本次新增 {n:,} 条 → clawsec_snapshots（最终快照 {sd} 共 {n_total:,} 条）")
+
+        # pull 持续运营（前台、可 Ctrl-C）：先确认当前快照拉完——没拉完则断点续拉，
+        # 已拉完则幂等跳过；随后进入轮询，平台出现更新日期即拉新批，如此循环。
+        _pull_once()
+        _watch_loop(args, _pull_once)
 
     elif args.cmd == "longlived":
         rows, incomplete = pullmod.longlived(

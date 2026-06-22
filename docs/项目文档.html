@@ -573,13 +573,14 @@ python3 -m <span class="k">fofa export</span> --out candidates.csv
 python3 -m <span class="k">fofa province-versions</span></pre></div>
 
     <h3><code>python3 -m clawsec</code>：ClawSec 每日快照</h3>
-    <p class="prose">必须带子命令，免凭据。<code>--db</code> 默认 <code>data/clawsec/clawsec.sqlite</code>。</p>
+    <p class="prose">必须带子命令，免凭据。<code>--db</code> 默认 <code>data/clawsec/clawsec.sqlite</code>。其中 <code>pull</code> 是<strong>前台持续运营</strong>的：启动后先确认当前快照是否拉完（未完则续拉、已完则幂等跳过），之后不退出、进入轮询——每 <code>--watch-interval</code> 秒查一次平台 <code>lastScanTime</code>，其余时间休眠；一旦平台出现比库内更新的快照日期，立即拉取该新日期的全量，如此循环。需要停止时 Ctrl-C。这与 <code>fofa pull</code> 拉完即退出的一次性行为不同——因为 ClawSec 是逐日快照、适合长驻跟随平台更新。</p>
     <div class="grid g4">
       <div class="row head"><div class="c">子命令 · 参数</div><div class="c">必填</div><div class="c">默认</div><div class="c">含义</div></div>
-      <div class="row"><div class="c mod">pull</div><div class="c">—</div><div class="c">—</div><div class="c">拉当日全量快照入库（拉完为止、可续、平台日期变更自动切）</div></div>
+      <div class="row"><div class="c mod">pull</div><div class="c">—</div><div class="c">—</div><div class="c">持续运营：先确认当前快照拉完（未完则断点续拉），随后前台常驻、定期轮询平台，出现更新日期即拉新批</div></div>
       <div class="row"><div class="c loc">　--scope</div><div class="c">否</div><div class="c">all</div><div class="c">拉取范围，可选 <code>china</code> / <code>overseas</code> / <code>all</code></div></div>
       <div class="row"><div class="c loc">　--active-only</div><div class="c">否</div><div class="c">关</div><div class="c">只拉 Active（默认含 Inactive 作完整记录）</div></div>
       <div class="row"><div class="c loc">　--snapshot-date</div><div class="c">否</div><div class="c">平台 lastScanTime</div><div class="c">指定快照日期</div></div>
+      <div class="row"><div class="c loc">　--watch-interval</div><div class="c">否</div><div class="c">600</div><div class="c">轮询平台快照日期的间隔秒数（默认 600=10 分钟）</div></div>
       <div class="row"><div class="c mod">longlived</div><div class="c">—</div><div class="c">—</div><div class="c">跨快照分析长期有效实例；<code>--min-days</code> 默认 2、<code>--limit</code> 默认 50、<code>--all-scope</code> 含海外</div></div>
       <div class="row"><div class="c mod">overlap</div><div class="c">—</div><div class="c">—</div><div class="c">最新快照与 fofa_candidates 的隐位重叠；<code>--fofa-db</code> 默认 data/fofa/fofa.sqlite</div></div>
       <div class="row"><div class="c mod">versions</div><div class="c">—</div><div class="c">—</div><div class="c">最新快照按平台标注版本统计</div></div>
@@ -611,8 +612,10 @@ python3 -m <span class="k">clawsec overlap</span></pre></div>
       <div class="row"><div class="c loc">-fingerprints</div><div class="c">否</div><div class="c">（空）</div><div class="c">指纹库 JSON 路径，用于隐式版本反推</div></div>
       <div class="row"><div class="c loc">-o</div><div class="c">否</div><div class="c">（不落盘）</div><div class="c">JSONL 输出文件，含完整请求 / 响应，供 store 入库</div></div>
       <div class="row"><div class="c loc">-tls</div><div class="c">否</div><div class="c">关</div><div class="c">强制所有目标用 TLS（缺省按端口自动）</div></div>
+      <div class="row"><div class="c loc">--skip-unreachable</div><div class="c">否</div><div class="c">关</div><div class="c">不落盘探不到的目标（timeout / refused / unreachable / down）；大规模枚举时这类占绝大多数，跳过可大幅压缩输出</div></div>
+      <div class="row"><div class="c loc">--progress</div><div class="c">否</div><div class="c">关</div><div class="c">单行刷新进度（替代逐行输出）：已扫数 / 各分类计数 / 百分比，进度行写 stderr、不干扰 <code>-o</code> 落盘</div></div>
     </div>
-    <p class="note"><code>-report</code> 与 <code>-resume</code> 为占位参数，当前未实现。</p>
+    <p class="note"><code>--progress</code> 开启时不再逐个 IP 打印结论，只在一行里持续更新统计（百分比的分母由启动时把目标表达式按文件行数 / CIDR / 通配预先计数得到）。<code>-report</code> 与 <code>-resume</code> 为占位参数，当前未实现。</p>
     <div class="example"><p class="lab">示例</p><pre><span class="c"># 探测单个 IP，打印逐行结论</span>
 ocprobe 203.0.113.10
 

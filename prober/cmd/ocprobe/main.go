@@ -32,6 +32,8 @@ func main() {
 		fpPath   = flag.String("fingerprints", "", "指纹库 JSON 路径（隐式版本反推）")
 		outPath  = flag.String("o", "", "JSONL 输出文件（含完整请求/响应，供入库）；缺省不落盘")
 		tlsOn    = flag.Bool("tls", false, "强制所有目标用 TLS（缺省按端口自动）")
+		skipUnreach = flag.Bool("skip-unreachable", false, "不落盘探不到的目标（timeout/refused/unreachable/down）；大规模枚举时这类占多数")
+		progress    = flag.Bool("progress", false, "单行刷新进度（替代逐行输出）：已扫数/各分类计数/百分比")
 		_        = flag.String("report", "", "从已落盘结果生成报告，按文件名后缀定格式（由 store 实现，占位）")
 		_        = flag.Bool("resume", false, "断点续扫（占位）")
 	)
@@ -80,6 +82,17 @@ func main() {
 		defer cancel()
 	}
 
+	// 进度模式：先把所有目标表达式 × 端口展开计数一遍，作为百分比分母。
+	// 复用 ExpandTarget 的流式展开（文件按行数、CIDR/通配按范围计算），只计数不探测。
+	var prog *progressTracker
+	if *progress {
+		total := 0
+		for _, expr := range exprs {
+			_ = ExpandTarget(expr, func(string) error { total += len(ports); return nil })
+		}
+		prog = newProgress(total)
+	}
+
 	type target struct {
 		host string
 		port uint16
@@ -112,8 +125,13 @@ func main() {
 				res := oc.Probe(pctx, t.host, t.port, oc.Options{TLS: useTLS, Timeout: *timeout, Fingerprints: fpdb})
 				cancel()
 				mu.Lock()
-				printLine(res, *logFlag) // 默认终端输出
-				if enc != nil {
+				if prog != nil {
+					prog.update(res) // 单行刷新进度，不逐行打印
+				} else {
+					printLine(res, *logFlag) // 默认逐行终端输出
+				}
+				// --skip-unreachable：探不到的目标（error_type 非空）不落盘——大规模枚举时占绝大多数。
+				if enc != nil && !(*skipUnreach && res.ErrorType != "") {
 					_ = enc.Encode(res) // 含完整请求/响应，落盘供入库
 				}
 				mu.Unlock()
@@ -138,6 +156,9 @@ func main() {
 	}
 	close(targets)
 	wg.Wait()
+	if prog != nil {
+		prog.finish()
+	}
 }
 
 // printLine 打印单个目标的终端结果。默认一行结论；-l 时附完整研判依据。
