@@ -45,7 +45,7 @@ func TestMatchImplicitRange(t *testing.T) {
 		t.Fatalf("range match: got %v want 2 candidates", hits)
 	}
 
-	ver, src, cand := determineVersion(Evidence{AssetHashes: assets}, db)
+	ver, src, cand := determineVersion(Evidence{AssetHashes: assets}, db.MatchImplicit(Evidence{AssetHashes: assets}))
 	if src != "implicit-range" {
 		t.Fatalf("version_source: got %q want implicit-range", src)
 	}

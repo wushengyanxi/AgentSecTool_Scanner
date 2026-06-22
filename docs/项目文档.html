@@ -175,7 +175,7 @@
 <span class="ln">│  ├─ </span><b>probe.go</b>           <i>Probe() —— 单目标入口，编排探测、判定与版本测定</i>
 <span class="ln">│  ├─ </span><b>ws.go</b>              <i>probeWS() —— WebSocket 升级，读取首帧 connect.challenge（只读）</i>
 <span class="ln">│  ├─ </span><b>http.go</b>            <i>probeHTTP() —— GET /healthz、首页、control-ui-config、favicon</i>
-<span class="ln">│  ├─ </span><b>signals.go</b>         <i>evaluate() —— 证据组合白名单二元研判（C1 / C2）</i>
+<span class="ln">│  ├─ </span><b>signals.go</b>         <i>evaluate() —— 证据组合白名单二元研判（C1 / C2 / C3）</i>
 <span class="ln">│  ├─ </span><b>version.go</b>         <i>determineVersion() —— 直读 serverVersion，否则走隐式反推</i>
 <span class="ln">│  ├─ </span><b>fingerprints.go</b>    <i>MatchImplicit() / LoadFingerprintDB() —— 指纹库匹配版本</i>
 <span class="ln">│  ├─ </span><b>result.go</b>          <i>Result · Evidence —— 结果与证据结构（T1–T7 测试项常量）</i>
@@ -296,9 +296,13 @@
       <div class="coderef">
         <div class="cr">达标条件</div>
         <div><span class="fn">C1</span>：T1 —— 确证级单独成立（control-ui-config 自报版本，仿冒成本等同于真实实现）</div>
-        <div><span class="fn">C2</span>：T2 &amp;&amp; (T3 || T4) —— WebSocket 强证据 叠加 HTTP 路由面强证据，跨表面双强</div>
+        <div><span class="fn">C2</span>：T2 &amp;&amp; (T3 || T4) —— WebSocket 强证据 × HTTP 路由面强证据，跨表面双强</div>
+        <div><span class="fn">C3</span>：T2 &amp;&amp; 资产指纹命中 —— WebSocket 强证据 × 首页构建产物指纹精确命中指纹库，跨表面双强</div>
       </div>
       <p>规则的核心是<strong>跨表面</strong>：同一表面内的多条信号容易被一并构造仿冒，唯有来自不同协议表面的强证据同时成立，才具备抗仿冒能力。纯弱证据（T5/T6/T7）无论命中多少都不参与达标，仅供报告说明。</p>
+      <h3>C3：为不暴露版本号的实例补一条达标路径</h3>
+      <p>并非所有真实例都会被 C1 或 C2 命中。<code>control-ui-config</code> 端点是否暴露 <code>serverVersion</code> 取决于实例的部署配置——部分实例该端点返回 200 但响应体里只有助手配置、没有版本号（于是 T1 不命中），又因它返回的是 200 而非 401（T3 不命中），若 <code>/healthz</code> 也未命中（T4 不命中），这类实例就会被 C1、C2 双双漏判。但它们确实是某个已知版本的 OpenClaw——首页引用的 <code>assets/index-&lt;hash&gt;.js/.css</code> 内容哈希逐一匹配到指纹库某版本（即隐式反推用的同一信号）。C3 正是为这类实例补的达标路径。</p>
+      <p>C3 的抗仿冒性与 C2 同源：资产指纹是 <strong>HTTP 静态构建产物面</strong>，与 T2 的 <strong>WebSocket 协议面</strong>正交。单独的资产指纹并不可靠——扫描器只从首页明文抽取文件名、不校验资产真实字节，攻击者把真实例首页原样镜像成静态页即可伪造，与伪造标题同难度；因此<strong>资产指纹单独不达标，必须叠加 T2</strong>。而 T2 要求目标真正跑一个连上即推 <code>connect.challenge</code> 帧的服务端（动态协议行为，静态克隆页给不出），两个表面联合后，伪造成本逼近搭一个真实例。这一条目前救回了一批仅靠资产指纹定版、本应判为明确实例却被误归为疑似的真实例，并同时带出其反推版本号。</p>
       <div class="callout">
         <p class="lab">探测全程只读</p>
         <p>探测只发送 HTTP 升级请求与无鉴权 GET，<strong>绝不发送 <code>connect</code> 帧或 <code>config.apply</code></strong>——后者本身属于漏洞利用面。这一约束由单元测试固化：<code>probe_test.go</code> 断言探测过程发送的字节中不含越界帧。</p>

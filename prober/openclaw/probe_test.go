@@ -91,35 +91,41 @@ func TestProbeWS_ReadOnlyAndChallenge(t *testing.T) {
 // TestEvaluate 验证二元白名单：True 当且仅当 C1(T1) 或 C2(T2 && (T3||T4))。
 func TestEvaluate(t *testing.T) {
 	cases := []struct {
-		name     string
-		ev       Evidence
-		wantOC   bool
-		wantRule string
+		name      string
+		ev        Evidence
+		assetHash bool // 资产指纹是否精确命中指纹库
+		wantOC    bool
+		wantRule  string
 	}{
 		// C1：确证级单独成立
-		{"T1 control-ui 200+ver", Evidence{ControlUIStatus: 200, ServerVersion: "2026.5.17"}, true, "C1"},
+		{"T1 control-ui 200+ver", Evidence{ControlUIStatus: 200, ServerVersion: "2026.5.17"}, false, true, "C1"},
 		// C2：跨表面双强
-		{"T2+T3 ws+401", Evidence{WSChallenge: true, ControlUIStatus: 401}, true, "C2"},
-		{"T2+T4 ws+healthz", Evidence{WSChallenge: true, HealthzMatch: true}, true, "C2"},
+		{"T2+T3 ws+401", Evidence{WSChallenge: true, ControlUIStatus: 401}, false, true, "C2"},
+		{"T2+T4 ws+healthz", Evidence{WSChallenge: true, HealthzMatch: true}, false, true, "C2"},
+		// C3：WS 强证据 × 资产指纹精确命中（control-ui 200 无 version、非 401、healthz 未中）
+		{"T2+assetHash", Evidence{WSChallenge: true, ControlUIStatus: 200}, true, true, "C3"},
 		// 单个强证据不够（防单信号被仿冒）
-		{"T2 ws alone", Evidence{WSChallenge: true}, false, ""},
-		{"T3 401 alone", Evidence{ControlUIStatus: 401}, false, ""},
-		{"T4 healthz alone", Evidence{HealthzMatch: true}, false, ""},
+		{"T2 ws alone", Evidence{WSChallenge: true}, false, false, ""},
+		{"T3 401 alone", Evidence{ControlUIStatus: 401}, false, false, ""},
+		{"T4 healthz alone", Evidence{HealthzMatch: true}, false, false, ""},
+		// 资产指纹单独不达标（防静态克隆首页伪造资产名）—— 必须与 T2 联合
+		{"assetHash alone no ws", Evidence{ControlUIStatus: 200}, true, false, ""},
+		{"assetHash + weak no ws", Evidence{FaviconMD5: FaviconMD5, Title: TitleMarker}, true, false, ""},
 		// 同表面双强不跨表面 → False
-		{"T3+T4 same surface", Evidence{ControlUIStatus: 401, HealthzMatch: true}, false, ""},
+		{"T3+T4 same surface", Evidence{ControlUIStatus: 401, HealthzMatch: true}, false, false, ""},
 		// 纯弱证据，无论多少都 False（防止仅凭可静态仿冒的弱信号即误判）
-		{"T5 favicon alone", Evidence{FaviconMD5: FaviconMD5}, false, ""},
-		{"T5+T6 favicon+title", Evidence{FaviconMD5: FaviconMD5, Title: TitleMarker}, false, ""},
-		{"T5+T6+T7 all weak", Evidence{FaviconMD5: FaviconMD5, Title: TitleMarker, HeaderTriplet: true}, false, ""},
+		{"T5 favicon alone", Evidence{FaviconMD5: FaviconMD5}, false, false, ""},
+		{"T5+T6 favicon+title", Evidence{FaviconMD5: FaviconMD5, Title: TitleMarker}, false, false, ""},
+		{"T5+T6+T7 all weak", Evidence{FaviconMD5: FaviconMD5, Title: TitleMarker, HeaderTriplet: true}, false, false, ""},
 		// 弱+单强但未跨表面双强 → False（情况 D：WS + favicon）
-		{"T2+T5 ws+favicon no route", Evidence{WSChallenge: true, FaviconMD5: FaviconMD5}, false, ""},
+		{"T2+T5 ws+favicon no route", Evidence{WSChallenge: true, FaviconMD5: FaviconMD5}, false, false, ""},
 		// control-ui 200 但无 serverVersion → 非 T1
-		{"200 no version", Evidence{ControlUIStatus: 200}, false, ""},
-		{"nothing", Evidence{}, false, ""},
+		{"200 no version", Evidence{ControlUIStatus: 200}, false, false, ""},
+		{"nothing", Evidence{}, false, false, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			ok, _, rule := evaluate(c.ev)
+			ok, _, rule := evaluate(c.ev, c.assetHash)
 			if ok != c.wantOC || rule != c.wantRule {
 				t.Fatalf("evaluate=(%v,%q) want (%v,%q)", ok, rule, c.wantOC, c.wantRule)
 			}

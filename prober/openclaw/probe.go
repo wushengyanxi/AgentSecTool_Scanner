@@ -45,8 +45,13 @@ func Probe(ctx context.Context, host string, port uint16, opts Options) Result {
 	probeHTTP(ctx, host, port, opts.TLS, opts.Timeout, &ev)
 	probeWS(ctx, host, port, opts.TLS, opts.Timeout, dial, &ev)
 
-	verdict, matched, rule := evaluate(ev)
-	ver, vsrc, vcand := determineVersion(ev, opts.Fingerprints)
+	// 资产指纹与指纹库的匹配算一次，判定（C3）与版本反推共用，避免重复计算且保持一致。
+	var hits []string
+	if opts.Fingerprints != nil {
+		hits = opts.Fingerprints.MatchImplicit(ev)
+	}
+	verdict, matched, rule := evaluate(ev, len(hits) >= 1)
+	ver, vsrc, vcand := determineVersion(ev, hits)
 
 	res := Result{
 		IP:                host,
