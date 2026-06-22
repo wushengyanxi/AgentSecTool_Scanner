@@ -9,7 +9,7 @@
 幂等：目标表已有数据则跳过对应迁移（避免重复）。仅标准库。
 
 用法：
-  python3 harness/migrate_dbs.py --old scan.sqlite --clawsec-date 2026-06-14
+  python3 fingerprint/migrate_dbs.py --old scan.sqlite --clawsec-date 2026-06-14
 """
 import argparse
 import os

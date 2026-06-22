@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""全量指纹采集 harness：遍历 OpenClaw 正式版 tag，逐版本采集外部可观测签名。
+"""全量指纹采集工具：遍历 OpenClaw 正式版 tag，逐版本采集外部可观测签名。
 
 采集三字段（与 prober 的 FingerprintEntry 对齐）：
   asset_hashes  首页引用的内容哈希资产名（assets/index-<hash>.js|css），主要的版本区分信号
@@ -18,14 +18,14 @@
 CSP 串为源码静态常量（src/gateway/control-ui-csp.ts 的 buildControlUiCspHeader 无参分支）。
 若某版本改了该函数，本脚本算出的 csp_sha256 会与运行时不符——属已知边界，输出里标注 csp_source。
 
-仅用标准库，可直接 `python3 harness/collect_corpus.py ...` 运行。
+仅用标准库，可直接 `python3 fingerprint/collect_corpus.py ...` 运行。
 
 用法：
   # 全量（默认遍历 repo 里所有正式 vYYYY.M.D tag）
-  python3 harness/collect_corpus.py --repo /path/to/openclaw
+  python3 fingerprint/collect_corpus.py --repo /path/to/openclaw
 
   # 只采指定几个版本
-  python3 harness/collect_corpus.py --repo /path/to/openclaw --only 2026.1.8,2026.5.12
+  python3 fingerprint/collect_corpus.py --repo /path/to/openclaw --only 2026.1.8,2026.5.12
 
   # 断点续跑：已在 fingerprints.json 里的版本默认跳过；--force 重采
 """

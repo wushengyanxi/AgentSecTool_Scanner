@@ -1,7 +1,7 @@
 """落地 CLI（扫描结果库 data/scanner/scan_results.sqlite）：
-  python3 -m sink --in results.jsonl                  # 入库
-  python3 -m sink --stats                             # 只统计
-  python3 -m sink --report out.html                   # 出报告（按后缀定格式：.html/.json/.csv/.txt）
+  python3 -m store --in results.jsonl                  # 入库
+  python3 -m store --stats                             # 只统计
+  python3 -m store --report out.html                   # 出报告（按后缀定格式：.html/.json/.csv/.txt）
 """
 
 import argparse
@@ -13,7 +13,7 @@ from . import report as reporter
 
 
 def main(argv=None) -> None:
-    ap = argparse.ArgumentParser("sink", description="results.jsonl → SQLite（assets/observations/probe_records）")
+    ap = argparse.ArgumentParser("store", description="results.jsonl → SQLite（assets/observations/probe_records）")
     ap.add_argument("--db", default="data/scanner/scan_results.sqlite")
     ap.add_argument("--in", dest="infile", default=None, help="results.jsonl；缺省读 stdin（仅在导入时）")
     ap.add_argument("--stats", action="store_true", help="只打印统计，不导入")

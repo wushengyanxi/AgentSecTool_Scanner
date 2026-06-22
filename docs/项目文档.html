@@ -126,12 +126,12 @@
 <div class="wrap">
 
   <p class="eyebrow">AgentSecTool Scanner · 项目文档</p>
-  <h1>OpenClaw 公网暴露扫描器：系统结构、判定与版本测定机制、数据记录规范</h1>
+  <h1>OpenClaw 公网暴露扫描器：系统结构、判定与版本测定机制、数据记录方式</h1>
 
   <div class="tldr">
     <p class="lab">本文档说明的内容</p>
-    <p>本项目是一个针对 <strong>OpenClaw</strong> 网关公网暴露面的扫描系统：在授权范围内发现暴露的实例、只读地判定其是否为 OpenClaw、测定其版本，并将结果归档，服务于后续的漏洞协同披露。本文档面向接手或评审本项目的工程读者，逐层说明<strong>系统结构、探测判定机制、版本测定机制、目标来源、数据记录规范与运行方式</strong>，并对每项能力标注其实现位置与当前状态。</p>
-    <p>两个贯穿全文的口径需在阅读前明确：其一，<strong>扫描器的正式能力只有“发现后的只读判定与版本测定”，由 <code>prober/</code> 承担</strong>；FOFA、ClawSec 与 <code>scan_test/</code> 是被动测绘数据源与验证工具，为扫描器提供探测目标、构建测试用例集，并非扫描器的判定功能本身。其二，<strong>项目内存在多种数据写入语义</strong>（当前态覆盖、每日快照、追加时序），本文档第 06 节给出统一的数据记录规范。</p>
+    <p>本项目是一个针对 <strong>OpenClaw</strong> 网关公网暴露面的扫描系统：在授权范围内发现暴露的实例、只读地判定其是否为 OpenClaw、测定其版本，并将结果归档，服务于后续的漏洞协同披露。本文档面向接手或评审本项目的工程读者，逐层说明<strong>系统结构、探测判定机制、版本测定机制、目标来源、数据记录方式与运行方式</strong>，并对每项能力标注其实现位置与当前状态。</p>
+    <p>两个贯穿全文的口径需在阅读前明确：其一，<strong>扫描器的正式能力只有“发现后的只读判定与版本测定”，由 <code>prober/</code> 承担</strong>；FOFA、ClawSec 与 <code>scan_test/</code> 是被动测绘数据源与验证工具，为扫描器提供探测目标、构建测试用例集，并非扫描器的判定功能本身。其二，<strong>项目内有四种数据写入方式</strong>（候选目录当前态、每日快照、扫描台账当前态、观测明细追加），分别服务于不同用途，第 06 节逐一说明各自的做法与设计取舍。</p>
   </div>
 
   <div class="strip">
@@ -149,7 +149,7 @@
       <li><a href="#s03">判定机制：如何确认一台是 OpenClaw</a></li>
       <li><a href="#s04">版本测定机制：直读与隐式指纹反推</a></li>
       <li><a href="#s05">目标来源与测试用例集</a></li>
-      <li><a href="#s06">数据记录规范（统一口径）</a></li>
+      <li><a href="#s06">数据记录：四种写入方式与取舍</a></li>
       <li><a href="#s07">地理富化：IP 到城市</a></li>
       <li><a href="#s08">数据模型与库表清单</a></li>
       <li><a href="#s09">运行方式与凭据管理</a></li>
@@ -189,14 +189,14 @@
 <span class="ln">├─ </span><b>pull_clawsec*.py</b>       <i>拉取平台公开列表作目标清单（仅打公开 API，不探测 IP）</i>
 <span class="ln">└─ </span><b>enum_segment.py</b>        <i>对隐位 IP 段调 ocprobe 只读枚举，与平台版本双源核对</i>
 
-<span class="ln">sink/</span>                          <i>Python：落地与报告（results.jsonl → SQLite，去重语义权威定义处）</i>
+<span class="ln">store/</span>                          <i>Python：落地与报告（results.jsonl → SQLite，去重语义权威定义处）</i>
 <span class="ln">├─ </span><b>load.py</b>                <i>load() —— 入库 assets / observations / probe_records</i>
 <span class="ln">├─ </span><b>schema.sql</b>             <i>表结构定义</i>
 <span class="ln">└─ </span><b>report.py</b>              <i>generate() —— 出报告（HTML / JSON / CSV / TXT）</i>
 <span class="ln">geoip/</span>                         <i>Python：IP → 城市离线富化（GeoLite2），随入库写、可回填</i>
-<span class="ln">dashboard/</span>                     <i>Python：实例收集看板（只读查 sink 库，纯标准库 HTTP 服务）</i>
+<span class="ln">dashboard/</span>                     <i>Python：实例收集看板（只读查 store 库，纯标准库 HTTP 服务）</i>
 <span class="ln">progress/</span> · <span class="ln">scope/</span>             <i>主动扫描的块级进度队列 · 中国大陆 CIDR 范围生成</i>
-<span class="ln">harness/</span>                       <i>运维脚本：版本指纹库构建、旧库拆分迁移</i>
+<span class="ln">fingerprint/</span>                       <i>运维脚本：版本指纹库构建、旧库拆分迁移</i>
 <b>config/</b> · <b>fingerprints/</b>          <i>配置模板 · OpenClaw 版本指纹库</i></pre>
     <p class="note">每个模块均带单元测试（Go 的 <code>*_test.go</code> 与 Python 的 <code>tests/</code>），<code>make test</code> 统一运行。</p>
   </section>
@@ -232,12 +232,12 @@
         <text x="572" y="156" font-family="ui-serif, Georgia, serif" font-size="13" fill="#141413">results.jsonl</text>
         <text x="572" y="174" font-family="ui-monospace, Menlo, monospace" font-size="10" fill="#6c6b64">逐目标研判与版本</text>
         <path d="M646,184 L646,210" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#ah)"></path>
-        <!-- sink -->
+        <!-- store -->
         <rect x="540" y="210" width="212" height="58" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
         <rect x="540" y="210" width="5" height="58" rx="2" fill="#788C5D"></rect>
-        <text x="558" y="234" font-family="ui-serif, Georgia, serif" font-size="13" fill="#141413">落地 sink → SQLite</text>
+        <text x="558" y="234" font-family="ui-serif, Georgia, serif" font-size="13" fill="#141413">落地 store → SQLite</text>
         <text x="558" y="254" font-family="ui-monospace, Menlo, monospace" font-size="9" fill="#6c6b64">assets·observations·probe_records</text>
-        <!-- sink → dashboard -->
+        <!-- store → dashboard -->
         <path d="M540,239 L300,239 L300,232" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#ah)"></path>
         <rect x="180" y="210" width="120" height="48" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
         <text x="196" y="232" font-family="ui-serif, Georgia, serif" font-size="12.5" fill="#141413">看板 dashboard</text>
@@ -314,13 +314,13 @@
         <li><strong>隐式反推（中置信）</strong>：当端点返回 401 时，改用主机无需鉴权即可观测、且随版本变化的量去匹配<strong>指纹库</strong>。主信号是首页引用的 <code>assets/index-&lt;hash&gt;.js/.css</code>（构建产物的内容哈希，同版本恒定、跨版本不同），备用信号是 CSP 的 sha256。匹配时以资产哈希集合的精确匹配优先。</li>
       </ul>
       <h3>指纹库的来源</h3>
-      <p>指纹库由 <code>harness/build_corpus.py</code> 离线构建：在容器内逐个启动已知版本的 OpenClaw，用 ocprobe 采集其资产哈希、CSP、favicon，写入 <code>fingerprints/fingerprints.json</code>。指纹库本身按版本号去重，重新采集同一版本时整条覆盖。</p>
+      <p>指纹库由 <code>fingerprint/build_corpus.py</code> 离线构建：在容器内逐个启动已知版本的 OpenClaw，用 ocprobe 采集其资产哈希、CSP、favicon，写入 <code>fingerprints/fingerprints.json</code>。指纹库本身按版本号去重，重新采集同一版本时整条覆盖。</p>
     </div>
     <div class="coderef">
       <div class="cr">实现位置</div>
       <div><span class="f">openclaw/version.go</span> · <span class="fn">determineVersion()</span> —— 先尝试直读，否则走隐式反推</div>
       <div><span class="f">openclaw/fingerprints.go</span> · <span class="fn">MatchImplicit()</span> / <span class="fn">LoadFingerprintDB()</span> —— 资产哈希 / CSP 匹配版本</div>
-      <div><span class="f">harness/build_corpus.py</span> · <span class="fn">record_signature()</span> —— 逐版本采集签名入库</div>
+      <div><span class="f">fingerprint/build_corpus.py</span> · <span class="fn">record_signature()</span> —— 逐版本采集签名入库</div>
       <div><span class="f">fingerprints/fingerprints.json</span> —— 版本指纹库（version → 资产哈希 / CSP / favicon）</div>
     </div>
     <p class="note"><span class="st part">部分</span> 机制完整、单元测试通过、真实实例可直读出版本号。当前指纹库收录版本有限，对未收录版本的已防护实例，隐式反推可能匹配不到、版本记为未知；扩充指纹库即可覆盖更多版本。</p>
@@ -366,45 +366,33 @@
 
   <!-- 06 数据记录规范 -->
   <section id="s06">
-    <div class="sec-head"><span class="num">06</span><h2>数据记录规范（统一口径）</h2></div>
-    <p class="intro">项目内不同数据源采用不同的写入语义，此前未在一处统一声明。本节先给出每类数据“再次处理同一记录时如何变化”的事实对比，再直接回答两个关键问题，最后确立全项目应共同遵守的数据记录规范。</p>
+    <div class="sec-head"><span class="num">06</span><h2>数据记录如何写入：四种方式与各自的设计取舍</h2></div>
+    <p class="intro">项目里有四种相互独立的数据写入方式，它们落在不同的库表中，对“同一条记录再次被处理时如何变化”也给出不同的答案。这种差异不是疏忽，而是因为每种数据服务于不同的目的——候选目录要的是最新一份、暴露面观察要的是逐日历史、扫描台账要的是当前态与不可变证据兼得。本节逐一说明每种写入方式做什么、怎么做、以及为什么这样设计，最后归纳它们共同遵循的原则。</p>
 
-    <h3>四类写入语义对比</h3>
-    <div class="grid g5">
-      <div class="row head"><div class="c">数据 / 表</div><div class="c">身份键</div><div class="c">再次处理同一记录</div><div class="c">是否留历史</div><div class="c">语义档</div></div>
-      <div class="row"><div class="c mod">fofa_candidates</div><div class="c loc">(ip, port)</div><div class="c">就地覆盖：last_seen 等字段刷新为最新，旧值（含原始响应 raw）不可追溯，first_seen 保留</div><div class="c">否，仅当前态</div><div class="c"><span class="tag">当前态 upsert</span></div></div>
-      <div class="row"><div class="c mod">clawsec_snapshots</div><div class="c loc">(snapshot_date, id)</div><div class="c">跨日各留一行（同实例每天一行）；同日同实例仅覆盖 7 个易变字段</div><div class="c">是，按日镜像</div><div class="c"><span class="tag">每日快照</span></div></div>
-      <div class="row"><div class="c mod">sink · assets</div><div class="c loc">sha1("ipport:{ip}:{port}")</div><div class="c">合并式更新：last_seen 覆盖、观测计数 +1、is_openclaw 取较大值、版本/地理用 COALESCE、研判档只升不降、first_seen 不变</div><div class="c">否，仅当前态</div><div class="c"><span class="tag">当前态 upsert</span></div></div>
-      <div class="row"><div class="c mod">sink · observations / probe_records</div><div class="c loc">自增 id（不去重）</div><div class="c">每次新插一行，完整保留本次请求 / 响应与研判，永不更新或删除</div><div class="c">是，逐次时序</div><div class="c"><span class="tag">追加时序底账</span></div></div>
-    </div>
-    <p class="note">临时产物（<code>candidates.csv</code>、探测器的 <code>results.jsonl</code>、<code>scan_test/</code> 的 JSON）不属于权威数据：它们或被整文件覆盖、或仅内存去重，须经 <code>sink</code> 入库后方为权威记录。</p>
+    <h3>FOFA 候选目录：只保留最新的一份</h3>
+    <p class="prose">FOFA 候选写入 <code>fofa_candidates</code> 表，主键是 <code>(ip, port)</code>，同一台主机的同一端口在表中永远只占一行。再次从 FOFA 拉到同一条目时，<code>last_seen</code>、归属省市、原始响应等字段就地刷新为本次的值，只有 <code>first_seen</code> 保留首次拉取的日期。</p>
+    <p class="prose">这样设计是因为 FOFA 候选的角色是一份“当前可探测目标的名录”——它要回答的是“现在 FOFA 索引里有哪些疑似 OpenClaw 的主机”，而非“这台主机历史上每次被 FOFA 看到时是什么样”。把它做成单份当前态，目录始终保持最新、体积可控，导出为探测目标时也不必在多份历史里挑选。代价是旧的原始响应被覆盖后不可追溯；由于这份数据本就只用于产生探测目标、真正的证据在扫描台账里另有保存，这个代价是可接受的。</p>
 
-    <h3>对两个关键问题的回答</h3>
+    <h3>ClawSec 每日快照：每天留一份完整镜像</h3>
+    <p class="prose">ClawSec 数据写入 <code>clawsec_snapshots</code> 表，主键是 <code>(snapshot_date, id)</code>——在实例标识 <code>id</code> 之前多了一个快照日期 <code>snapshot_date</code>（取自平台自报的 <code>lastScanTime</code>）。这意味着同一个实例在不同日期各占一行，旧日期的行原样保留；只有同一天内同一实例被重复拉到时，才会更新版本、运行状态、漏洞计数等少数随时间变化的字段，其余字段保留当天首次入库的值。</p>
+    <p class="prose">这是全项目唯一按天分版、保留历史镜像的数据。之所以为 ClawSec 单独采用这种方式，是因为它的用途正是“观察暴露面随时间的演变”：哪些实例长期在线、版本如何随日期推移、某天新增或下线了多少——这些问题只有保留逐日的完整快照才能回答。如果像 FOFA 那样只留当前态，跨日分析就无从谈起。断点续传按 <code>(snapshot_date, page)</code> 记录已完成的页，中断重跑会接着拉；某一天的全量已入库后再次运行会幂等跳过，因此正常情况下几乎不会触发对已有行的覆盖。</p>
+
+    <h3>扫描资产台账：当前态，但保护历史信号</h3>
+    <p class="prose">扫描结果写入 <code>store</code> 的 <code>assets</code> 表，资产身份是 IP 与端口的组合（<code>asset_id = sha1("ipport:{ip}:{port}")</code>），每台暴露主机一行。当同一台主机被复扫、结果再次入库时，<code>assets</code> 做的是合并式更新而非整行替换：<code>last_seen</code> 刷新为本次时间，观测计数加一，<code>is_openclaw</code> 取新旧两值中较大的，版本与地理字段在解析到新值时才覆盖、否则保留旧值，研判档只在更强时升级而不会被更弱的复扫降级，<code>first_seen</code> 始终保持首次入库的日期。</p>
+    <p class="prose">这种“当前态 + 历史信号保护”的混合策略，对应实例收集的实际需要。<code>assets</code> 要回答的是“截至目前我们掌握了多少台 OpenClaw、它们当前的版本与归属”，所以主体是当前态、每台一行便于统计。但若简单地整行覆盖，一次失败或受限的复扫就会把先前更强的研判与已取到的版本抹掉，台账会越扫越差。因此对“只会越来越确定”的几类信号——首见时间、最强研判档、是否曾确认为 OpenClaw——采取只增不减、取最强档的规则加以保护。需要注意由此带来的一个口径：当前态保留的是历史上最强的研判，并不保证此刻一定在线；要判断“此刻是否在线”，应查下面的逐次观测记录。</p>
+
+    <h3>观测与探测明细：只追加，永不修改</h3>
+    <p class="prose">每次探测除了更新 <code>assets</code>，还会向 <code>observations</code> 追加一行带时间戳的观测，并向 <code>probe_records</code> 追加该次每个测试项的完整请求与响应原文。这两张表用自增主键、不做去重，只追加、从不更新或删除——同一台主机被探测多少次，就留下多少行。</p>
+    <p class="prose">它们是整个系统的不可变证据底账。研判结论可能随版本演进而调整，但“某时刻对某主机发了什么、收到了什么”是客观事实，必须原样留存以供复查与争议追溯；同时它也是时间维度分析的数据基础——按省份、按版本随时间的分布报表都依赖这条逐次的观测流水。正因为如此，这两张表绝不覆盖：覆盖会销毁证据。这里的“逐次”也要与 ClawSec 的“逐日”区分——observations 是每探测一次追加一条，而非每天一份整库镜像。</p>
+
     <div class="callout">
-      <p class="lab">问题一 · 是否每天分别有一版镜像</p>
-      <p>只有 <strong>ClawSec</strong> 是真正的每日镜像：<code>clawsec_snapshots</code> 以 <code>(snapshot_date, id)</code> 为主键，<code>snapshot_date</code> 取自平台的 <code>lastScanTime</code>，同一实例在不同日期各占一行、旧日期行原样保留，可用于跨日分析长期暴露的实例。<strong>其余权威数据均不按天分版</strong>：<code>fofa_candidates</code> 与 <code>sink/assets</code> 都是每个身份键只有一行的当前态；<code>sink/observations</code> 虽保留历史，但它是“每次探测追加一行带时间戳的观测流水”，是逐次而非逐日，且为单条观测记录而非整库镜像。</p>
-    </div>
-    <div class="callout">
-      <p class="lab">问题二 · 曾处理过的 IP 再次被处理，记录会不会被覆盖</p>
-      <p>分四类，结论不同：<br>
-      · <strong>fofa_candidates</strong>：会覆盖。同 <code>(ip,port)</code> 再拉取时字段刷新为最新，旧值（含旧的原始响应）不可追溯，仅 <code>first_seen</code> 保留。<br>
-      · <strong>clawsec_snapshots</strong>：分情况。不同日期新插一行、互不覆盖；同一天同实例仅覆盖少数易变字段；正常断点续传下同日同页会被跳过，几乎不触发覆盖。<br>
-      · <strong>sink/assets</strong>：合并式覆盖而非整行替换。首见时间、最强研判档、is_openclaw 等历史信号受保护（只增不减、取最强档），其余刷新为最新。<br>
-      · <strong>sink/observations 与 probe_records</strong>：不会覆盖。每次再处理都新插一行，是不可变的追溯底账。</p>
+      <p class="lab">两个常见疑问的直接回答</p>
+      <p><strong>是否每天分别有一版镜像？</strong>只有 ClawSec 是按天分版的每日镜像；FOFA 候选与扫描 <code>assets</code> 都是每个身份键只有一行的当前态；<code>observations</code> 保留历史，但它是逐次追加的观测流水，不是每日整库镜像。</p>
+      <p><strong>曾处理过的 IP 再次被处理，记录会不会被覆盖？</strong>看落在哪张表：FOFA 候选会就地覆盖（仅首见时间保留）；ClawSec 跨日各留一行、互不覆盖（仅同日同实例覆盖少数易变字段）；扫描 <code>assets</code> 合并式更新，首见时间、最强研判档等历史信号受保护；<code>observations</code> 与 <code>probe_records</code> 永不覆盖，每次都新增一行。</p>
     </div>
 
-    <h3>统一数据记录规范</h3>
-    <p class="prose" style="max-width:790px;">为消除上述差异带来的歧义，全项目数据记录遵循以下规范。新增的写入路径须归入下列某一档，并遵守对应约束。</p>
-    <div class="prose">
-      <ul>
-        <li><strong>身份与去重键（统一）</strong>：扫描资产身份为 IP:端口，<code>asset_id = sha1("ipport:{ip}:{port}")</code>，不按内容指纹跨 IP 合并；FOFA 为 <code>(ip, port)</code>；ClawSec 为 <code>(snapshot_date, id)</code>；进度块为 <code>(campaign, block_cidr)</code>；指纹库为 <code>version</code>。测试与临时脚本仅做内存去重，不写权威库。</li>
-        <li><strong>写入语义分三档，每张表须标注归属</strong>：① <strong>当前态 upsert</strong>（<code>fofa_candidates</code>、<code>sink/assets</code>）——字段级更新，<code>first_seen</code> 永远保留；<code>sink/assets</code> 额外约定观测计数累加、is_openclaw 取较大值、研判档只升不降、版本与地理用 COALESCE。② <strong>每日快照</strong>（<code>clawsec_snapshots</code>）——跨日追加、同日同实例仅覆盖易变字段。③ <strong>追加时序底账</strong>（<code>sink/observations</code>、<code>sink/probe_records</code>）——只追加、不更新、不删除。</li>
-        <li><strong>首见 / 最新时间约定（统一）</strong>：<code>first_seen</code> 仅在首次插入时写入，任何更新都不得修改；<code>last_seen</code> / <code>pulled_at</code> / <code>ts</code> 每次刷新为本次时间。</li>
-        <li><strong>地理列覆盖红线</strong>：地理列统一为“有新值则覆盖、解析不到则保留旧值”。回填脚本不得用空值覆盖已解析的城市。</li>
-        <li><strong>当前态语义须文档明示</strong>：<code>is_openclaw</code> 与研判档采取“只增不减、取最强档”是实例收集口径，意味着当前态保留的是历史最强研判，不代表此刻一定在线；需要“此刻是否在线”时应查 <code>observations</code> 的最新时序记录。</li>
-        <li><strong>原始证据保留</strong>：保留原始响应的字段（observations / probe_records 的请求与响应、ClawSec 的 raw）是可追溯证据，覆盖须谨慎；<code>fofa_candidates.raw</code> 仅保留最新批次，不可追溯历史，须明确标注。</li>
-      </ul>
-    </div>
+    <h3>共同遵循的原则</h3>
+    <p class="prose">四种方式虽各有取舍，但共享几条一致的约定，理解它们有助于判断新数据应当如何落库。其一，身份键以 IP（或 IP 加端口）为核心，扫描资产不按页面内容指纹跨 IP 合并，以免把不同主机当成同一台。其二，<code>first_seen</code> 这类“首见”时间一经写入便不再改动，<code>last_seen</code> 一类“最近见到”的时间则每次刷新。其三，凡保留原始响应的字段都是可追溯证据，覆盖须谨慎——这也是 FOFA 候选只留最新原始响应、不可追溯历史时需要明确标注的原因。其四，地理列遵循“解析到新值才覆盖、解析不到则保留旧值”，回填时不以空值抹掉已有的城市。临时产物（<code>candidates.csv</code>、探测器输出的 <code>results.jsonl</code>、<code>scan_test/</code> 的 JSON 文件）不属于权威数据，它们或被整文件重写、或仅在内存中去重，须经入库后方成为权威记录。</p>
   </section>
 
   <!-- 07 地理富化 -->
@@ -412,26 +400,26 @@
     <div class="sec-head"><span class="num">07</span><h2>地理富化：IP 到城市</h2></div>
     <p class="intro">扫描到的目标在入库时按 IP 解析到物理城市，写入 <code>assets</code> 表的 <code>country</code> / <code>region</code> / <code>city</code> 列，供看板的地理分布展示与按城市的资产规划。</p>
     <div class="prose">
-      <p>来源是 <strong>MaxMind GeoLite2-City 离线库</strong>——城市级地理定位的通用基准，离线、可复现。解析在 <code>sink</code> 入库时随写完成；另有回填脚本用于给存量资产补全或在库更新后重刷。城市归属是离线库依据 IP 推断的近似值，<strong>城市级存在误差</strong>（云与 IDC 网段尤其明显），非权威、非长期固定，仅作富化展示，不作为判定依据。</p>
+      <p>来源是 <strong>MaxMind GeoLite2-City 离线库</strong>——城市级地理定位的通用基准，离线、可复现。解析在 <code>store</code> 入库时随写完成；另有回填脚本用于给存量资产补全或在库更新后重刷。城市归属是离线库依据 IP 推断的近似值，<strong>城市级存在误差</strong>（云与 IDC 网段尤其明显），非权威、非长期固定，仅作富化展示，不作为判定依据。</p>
       <p>城市名在解析时做归一处理（去除“市 / 自治州”等后缀），避免同一城市因平台命名不一致被拆成多条。该模块是软依赖：离线库或 <code>geoip2</code> 缺失时优雅降级、地理列留空，不阻断入库。</p>
     </div>
     <div class="coderef">
       <div class="cr">实现位置</div>
       <div><span class="f">geoip/lookup.py</span> · <span class="fn">GeoResolver.lookup()</span> —— mmdb 查询封装，软依赖可降级</div>
       <div><span class="f">geoip/backfill.py</span> —— 存量回填 / 库更新后重刷</div>
-      <div><span class="f">sink/load.py</span> —— 入库时按 IP 解析并写入地理列（COALESCE 保留旧值）</div>
+      <div><span class="f">store/load.py</span> —— 入库时按 IP 解析并写入地理列（COALESCE 保留旧值）</div>
     </div>
   </section>
 
   <!-- 08 数据模型 -->
   <section id="s08">
     <div class="sec-head"><span class="num">08</span><h2>数据模型与库表清单</h2></div>
-    <p class="intro">数据按子系统分库存放（均为本地 SQLite，模块自建表 <code>CREATE … IF NOT EXISTS</code>）。下表列出权威表、所属库与写入语义档；语义档的完整约束见第 06 节。</p>
+    <p class="intro">数据按子系统分库存放（均为本地 SQLite，模块自建表 <code>CREATE … IF NOT EXISTS</code>）。下表列出各权威表的所属库、实现位置与写入方式，作为查阅索引；每种写入方式的做法与取舍见第 06 节。</p>
     <div class="grid g4">
       <div class="row head"><div class="c">表</div><div class="c">所属库</div><div class="c">实现位置</div><div class="c">作用与写入语义</div></div>
-      <div class="row"><div class="c mod">assets</div><div class="c">data/scanner/</div><div class="c loc">sink/load.py · schema.sql</div><div class="c">资产登记，按 IP:端口 去重。<span class="tag">当前态 upsert</span>，含 country / region / city 地理列</div></div>
-      <div class="row"><div class="c mod">observations</div><div class="c">data/scanner/</div><div class="c loc">sink/load.py · schema.sql</div><div class="c">每次探测一行的时序观测，<span class="tag">追加时序</span>，按省 × 版本报表依赖它</div></div>
-      <div class="row"><div class="c mod">probe_records</div><div class="c">data/scanner/</div><div class="c loc">sink/load.py · schema.sql</div><div class="c">每个观测的每项测试的完整请求 / 响应原文，<span class="tag">追加时序</span>，供复查追溯</div></div>
+      <div class="row"><div class="c mod">assets</div><div class="c">data/scanner/</div><div class="c loc">store/load.py · schema.sql</div><div class="c">资产登记，按 IP:端口 去重。<span class="tag">当前态 upsert</span>，含 country / region / city 地理列</div></div>
+      <div class="row"><div class="c mod">observations</div><div class="c">data/scanner/</div><div class="c loc">store/load.py · schema.sql</div><div class="c">每次探测一行的时序观测，<span class="tag">追加时序</span>，按省 × 版本报表依赖它</div></div>
+      <div class="row"><div class="c mod">probe_records</div><div class="c">data/scanner/</div><div class="c loc">store/load.py · schema.sql</div><div class="c">每个观测的每项测试的完整请求 / 响应原文，<span class="tag">追加时序</span>，供复查追溯</div></div>
       <div class="row"><div class="c mod">fofa_candidates</div><div class="c">data/fofa/</div><div class="c loc">fofa/pull.py</div><div class="c">FOFA 候选，含 region / city 与原始字段 JSON。<span class="tag">当前态 upsert</span>，按 (ip,port) 去重</div></div>
       <div class="row"><div class="c mod">clawsec_snapshots</div><div class="c">data/clawsec/</div><div class="c loc">clawsec/pull.py</div><div class="c">ClawSec 每日全量快照，含隐位 IP / 省市 / 平台标注版本。<span class="tag">每日快照</span>，按 (snapshot_date, id)</div></div>
       <div class="row"><div class="c mod">scan_blocks</div><div class="c">data/scanner/</div><div class="c loc">progress/blocks.py</div><div class="c">主动扫描块进度（战役 × 块 × 状态），可断点续、可分片，按 (campaign, block_cidr)</div></div>
@@ -449,16 +437,16 @@
         <li><strong>本地全链路演示</strong>：先启动靶机容器，再 <code>make demo</code>（发现 localhost → 探测 → 落地 → 统计）。</li>
         <li><strong>FOFA 归档</strong>：先 <code>cp fofa/fofa.example.ini fofa/fofa.ini</code> 填入凭据，<strong>在项目根目录</strong>运行 <code>python3 -m fofa pull …</code>，再 <code>python3 -m fofa export --out candidates.csv</code> 导出候选喂探测器。</li>
         <li><strong>探测与落地</strong>：<code>ocprobe -f candidates.csv --fingerprints fingerprints/fingerprints.json -o results.jsonl</code>，再 <code>make load</code> 入库。</li>
-        <li><strong>地理富化</strong>：地理解析依赖 <code>geoip2</code>，入库须用项目 venv 运行 <code>.venv/bin/python3 -m sink …</code>；存量回填用 <code>.venv/bin/python3 -m geoip.backfill</code>。配置与库下载见 <code>geoip/README.md</code>。</li>
-        <li><strong>看板</strong>：<code>python3 -m dashboard</code>（纯标准库，只读查 sink 库）。</li>
-        <li><strong>扩充指纹库</strong>：<code>python3 harness/build_corpus.py --image &lt;镜像&gt; --version &lt;版本&gt;</code>。</li>
+        <li><strong>地理富化</strong>：地理解析依赖 <code>geoip2</code>，入库须用项目 venv 运行 <code>.venv/bin/python3 -m store …</code>；存量回填用 <code>.venv/bin/python3 -m geoip.backfill</code>。配置与库下载见 <code>geoip/README.md</code>。</li>
+        <li><strong>看板</strong>：<code>python3 -m dashboard</code>（纯标准库，只读查 store 库）。</li>
+        <li><strong>扩充指纹库</strong>：<code>python3 fingerprint/build_corpus.py --image &lt;镜像&gt; --version &lt;版本&gt;</code>。</li>
       </ul>
       <p class="note">凭据优先级一律为：命令行入参 &gt; 环境变量 &gt; 配置文件。对公网的真实扫描属运营动作，须在获得授权的扫描主机上限速、可识别地进行。</p>
     </div>
   </section>
 
   <footer>
-    <p>本文档的口径以代码为准：扫描器的正式能力是 <code>prober/</code> 的只读判定与版本测定；FOFA、ClawSec 与 <code>scan_test/</code> 是供料与验证侧的测绘数据源，不参与判定。项目数据按身份键去重、按第 06 节的三档语义写入，统一规范以消除“覆盖还是留历史”的歧义。各项能力的实现位置见每节的“实现位置”。</p>
+    <p>本文档的口径以代码为准：扫描器的正式能力是 <code>prober/</code> 的只读判定与版本测定；FOFA、ClawSec 与 <code>scan_test/</code> 是供料与验证侧的测绘数据源，不参与判定。数据写入则按用途各取所宜——候选目录只留最新一份、暴露面观察按日保留镜像、扫描台账维持当前态、观测明细只追加不改，各自的取舍见第 06 节。各项能力的实现位置见每节的“实现位置”。</p>
   </footer>
 
 </div>

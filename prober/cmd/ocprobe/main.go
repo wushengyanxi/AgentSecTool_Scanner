@@ -2,7 +2,7 @@
 //
 // 目标输入四种形式（自动识别）：精确 IP / 文件路径（每行一个目标）/ 通配 IP（123.*.*.4）/
 // CIDR（203.0.113.0/24）。对每个目标做只读探测、二元研判、取版本，默认逐行打印结论，
-// -l 打印完整研判依据，并把含完整请求/响应的 JSONL 落盘（供 sink 入库与 --report 出报告）。
+// -l 打印完整研判依据，并把含完整请求/响应的 JSONL 落盘（供 store 入库与 --report 出报告）。
 package main
 
 import (
@@ -32,7 +32,7 @@ func main() {
 		fpPath   = flag.String("fingerprints", "", "指纹库 JSON 路径（隐式版本反推）")
 		outPath  = flag.String("o", "", "JSONL 输出文件（含完整请求/响应，供入库）；缺省不落盘")
 		tlsOn    = flag.Bool("tls", false, "强制所有目标用 TLS（缺省按端口自动）")
-		_        = flag.String("report", "", "从已落盘结果生成报告，按文件名后缀定格式（由 sink 实现，占位）")
+		_        = flag.String("report", "", "从已落盘结果生成报告，按文件名后缀定格式（由 store 实现，占位）")
 		_        = flag.Bool("resume", false, "断点续扫（占位）")
 	)
 	// 像 nmap 那样允许目标与选项混排：先把位置参数（目标）与选项分开，再解析选项。

@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""指纹库采集 harness（M2）。
+"""指纹库采集工具（M2）。
 
 逐版本起一个 OpenClaw 容器（--allow-unconfigured，最小可指纹形态），用 ocprobe
 记录其外部可观测签名（asset_hashes / csp_sha256 / favicon_md5），upsert 进
 fingerprints/fingerprints.json。
 
-仅用标准库，可直接 `python3 harness/build_corpus.py ...` 运行，无需 uv。
+仅用标准库，可直接 `python3 fingerprint/build_corpus.py ...` 运行，无需 uv。
 
 用法：
   # 用本机已构建的 openclaw:local（即 2026.5.17）记录一条
-  python3 harness/build_corpus.py --image openclaw:local --version 2026.5.17
+  python3 fingerprint/build_corpus.py --image openclaw:local --version 2026.5.17
 
   # 拉取其它已发布镜像 tag 来扩充语料（验证跨版本可区分）
-  python3 harness/build_corpus.py --image ghcr.io/openclaw/openclaw:2026.4.30 --version 2026.4.30
+  python3 fingerprint/build_corpus.py --image ghcr.io/openclaw/openclaw:2026.4.30 --version 2026.4.30
 """
 import argparse
 import json
@@ -101,7 +101,7 @@ def upsert(db_path, entry):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="OpenClaw 指纹库采集 harness")
+    ap = argparse.ArgumentParser(description="OpenClaw 指纹库采集工具")
     ap.add_argument("--image", default="openclaw:local", help="OpenClaw 镜像")
     ap.add_argument("--version", required=True, help="版本标签，如 2026.5.17")
     ap.add_argument("--port", type=int, default=28789, help="宿主机临时端口（避开 18789）")

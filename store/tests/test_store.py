@@ -1,4 +1,4 @@
-"""落地层单测（`python3 -m unittest sink.tests.test_sink`）。"""
+"""落地层单测（`python3 -m unittest store.tests.test_store`）。"""
 
 import json
 import os
@@ -6,7 +6,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from sink import load
+from store import load
 
 
 class TestIdentity(unittest.TestCase):

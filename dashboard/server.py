@@ -17,10 +17,10 @@ import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-# 复用 sink 里现成的报告话术渲染（模板 prober/report_templates.toml）。
+# 复用 store 里现成的报告话术渲染（模板 prober/report_templates.toml）。
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from sink.report import (load_templates, analysis_by_probe, verdict_summary,
+from store.report import (load_templates, analysis_by_probe, verdict_summary,
                          version_note, TEST_MEANINGS)
 
 # 探针 test_id → 测试项名称（前端展开列表显示名称而非 T2/home 这种 id）
@@ -268,7 +268,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send({"error": "not found"}, 404)
         except FileNotFoundError:
-            self._send({"error": f"找不到数据库 {DB_PATH}，先跑 sink 入库"}, 500)
+            self._send({"error": f"找不到数据库 {DB_PATH}，先运行 store 入库"}, 500)
         except Exception as e:  # noqa: BLE001
             self._send({"error": str(e)}, 500)
 
@@ -284,7 +284,7 @@ def main():
     args = ap.parse_args()
     DB_PATH = args.db
     if not os.path.exists(DB_PATH):
-        print(f"警告：数据库 {DB_PATH} 不存在，先跑 sink 入库再开看板")
+        print(f"警告：数据库 {DB_PATH} 不存在，先运行 store 入库再开看板")
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     print(f"OpenClaw 实例看板：http://127.0.0.1:{args.port}/  （库 {DB_PATH}）")
     print("Ctrl-C 停止")

@@ -361,7 +361,7 @@
       </div>
     </div>
 
-    <p>指纹库由 <code>harness/build_corpus.py</code> 逐版本起容器、记录其外部可观测签名构建而成。反推的判据是<strong>前端资产哈希集合相等</strong>，而非子集包含——内容哈希文件名随每次构建变化，集合相等才表明前端构建产物完全一致。</p>
+    <p>指纹库由 <code>fingerprint/build_corpus.py</code> 逐版本起容器、记录其外部可观测签名构建而成。反推的判据是<strong>前端资产哈希集合相等</strong>，而非子集包含——内容哈希文件名随每次构建变化，集合相等才表明前端构建产物完全一致。</p>
 
     <div class="callout warn">
       <div class="lbl">为何不用 CSP 哈希回退反推</div>

@@ -32,7 +32,7 @@
    ```
    GeoLite2 每周更新，可用同一 key 重新下载刷新。
 
-4. **回填存量**（给库里已有资产补城市；新入库的由 sink 自动富化）：
+4. **回填存量**（给库里已有资产补城市；新入库的由 store 自动富化）：
    ```
    .venv/bin/python3 -m geoip.backfill          # 只填空缺
    .venv/bin/python3 -m geoip.backfill --all     # 库更新后重刷全部
@@ -43,7 +43,7 @@
 新扫描入库时自动富化——但因依赖 `geoip2`，入库需走 venv：
 
 ```
-.venv/bin/python3 -m sink --in results.jsonl
+.venv/bin/python3 -m store --in results.jsonl
 ```
 
 库文件或 geoip2 缺失时，`geoip.lookup` 优雅降级（city 留空），**不会阻断入库**。

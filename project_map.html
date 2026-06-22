@@ -144,7 +144,7 @@
 <span class="ln">├─ </span><b>fofa.ini</b>                 <i>凭据 [fofa] email/key（gitignore，绝不入库）</i>
 <span class="ln">└─ </span><b>fofa.example.ini</b>         <i>凭据模板（cp 为 fofa.ini 后填写）</i>
 
-<span class="ln">sink/</span>                            <i>Python：落地（results.jsonl → SQLite）</i>
+<span class="ln">store/</span>                            <i>Python：落地（results.jsonl → SQLite）</i>
 <span class="ln">├─ </span><b>load.py</b>                  <i>identity_key / load / stats — 入库 + 资产去重（有坑，见 06/08）</i>
 <span class="ln">└─ </span><b>schema.sql</b>               <i>assets / observations 表</i>
 
@@ -153,7 +153,7 @@
 <span class="ln">└─ </span><b>__main__.py</b>              <i>CLI：python -m progress</i>
 
 <span class="ln">scope/</span><b>cn_ranges.py</b>              <i>fetch_cn_ranges() — APNIC → 中国 CIDR（5489 段 / 3.43 亿）</i>
-<span class="ln">harness/</span><b>build_corpus.py</b>         <i>record_signature() — 逐版本起容器记指纹（建 / 扩指纹库）</i>
+<span class="ln">fingerprint/</span><b>build_corpus.py</b>         <i>record_signature() — 逐版本起容器记指纹（建 / 扩指纹库）</i>
 <span class="ln">fingerprints/</span><b>fingerprints.json</b>    <i>版本指纹库（目前只有 2026.5.17 一版！）</i>
 <b>config/</b> · <b>Makefile</b> · <b>README.md</b>       <i>配置模板 / 编排（make）/ 运行说明 + 三份设计文档</i></pre>
     <p class="note">测试：每个包/模块各有单测（<code>*_test.go</code> / <code>tests/</code>），<code>make test</code> 一把跑（go + 24 个 python 单测）。</p>
@@ -189,7 +189,7 @@
         <rect x="130" y="332" width="560" height="62" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
         <rect x="130" y="332" width="5" height="62" rx="2" fill="#D97757"></rect>
         <text x="150" y="356" font-family="ui-serif, Georgia, serif" font-size="13.5" fill="#141413">落地 · SQLite（assets / observations / 候选 / 额度 / 块）</text>
-        <text x="150" y="376" font-family="ui-monospace, Menlo, monospace" font-size="10.5" fill="#8A5A1E">sink/ · 资产去重会把同版本不同主机合并成一个</text>
+        <text x="150" y="376" font-family="ui-monospace, Menlo, monospace" font-size="10.5" fill="#8A5A1E">store/ · 资产去重会把同版本不同主机合并成一个</text>
         <path d="M410,394 L410,410" fill="none" stroke="#87867F" stroke-width="1.5" marker-end="url(#ah)"></path>
         <rect x="130" y="410" width="560" height="62" rx="9" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"></rect>
         <rect x="130" y="410" width="5" height="62" rx="2" fill="#D97757"></rect>
@@ -238,7 +238,7 @@
         <li><strong>直读（high 置信）</strong>：<code>GET /__openclaw/control-ui-config.json</code> 若回 200，体里有 <code>serverVersion</code> 字段——直接是精确版本。仅<strong>疏于防护（auth=none）</strong>的实例可得；已防护实例此接口 401。</li>
         <li><strong>隐式反推（中置信）</strong>：401 时，用主机无需鉴权可观测、且随版本变化的量去<strong>指纹库</strong>匹配——主信号是首页引用的 <code>assets/index-&lt;hash&gt;.js/.css</code>（Vite 内容哈希，同版本恒定、跨版本不同），备用是 CSP 的 sha256。</li>
       </ul>
-      <p><strong>指纹库怎么来</strong>：<code>harness/build_corpus.py</code> 在 Docker 里逐个起已知版本的 OpenClaw，用 ocprobe 记录其资产哈希/CSP/favicon，写进 <code>fingerprints/fingerprints.json</code>。匹配时资产哈希集合精确匹配优先。</p>
+      <p><strong>指纹库怎么来</strong>：<code>fingerprint/build_corpus.py</code> 在 Docker 里逐个起已知版本的 OpenClaw，用 ocprobe 记录其资产哈希/CSP/favicon，写进 <code>fingerprints/fingerprints.json</code>。匹配时资产哈希集合精确匹配优先。</p>
     </div>
     <div class="coderef">
       <div class="cr">代码位置</div>
@@ -246,9 +246,9 @@
       <div><span class="f">openclaw/fingerprints.go</span> · <span class="fn">MatchImplicit()</span> / <span class="fn">LoadFingerprintDB()</span> — 资产哈希/CSP 匹配版本</div>
       <div><span class="f">openclaw/http.go</span> · <span class="fn">probeHTTP()</span> — 从首页正则抽 assets/index-&lt;hash&gt;、算 CSP 哈希、解析 serverVersion</div>
       <div><span class="f">fingerprints/fingerprints.json</span> — 指纹库（version → 资产哈希/csp/favicon）</div>
-      <div><span class="f">harness/build_corpus.py</span> · <span class="fn">record_signature()</span> — 逐版本起容器采集签名入库</div>
+      <div><span class="f">fingerprint/build_corpus.py</span> · <span class="fn">record_signature()</span> — 逐版本起容器采集签名入库</div>
     </div>
-    <p class="note"><span class="st part">部分</span> 机制完整、单测过、真实实例直读出 2026.3.x。<span class="note gap"><strong>坑（高 <span class="sev high">高</span>）：指纹库只灌了 1 版（2026.5.17）→ 跑其他版本的已防护实例资产哈希对不上任何条目 → 版本"未知"。</strong> 解法：用 harness 把 2026.1.x~2026.4.x 等灌进库。</span></p>
+    <p class="note"><span class="st part">部分</span> 机制完整、单测过、真实实例直读出 2026.3.x。<span class="note gap"><strong>坑（高 <span class="sev high">高</span>）：指纹库只灌了 1 版（2026.5.17）→ 跑其他版本的已防护实例资产哈希对不上任何条目 → 版本"未知"。</strong> 解法：用 fingerprint 把 2026.1.x~2026.4.x 等灌进库。</span></p>
   </section>
 
   <!-- 05 发现 -->
@@ -279,8 +279,8 @@
     <p class="intro">整条扫描器 + 数据库都跑在本地宿主机（唯一的容器是被扫的靶机）。六张表，各模块自建（<code>CREATE … IF NOT EXISTS</code>），共用一个 <code>scan.sqlite</code>。</p>
     <div class="grid">
       <div class="row head"><div class="c">表</div><div class="c">谁建</div><div class="c">代码</div><div class="c">作用与注意</div></div>
-      <div class="row"><div class="c mod">assets</div><div class="c">sink</div><div class="c loc">sink/load.py · schema.sql</div><div class="c">资产登记，按身份去重。<strong>坑：身份用 favicon+资产哈希+csp（=版本指纹）→ 同版本不同主机被合并成一个 → 资产台数严重偏低 <span class="sev high">高</span></strong></div></div>
-      <div class="row"><div class="c mod">observations</div><div class="c">sink</div><div class="c loc">sink/load.py · schema.sql</div><div class="c">每次探测一行，时序，按 ip:port——这个是对的，按省×版本报表就靠它</div></div>
+      <div class="row"><div class="c mod">assets</div><div class="c">store</div><div class="c loc">store/load.py · schema.sql</div><div class="c">资产登记，按身份去重。<strong>坑：身份用 favicon+资产哈希+csp（=版本指纹）→ 同版本不同主机被合并成一个 → 资产台数严重偏低 <span class="sev high">高</span></strong></div></div>
+      <div class="row"><div class="c mod">observations</div><div class="c">store</div><div class="c loc">store/load.py · schema.sql</div><div class="c">每次探测一行，时序，按 ip:port——这个是对的，按省×版本报表就靠它</div></div>
       <div class="row"><div class="c mod">fofa_candidates</div><div class="c">fofa</div><div class="c loc">fofa/pull.py（SCHEMA）</div><div class="c">FOFA 候选，含 region/city + 原始字段 JSON；按 (ip,port) 去重</div></div>
       <div class="row"><div class="c mod">fofa_state</div><div class="c">fofa</div><div class="c loc">fofa/pull.py（SCHEMA）</div><div class="c">Search After 游标（带 <code>_q</code> 校验查询是否一致，只续一次运行内）、上次拉取日期（增量基准）</div></div>
       <div class="row"><div class="c mod">scan_blocks</div><div class="c">progress</div><div class="c loc">progress/blocks.py（SCHEMA）</div><div class="c">主动扫描块进度（战役 × 块 × 状态），可续可分片</div></div>
@@ -311,12 +311,12 @@
       <div class="row head"><div class="c">能力</div><div class="c">状态</div><div class="c">代码位置</div><div class="c">主要坑</div></div>
       <div class="row"><div class="c mod">探测判定</div><div class="c"><span class="st ok">已验证</span></div><div class="c loc">openclaw/{ws,http,signals,probe}.go</div><div class="c">置信度未真值校准 <span class="sev med">中</span>；HTTP-only 克隆页误报 <span class="sev low">低</span></div></div>
       <div class="row"><div class="c mod">取版本-直读</div><div class="c"><span class="st ok">已验证</span></div><div class="c loc">openclaw/version.go</div><div class="c">仅 auth=none 实例可得 <span class="sev low">低</span></div></div>
-      <div class="row"><div class="c mod">取版本-隐式 + 指纹库</div><div class="c"><span class="st part">部分</span></div><div class="c loc">openclaw/fingerprints.go · fingerprints.json · harness/</div><div class="c"><strong>库仅 1 版 → 已防护实例"未知"</strong> <span class="sev high">高</span>；精确匹配脆 <span class="sev med">中</span></div></div>
+      <div class="row"><div class="c mod">取版本-隐式 + 指纹库</div><div class="c"><span class="st part">部分</span></div><div class="c loc">openclaw/fingerprints.go · fingerprints.json · fingerprint/</div><div class="c"><strong>库仅 1 版 → 已防护实例"未知"</strong> <span class="sev high">高</span>；精确匹配脆 <span class="sev med">中</span></div></div>
       <div class="row"><div class="c mod">ZGrab2 模块 / ocprobe</div><div class="c"><span class="st ok">已验证</span></div><div class="c loc">prober/zgrab/ · cmd/ocprobe/main.go</div><div class="c">自动 TLS 仅 443/8443/9443 → 非标 https 端口漏掉 <span class="sev med">中</span>；钉死 zgrab2 v1.0.0 <span class="sev low">低</span></div></div>
       <div class="row"><div class="c mod">发现-主动 masscan/ZMap</div><div class="c"><span class="st part">部分</span></div><div class="c loc">discovery/active.py</div><div class="c"><strong>从未真扫</strong>（仅合成解析单测；zmap 未装）<span class="sev high">高</span></div></div>
       <div class="row"><div class="c mod">发现-被动 FOFA</div><div class="c"><span class="st ok">已验证</span></div><div class="c loc">fofa/{client,pull}.py</div><div class="c">98k≈月额度、增量含再爬、快照可能过时 <span class="sev med">中</span>；stats/lastupdatetime 无权限 <span class="sev low">低</span></div></div>
       <div class="row"><div class="c mod">发现-Shodan/其他平台</div><div class="c"><span class="st part">部分</span></div><div class="c loc">discovery/passive.py</div><div class="c">Shodan 未对真实验证；Censys/Quake/ZoomEye 仅留口 <span class="sev med">中</span></div></div>
-      <div class="row"><div class="c mod">落地 SQLite</div><div class="c"><span class="st part">部分</span></div><div class="c loc">sink/load.py · schema.sql</div><div class="c"><strong>资产去重碰撞（同版本不同主机合并）</strong> <span class="sev high">高</span>；无亿级 DB <span class="sev low">低</span></div></div>
+      <div class="row"><div class="c mod">落地 SQLite</div><div class="c"><span class="st part">部分</span></div><div class="c loc">store/load.py · schema.sql</div><div class="c"><strong>资产去重碰撞（同版本不同主机合并）</strong> <span class="sev high">高</span>；无亿级 DB <span class="sev low">低</span></div></div>
       <div class="row"><div class="c mod">按省份组织</div><div class="c"><span class="st ok">已验证</span></div><div class="c loc">fofa/pull.py</div><div class="c">仅 FOFA 来源有 region；主动发现的主机无省份（需 GeoIP）<span class="sev med">中</span></div></div>
       <div class="row"><div class="c mod">进度块队列 + CN 范围</div><div class="c"><span class="st part">部分</span></div><div class="c loc">progress/blocks.py · scope/cn_ranges.py</div><div class="c">未接扫描 runner；跨设备需共享存储 <span class="sev med">中</span></div></div>
       <div class="row"><div class="c mod">公民化 / 合规</div><div class="c"><span class="st part">部分</span></div><div class="c loc">consts.go(UA) · config/blocklist</div><div class="c">rDNS/说明页/opt-out 未运营、限速仅 masscan --rate <span class="sev med">中</span></div></div>
@@ -335,7 +335,7 @@
         <li><strong>本地全链 demo：</strong>先起靶机容器，再 <code>make demo</code>（发现 localhost → 探测 → 落地 → 统计）。</li>
         <li><strong>FOFA 普查：</strong>先 <code>cp fofa/fofa.example.ini fofa/fofa.ini</code> 填凭据；<strong>在项目根目录</strong>（非 <code>fofa/</code> 内，否则 <code>No module named fofa</code>）跑 <code>make fofa-info</code>（额度）→ <code>python3 -m fofa pull --full --before 2026-05-30</code>（时间窗全量，带进度，可续）→ <code>make fofa-provinces</code> → <code>make fofa-export</code> → <code>prober/bin/ocprobe -f candidates.csv --fingerprints fingerprints/fingerprints.json -o results.jsonl</code> → <code>make load</code> → <code>make fofa-pv</code>（按省×版本）。</li>
         <li><strong>生成中国范围 / 进度：</strong><code>python3 -m scope.cn_ranges</code> → <code>python3 -m progress seed --campaign cn-2026w24 --cidrs scope/cn-cidrs.txt</code>。</li>
-        <li><strong>扩充指纹库：</strong><code>python3 harness/build_corpus.py --image &lt;openclaw 镜像&gt; --version &lt;版本&gt;</code>。</li>
+        <li><strong>扩充指纹库：</strong><code>python3 fingerprint/build_corpus.py --image &lt;openclaw 镜像&gt; --version &lt;版本&gt;</code>。</li>
       </ul>
       <p class="note">凭据：FOFA 走 <code>fofa/fofa.ini</code>（<code>[fofa]</code> email/key，已 gitignore）或环境变量 <code>FOFA_EMAIL</code>/<code>FOFA_KEY</code>（优先级：入参 &gt; 环境变量 &gt; 配置文件）；Shodan 走 <code>SHODAN_API_KEY</code>。绝不硬编码、不入库。真扫公网属运营动作，须在授权扫描主机上限速、可识别地跑。</p>
     </div>

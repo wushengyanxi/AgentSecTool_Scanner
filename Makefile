@@ -22,7 +22,7 @@ prober:
 
 test: prober
 	go -C $(PROBER) test ./...
-	python3 -m unittest discovery.tests.test_discovery sink.tests.test_sink progress.tests.test_blocks fofa.tests.test_pull
+	python3 -m unittest discovery.tests.test_discovery store.tests.test_store progress.tests.test_blocks fofa.tests.test_pull
 
 discover:
 	python3 -m discovery --cidr $(CIDR) --ports $(PORTS) --backend $(BACKEND) --out candidates.csv
@@ -39,17 +39,17 @@ probe-zgrab: zgrab
 	cut -d, -f1 candidates.csv | sort -u | $(ZB) openclaw --port 18789 --blocklist-file= --fingerprints $(FP) -o results.jsonl
 
 load:
-	python3 -m sink --db $(SCANNER_DB) --in results.jsonl
+	python3 -m store --db $(SCANNER_DB) --in results.jsonl
 
 stats:
-	python3 -m sink --db $(SCANNER_DB) --stats
+	python3 -m store --db $(SCANNER_DB) --stats
 
 # 端到端 demo（需先起靶机 oc-fp，见 README）
 demo: prober
 	python3 -m discovery --cidr 127.0.0.0/30 --ports 18789 --backend internal --allow-reserved --out candidates.csv
 	$(OCPROBE) -f candidates.csv --fingerprints $(FP) -o results.jsonl
-	python3 -m sink --db $(SCANNER_DB) --in results.jsonl
-	python3 -m sink --db $(SCANNER_DB) --stats
+	python3 -m store --db $(SCANNER_DB) --in results.jsonl
+	python3 -m store --db $(SCANNER_DB) --stats
 
 # --- FOFA 工作流（凭据走环境变量 FOFA_EMAIL / FOFA_KEY）---
 fofa-info:
