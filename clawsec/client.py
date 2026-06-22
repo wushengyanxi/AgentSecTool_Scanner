@@ -34,7 +34,7 @@ class ClawSecError(Exception):
 
 
 class ClawSecClient:
-    """只读 API 客户端。遇 429 自动按 Retry-After 等待重试，无人值守。"""
+    """只读 API 客户端。遇 429 自动按 Retry-After 等待重试，遇 502/503/504 无限退避重试，无人值守。"""
 
     def __init__(self, pace: float = DEFAULT_PACE, max_retries: int = 5):
         self.pace = pace
@@ -47,6 +47,7 @@ class ClawSecClient:
         url = f"{BASE}/{path}{qs}"
         req = urllib.request.Request(url, headers=HEADERS)
         attempt = 0
+        server_err = 0
         while True:
             try:
                 with urllib.request.urlopen(req, timeout=20) as r:
@@ -59,6 +60,10 @@ class ClawSecClient:
                     wait = int(e.headers.get("Retry-After", 60)) + 3
                     time.sleep(wait)
                     continue          # 限流不计入重试次数，等满即续
+                if e.code in (502, 503, 504):
+                    server_err += 1   # 服务端临时错误：无限重试，避免长时间拉取被一次 5xx 中断
+                    time.sleep(min(5 * server_err, 60))  # 退避封顶 60s；不计入网络重试预算
+                    continue
                 raise ClawSecError(f"HTTP {e.code} on {path}") from e
             except (urllib.error.URLError, TimeoutError) as e:
                 attempt += 1
