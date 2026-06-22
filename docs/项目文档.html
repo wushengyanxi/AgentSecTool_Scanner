@@ -409,13 +409,17 @@
     <div class="sec-head"><span class="num">07</span><h2>地理富化：IP 到城市</h2></div>
     <p class="intro">扫描到的目标在入库时按 IP 解析到物理城市，写入 <code>assets</code> 表的 <code>country</code> / <code>region</code> / <code>city</code> 列，供看板的地理分布展示与按城市的资产规划。</p>
     <div class="prose">
-      <p>来源是 <strong>MaxMind GeoLite2-City 离线库</strong>——城市级地理定位的通用基准，离线、可复现。解析在 <code>store</code> 入库时随写完成；另有回填脚本用于给存量资产补全或在库更新后重刷。城市归属是离线库依据 IP 推断的近似值，<strong>城市级存在误差</strong>（云与 IDC 网段尤其明显），非权威、非长期固定，仅作富化展示，不作为判定依据。</p>
-      <p>城市名在解析时做归一处理（去除“市 / 自治州”等后缀），避免同一城市因平台命名不一致被拆成多条。该模块是软依赖：离线库或 <code>geoip2</code> 缺失时优雅降级、地理列留空，不阻断入库。</p>
+      <p>来源是 <strong>MaxMind GeoLite2-City 离线库</strong>——城市级地理定位的通用基准，离线、可复现。解析在 <code>store</code> 入库时随写完成；另有回填脚本用于给存量资产补全或在库更新后重刷。城市归属是离线库依据 IP 推断的近似值，<strong>城市级存在误差</strong>（云与 IDC 网段尤其明显），非权威、非长期固定，仅作富化展示，不作为判定依据。该模块是软依赖：离线库或 <code>geoip2</code> 缺失时优雅降级、地理列留空，不阻断入库。</p>
+      <h3>地名口径：只取英文，本地映射成简体中文</h3>
+      <p>GeoLite2 自带的中文地名不可信：部分城市没有中文条目而回退英文，部分中文名不规范、甚至把某些 IP 标到生僻或错误的地名。直接采用它的中文名，页面就会混入英文、半中半英、乃至错误的地名，命名口径不受控。</p>
+      <p>因此 city 与 region <strong>只取库的标准英文名</strong>，再经一张本地映射表转成简体中文——命名口径完全由本项目掌握。映射表是 <code>geoip/cn_names.py</code> 里的两个字典（英文→简体中文），入库时查表：命中则写中文，<strong>未命中则原样写入英文原文</strong>，既不丢数据也不报错；页面上出现英文，即表示该名尚未收录，补进映射表再重刷即可。<code>country</code> 仍取库的中文名——国家级简体名可靠，无需自建映射。</p>
+      <p>映射表用 Python 字典而非 JSON 或 CSV，是为了入库热路径上的性能：模块顶层 <code>import</code> 一次即把两个字典常驻内存，对每个 IP 的查表是 <code>dict</code> 的 O(1) 操作，无文件解析开销。</p>
     </div>
     <div class="coderef">
       <div class="cr">实现位置</div>
-      <div><span class="f">geoip/lookup.py</span> · <span class="fn">GeoResolver.lookup()</span> —— mmdb 查询封装，软依赖可降级</div>
-      <div><span class="f">geoip/backfill.py</span> —— 存量回填 / 库更新后重刷</div>
+      <div><span class="f">geoip/lookup.py</span> · <span class="fn">GeoResolver.lookup()</span> —— mmdb 查询封装，取英文名后查映射表，软依赖可降级</div>
+      <div><span class="f">geoip/cn_names.py</span> · <span class="fn">CITY_ZH</span> / <span class="fn">REGION_ZH</span> —— 英文→简体中文映射表（dict，常驻内存）</div>
+      <div><span class="f">geoip/backfill.py</span> —— 存量回填 / 映射表更新或库更新后重刷</div>
       <div><span class="f">store/load.py</span> —— 入库时按 IP 解析并写入地理列（COALESCE 保留旧值）</div>
     </div>
   </section>
