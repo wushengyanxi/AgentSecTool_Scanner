@@ -152,7 +152,7 @@
       <li><a href="#s06">数据记录：四种写入方式与取舍</a></li>
       <li><a href="#s07">地理富化：IP 到城市</a></li>
       <li><a href="#s08">数据模型与库表清单</a></li>
-      <li><a href="#s09">运行方式与凭据管理</a></li>
+      <li><a href="#s09">命令行参考</a></li>
     </ol>
   </nav>
 
@@ -427,22 +427,140 @@
     <p class="note">另有少量状态表（<code>fofa_state</code> / <code>clawsec_state</code>）记录拉取断点与基准日期，仅服务于各自模块的断点续传。</p>
   </section>
 
-  <!-- 09 运行方式 -->
+  <!-- 09 命令行参考 -->
   <section id="s09">
-    <div class="sec-head"><span class="num">09</span><h2>运行方式与凭据管理</h2></div>
-    <p class="intro">所有凭据通过配置文件或环境变量提供，绝不硬编码、绝不入库；含真实凭据的配置文件与库文件均已纳入 <code>.gitignore</code>。</p>
-    <div class="prose">
-      <ul>
-        <li><strong>运行测试</strong>：<code>make test</code>（Go 与 Python 单元测试一并运行）。</li>
-        <li><strong>本地全链路演示</strong>：先启动靶机容器，再 <code>make demo</code>（发现 localhost → 探测 → 落地 → 统计）。</li>
-        <li><strong>FOFA 归档</strong>：先 <code>cp fofa/fofa.example.ini fofa/fofa.ini</code> 填入凭据，<strong>在项目根目录</strong>运行 <code>python3 -m fofa pull …</code>，再 <code>python3 -m fofa export --out candidates.csv</code> 导出候选喂探测器。</li>
-        <li><strong>探测与落地</strong>：<code>ocprobe -f candidates.csv --fingerprints fingerprints/fingerprints.json -o results.jsonl</code>，再 <code>make load</code> 入库。</li>
-        <li><strong>地理富化</strong>：地理解析依赖 <code>geoip2</code>，入库须用项目 venv 运行 <code>.venv/bin/python3 -m store …</code>；存量回填用 <code>.venv/bin/python3 -m geoip.backfill</code>。配置与库下载见 <code>geoip/README.md</code>。</li>
-        <li><strong>看板</strong>：<code>python3 -m dashboard</code>（纯标准库，只读查 store 库）。</li>
-        <li><strong>扩充指纹库</strong>：<code>python3 fingerprint/build_corpus.py --image &lt;镜像&gt; --version &lt;版本&gt;</code>。</li>
-      </ul>
-      <p class="note">凭据优先级一律为：命令行入参 &gt; 环境变量 &gt; 配置文件。对公网的真实扫描属运营动作，须在获得授权的扫描主机上限速、可识别地进行。</p>
+    <div class="sec-head"><span class="num">09</span><h2>命令行参考</h2></div>
+    <p class="intro">本节逐一说明每个命令行入口：它做什么、有哪些参数、每个参数是否必填、默认值与含义。所有 Python 命令都<strong>在项目根目录运行</strong>（模块以 <code>python3 -m</code> 方式调用，Makefile 已设 <code>PYTHONPATH</code>；在子目录内运行会报 <code>No module named …</code>）。凡参数表中“必填”为否、且未列默认值的，表示该参数缺省时功能跳过或取空。</p>
+
+    <h3>通用约定：凭据与授权</h3>
+    <p class="prose">所有凭据通过配置文件或环境变量提供，绝不硬编码、绝不入库；含真实凭据的配置文件（<code>fofa/fofa.ini</code>、<code>geoip/geoip.ini</code>）与数据库、指纹库文件均已纳入 <code>.gitignore</code>。FOFA 凭据来自环境变量 <code>FOFA_EMAIL</code> / <code>FOFA_KEY</code>，Shodan 来自 <code>SHODAN_API_KEY</code>；当一项配置同时可由入参、环境变量、配置文件给出时，优先级为<strong>命令行入参 &gt; 环境变量 &gt; 配置文件</strong>。对公网的真实扫描属运营动作，须在获得授权的主机上限速、可识别地进行。</p>
+
+    <h3><code>make</code>：常用流程的快捷方式</h3>
+    <p class="prose">Makefile 把多步流程封装为单条目标，适合日常使用；其内部展开的就是下文各 <code>python3 -m</code> / <code>ocprobe</code> 命令。可用变量以 <code>make 目标 变量=值</code> 形式覆盖。</p>
+    <div class="grid g4">
+      <div class="row head"><div class="c">目标</div><div class="c">作用</div><div class="c">可覆盖变量</div><div class="c">展开</div></div>
+      <div class="row"><div class="c mod">make test</div><div class="c">构建探测器后跑 Go 与 Python 全部单元测试</div><div class="c loc">—</div><div class="c">go test + python3 -m unittest …</div></div>
+      <div class="row"><div class="c mod">make demo</div><div class="c">本地全链路演示：发现 localhost → 探测 → 入库 → 统计（需先起靶机容器）</div><div class="c loc">—</div><div class="c">discovery → ocprobe → store → store --stats</div></div>
+      <div class="row"><div class="c mod">make discover</div><div class="c">运行发现层产出 candidates.csv</div><div class="c loc">CIDR · PORTS · BACKEND</div><div class="c">python3 -m discovery …</div></div>
+      <div class="row"><div class="c mod">make load / stats</div><div class="c">把 results.jsonl 入库 / 只打印库统计</div><div class="c loc">—</div><div class="c">python3 -m store …</div></div>
+      <div class="row"><div class="c mod">make fofa-pull</div><div class="c">FOFA 拉取入库</div><div class="c loc">DELTA · MAX · BEFORE · AFTER · QUERY</div><div class="c">python3 -m fofa pull …</div></div>
+      <div class="row"><div class="c mod">make fofa-export / -provinces / -pv</div><div class="c">导出候选 / 按省统计 / 按省×版本统计</div><div class="c loc">LIMIT（仅 export）</div><div class="c">python3 -m fofa …</div></div>
+      <div class="row"><div class="c mod">make clawsec-pull / -longlived / -overlap</div><div class="c">每日快照拉取 / 长期实例分析 / 与 FOFA 重叠</div><div class="c loc">SCOPE · MINDAYS</div><div class="c">python3 -m clawsec …</div></div>
     </div>
+    <div class="callout warn">
+      <p class="lab">已知问题</p>
+      <p>当前 <code>make probe</code> 与 <code>make demo</code> 中的探测步骤写作 <code>ocprobe -f candidates.csv …</code>，但 <code>ocprobe</code> 并无 <code>-f</code> 参数、且其目标文件要求每行一个 IP，而 <code>candidates.csv</code> 是 <code>ip,port</code> 两列格式——直接运行会报 <code>flag provided but not defined: -f</code>。在此问题修复前，探测步骤请按下文 <code>ocprobe</code> 子章节手动运行。</p>
+    </div>
+
+    <h3><code>python3 -m discovery</code>：目标发现</h3>
+    <p class="prose">主动扫描叠加被动种子，合并去重后写出候选清单 <code>candidates.csv</code>。<code>--backend none</code> 或不给 <code>--cidr</code> 时跳过主动扫描；<code>--fofa</code> / <code>--shodan</code> 需对应环境变量，缺失则退出。</p>
+    <div class="grid g4">
+      <div class="row head"><div class="c">参数</div><div class="c">必填</div><div class="c">默认</div><div class="c">含义</div></div>
+      <div class="row"><div class="c loc">--cidr</div><div class="c">否</div><div class="c">（空）</div><div class="c">目标 CIDR，可多次给出；全网用 <code>0.0.0.0/0</code></div></div>
+      <div class="row"><div class="c loc">--ports</div><div class="c">否</div><div class="c">18789,80,443,8080,8443,3000</div><div class="c">端口集，逗号分隔</div></div>
+      <div class="row"><div class="c loc">--backend</div><div class="c">否</div><div class="c">internal</div><div class="c">主动扫描后端，可选 <code>masscan</code> / <code>zmap</code> / <code>internal</code> / <code>none</code></div></div>
+      <div class="row"><div class="c loc">--rate</div><div class="c">否</div><div class="c">1000</div><div class="c">主动扫描发包速率</div></div>
+      <div class="row"><div class="c loc">--excludefile</div><div class="c">否</div><div class="c">—</div><div class="c">保留网段 / 黑名单文件，主动扫描时排除</div></div>
+      <div class="row"><div class="c loc">--allow-reserved</div><div class="c">否</div><div class="c">关</div><div class="c">不排除保留 / 私有网段（仅本地测试用）</div></div>
+      <div class="row"><div class="c loc">--fofa</div><div class="c">否</div><div class="c">关</div><div class="c">启用 FOFA 被动种子（需 <code>FOFA_EMAIL</code> / <code>FOFA_KEY</code>）</div></div>
+      <div class="row"><div class="c loc">--fofa-query</div><div class="c">否</div><div class="c"><code>title="OpenClaw Control" || port="18789"</code></div><div class="c">FOFA 查询语句</div></div>
+      <div class="row"><div class="c loc">--fofa-max</div><div class="c">否</div><div class="c">10000</div><div class="c">FOFA 最多拉取条数</div></div>
+      <div class="row"><div class="c loc">--shodan</div><div class="c">否</div><div class="c">关</div><div class="c">启用 Shodan 被动种子（需 <code>SHODAN_API_KEY</code>）</div></div>
+      <div class="row"><div class="c loc">--shodan-query</div><div class="c">否</div><div class="c"><code>http.title:"OpenClaw Control"</code></div><div class="c">Shodan 查询语句</div></div>
+      <div class="row"><div class="c loc">--shodan-max</div><div class="c">否</div><div class="c">10000</div><div class="c">Shodan 最多拉取条数</div></div>
+      <div class="row"><div class="c loc">--out</div><div class="c">否</div><div class="c">candidates.csv</div><div class="c">输出文件</div></div>
+    </div>
+
+    <h3><code>python3 -m fofa</code>：FOFA 归档与分析</h3>
+    <p class="prose">必须带子命令。凭据走 <code>FOFA_EMAIL</code> / <code>FOFA_KEY</code> 环境变量。各子命令的 <code>--db</code> 默认均为 <code>data/fofa/fofa.sqlite</code>。</p>
+    <div class="grid g4">
+      <div class="row head"><div class="c">子命令 · 参数</div><div class="c">必填</div><div class="c">默认</div><div class="c">含义</div></div>
+      <div class="row"><div class="c mod">pull</div><div class="c">—</div><div class="c">—</div><div class="c">拉取候选入库（可断点续）</div></div>
+      <div class="row"><div class="c loc">　--full / --delta</div><div class="c">否</div><div class="c">full</div><div class="c">全量（默认）或增量，二者互斥</div></div>
+      <div class="row"><div class="c loc">　--query</div><div class="c">否</div><div class="c">内置 CN 候选查询</div><div class="c">完整 FOFA 查询语句，覆盖默认</div></div>
+      <div class="row"><div class="c loc">　--before / --after</div><div class="c">否</div><div class="c">—</div><div class="c">时间窗：只拉 lastupdatetime 早于 / 晚于该日（如 2026-05-30）</div></div>
+      <div class="row"><div class="c loc">　--max-records</div><div class="c">否</div><div class="c">—</div><div class="c">本次最多拉取条数，封顶以省额度</div></div>
+      <div class="row"><div class="c loc">　--page-size</div><div class="c">否</div><div class="c">2000</div><div class="c">分页大小</div></div>
+      <div class="row"><div class="c mod">export</div><div class="c">—</div><div class="c">—</div><div class="c">导出候选为 candidates.csv；<code>--out</code> 默认 candidates.csv，<code>--limit</code> 限条数</div></div>
+      <div class="row"><div class="c mod">provinces</div><div class="c">—</div><div class="c">—</div><div class="c">按省统计候选数量</div></div>
+      <div class="row"><div class="c mod">province-versions</div><div class="c">—</div><div class="c">—</div><div class="c">按省×版本统计已探测资产；<code>--scanner-db</code> 默认 data/scanner/scan_results.sqlite</div></div>
+      <div class="row"><div class="c mod">info</div><div class="c">—</div><div class="c">—</div><div class="c">打印账号信息与剩余额度（无参数）</div></div>
+    </div>
+
+    <h3><code>python3 -m clawsec</code>：ClawSec 每日快照</h3>
+    <p class="prose">必须带子命令，免凭据。<code>--db</code> 默认 <code>data/clawsec/clawsec.sqlite</code>。</p>
+    <div class="grid g4">
+      <div class="row head"><div class="c">子命令 · 参数</div><div class="c">必填</div><div class="c">默认</div><div class="c">含义</div></div>
+      <div class="row"><div class="c mod">pull</div><div class="c">—</div><div class="c">—</div><div class="c">拉当日全量快照入库（拉完为止、可续、平台日期变更自动切）</div></div>
+      <div class="row"><div class="c loc">　--scope</div><div class="c">否</div><div class="c">all</div><div class="c">拉取范围，可选 <code>china</code> / <code>overseas</code> / <code>all</code></div></div>
+      <div class="row"><div class="c loc">　--active-only</div><div class="c">否</div><div class="c">关</div><div class="c">只拉 Active（默认含 Inactive 作完整记录）</div></div>
+      <div class="row"><div class="c loc">　--snapshot-date</div><div class="c">否</div><div class="c">平台 lastScanTime</div><div class="c">指定快照日期</div></div>
+      <div class="row"><div class="c mod">longlived</div><div class="c">—</div><div class="c">—</div><div class="c">跨快照分析长期有效实例；<code>--min-days</code> 默认 2、<code>--limit</code> 默认 50、<code>--all-scope</code> 含海外</div></div>
+      <div class="row"><div class="c mod">overlap</div><div class="c">—</div><div class="c">—</div><div class="c">最新快照与 fofa_candidates 的隐位重叠；<code>--fofa-db</code> 默认 data/fofa/fofa.sqlite</div></div>
+      <div class="row"><div class="c mod">versions</div><div class="c">—</div><div class="c">—</div><div class="c">最新快照按平台标注版本统计</div></div>
+      <div class="row"><div class="c mod">info</div><div class="c">—</div><div class="c">—</div><div class="c">平台汇总计数（无参数）</div></div>
+    </div>
+
+    <h3><code>ocprobe</code>：探测引擎</h3>
+    <p class="prose">对每个目标做只读探测、二元研判与版本测定，默认逐行打印结论。<strong>目标作为位置参数</strong>给出，支持精确 IP、CIDR、通配 IP（如 <code>203.0.113.*</code>），或每行一个目标的文件路径。部分默认值取自 <code>config.toml</code>（<code>[probe] rate/concurrency/timeout_per_ip</code> 等），下表“默认”列为无 config 时的内置值。<code>443 / 8443 / 9443</code> 端口即使不加 <code>-tls</code> 也自动走 TLS。</p>
+    <div class="grid g4">
+      <div class="row head"><div class="c">参数</div><div class="c">必填</div><div class="c">默认</div><div class="c">含义</div></div>
+      <div class="row"><div class="c loc">（位置参数）</div><div class="c">是</div><div class="c">—</div><div class="c">一个或多个目标：IP / CIDR / 通配 IP / 目标文件路径</div></div>
+      <div class="row"><div class="c loc">-port</div><div class="c">否</div><div class="c">取自 config（18789）</div><div class="c">端口，逗号分隔多个</div></div>
+      <div class="row"><div class="c loc">-concurrency</div><div class="c">否</div><div class="c">16</div><div class="c">全局并发探测数</div></div>
+      <div class="row"><div class="c loc">-timeout</div><div class="c">否</div><div class="c">8s</div><div class="c">单 IP 探测超时</div></div>
+      <div class="row"><div class="c loc">-deadline</div><div class="c">否</div><div class="c">0（不限）</div><div class="c">整个任务的总时长上限</div></div>
+      <div class="row"><div class="c loc">-rate</div><div class="c">否</div><div class="c">50</div><div class="c">单个目标 IP 的每秒发包上限（0=不限）</div></div>
+      <div class="row"><div class="c loc">-l</div><div class="c">否</div><div class="c">关</div><div class="c">详细日志：打印每个 IP 的完整研判依据</div></div>
+      <div class="row"><div class="c loc">-fingerprints</div><div class="c">否</div><div class="c">（空）</div><div class="c">指纹库 JSON 路径，用于隐式版本反推</div></div>
+      <div class="row"><div class="c loc">-o</div><div class="c">否</div><div class="c">（不落盘）</div><div class="c">JSONL 输出文件，含完整请求 / 响应，供 store 入库</div></div>
+      <div class="row"><div class="c loc">-tls</div><div class="c">否</div><div class="c">关</div><div class="c">强制所有目标用 TLS（缺省按端口自动）</div></div>
+    </div>
+    <p class="note"><code>-report</code> 与 <code>-resume</code> 为占位参数，当前未实现。</p>
+
+    <h3><code>python3 -m store</code>：入库与报告</h3>
+    <p class="prose">把 <code>results.jsonl</code> 入扫描库（assets / observations / probe_records）、打印统计，或按文件后缀生成报告。给 <code>--report</code> 时只出报告；否则未给 <code>--stats</code> 则先导入，最后都打印统计。地理富化依赖 <code>geoip2</code>，故入库须用项目 venv：<code>.venv/bin/python3 -m store …</code>。</p>
+    <div class="grid g4">
+      <div class="row head"><div class="c">参数</div><div class="c">必填</div><div class="c">默认</div><div class="c">含义</div></div>
+      <div class="row"><div class="c loc">--db</div><div class="c">否</div><div class="c">data/scanner/scan_results.sqlite</div><div class="c">扫描库路径</div></div>
+      <div class="row"><div class="c loc">--in</div><div class="c">否</div><div class="c">读 stdin</div><div class="c">results.jsonl 路径；缺省从标准输入读</div></div>
+      <div class="row"><div class="c loc">--stats</div><div class="c">否</div><div class="c">关</div><div class="c">只打印统计，不导入</div></div>
+      <div class="row"><div class="c loc">--report</div><div class="c">否</div><div class="c">—</div><div class="c">生成报告到该文件，格式按后缀 <code>.html</code> / <code>.json</code> / <code>.csv</code> / <code>.txt</code></div></div>
+    </div>
+
+    <h3><code>python3 -m progress</code>：主动扫描进度</h3>
+    <p class="prose">必须带子命令，把待扫范围切块按战役登记，支持原子领取与断点续。<code>--db</code> 默认 <code>data/scanner/scan_results.sqlite</code>。</p>
+    <div class="grid g4">
+      <div class="row head"><div class="c">子命令 · 参数</div><div class="c">必填</div><div class="c">默认</div><div class="c">含义</div></div>
+      <div class="row"><div class="c mod">seed</div><div class="c">—</div><div class="c">—</div><div class="c">从 CIDR 文件切块登记一个战役</div></div>
+      <div class="row"><div class="c loc">　--campaign</div><div class="c">是</div><div class="c">—</div><div class="c">战役名</div></div>
+      <div class="row"><div class="c loc">　--cidrs</div><div class="c">是</div><div class="c">—</div><div class="c">CIDR 列表文件，如 scope/cn-cidrs.txt</div></div>
+      <div class="row"><div class="c loc">　--prefix</div><div class="c">否</div><div class="c">16</div><div class="c">块大小（/prefix）</div></div>
+      <div class="row"><div class="c mod">status</div><div class="c">—</div><div class="c">—</div><div class="c">查看战役进度；<code>--campaign</code> 必填</div></div>
+      <div class="row"><div class="c mod">claim</div><div class="c">—</div><div class="c">—</div><div class="c">原子领取一个待扫块；<code>--campaign</code> 与 <code>--worker</code> 必填</div></div>
+    </div>
+
+    <h3><code>python3 -m geoip.backfill</code>：地理回填</h3>
+    <p class="prose">给扫描库 assets 已有资产回填或刷新城市归属，幂等可重跑。依赖 <code>geoip2</code>，须用项目 venv 运行；配置与离线库下载见 <code>geoip/README.md</code>。</p>
+    <div class="grid g4">
+      <div class="row head"><div class="c">参数</div><div class="c">必填</div><div class="c">默认</div><div class="c">含义</div></div>
+      <div class="row"><div class="c loc">--db</div><div class="c">否</div><div class="c">data/scanner/scan_results.sqlite</div><div class="c">扫描库路径</div></div>
+      <div class="row"><div class="c loc">--all</div><div class="c">否</div><div class="c">关</div><div class="c">重刷全部资产（默认只填三列皆空的）</div></div>
+    </div>
+
+    <h3><code>python3 fingerprint/build_corpus.py</code>：指纹库采集</h3>
+    <p class="prose">逐版本起一个 OpenClaw 容器，用 ocprobe 记录其外部可观测签名，写入指纹库。同名版本的 <code>collect_corpus.py</code> 则遍历全部正式版 tag 批量采集（<code>--repo</code> 必填）。</p>
+    <div class="grid g4">
+      <div class="row head"><div class="c">参数</div><div class="c">必填</div><div class="c">默认</div><div class="c">含义</div></div>
+      <div class="row"><div class="c loc">--version</div><div class="c">是</div><div class="c">—</div><div class="c">版本标签，如 2026.5.17</div></div>
+      <div class="row"><div class="c loc">--image</div><div class="c">否</div><div class="c">openclaw:local</div><div class="c">OpenClaw 镜像</div></div>
+      <div class="row"><div class="c loc">--port</div><div class="c">否</div><div class="c">28789</div><div class="c">宿主机临时端口（避开 18789）</div></div>
+      <div class="row"><div class="c loc">--db</div><div class="c">否</div><div class="c">fingerprints/fingerprints.json</div><div class="c">指纹库路径</div></div>
+      <div class="row"><div class="c loc">--ocprobe</div><div class="c">否</div><div class="c">prober/bin/ocprobe</div><div class="c">ocprobe 二进制路径</div></div>
+    </div>
+
+    <h3>看板</h3>
+    <p class="prose"><code>python3 -m dashboard</code> 启动实例收集看板，纯标准库、只读查 store 库（默认 <code>data/scanner/scan_results.sqlite</code>，可用 <code>--db</code> 指定，<code>--port</code> 改监听端口，默认 8787）。它不写任何扫描数据。</p>
   </section>
 
   <footer>
