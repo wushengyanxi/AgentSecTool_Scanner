@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentSecTool Scanner — 项目文档</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#1f2328; --fg-muted:#59636e; --fg-faint:#818b98;
+    --border:#d1d9e0; --border-soft:#e4e8ec; --code-bg:#f6f8fa; --nav-bg:#f6f8fa;
+    --link:#0969da; --accent:#1f2328;
+    /* 正文全灰度：callout/badge 一律灰底灰框，靠标题文字区分；唯一彩色是链接蓝 */
+    --co-bg:#f6f8fa; --co-bd:#d1d9e0; --co-ct:#1f2328;
+    --co-bg-strong:#eaedf1; --co-bd-strong:#afb8c1;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Helvetica,Arial,sans-serif;
+    --nav-w:280px; --maxw:920px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth; scroll-padding-top:16px;}
+  body{margin:0; background:var(--bg); color:var(--fg); font-family:var(--sans);
+    font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased;}
+
+  /* 布局：左固定导航 + 主栏滚动 */
+  .layout{display:flex; align-items:flex-start;}
+  nav.side{position:sticky; top:0; height:100vh; width:var(--nav-w); flex:0 0 var(--nav-w);
+    overflow-y:auto; background:var(--nav-bg); border-right:1px solid var(--border);
+    padding:20px 14px 60px;}
+  nav.side .brand{font-weight:700; font-size:15px; padding:4px 10px 14px; color:var(--fg);}
+  nav.side .brand small{display:block; font-weight:400; font-size:12px; color:var(--fg-muted); margin-top:3px;}
+  nav.side a{display:block; padding:5px 10px; color:var(--fg-muted); text-decoration:none;
+    border-radius:6px; font-size:13.5px; line-height:1.4;}
+  nav.side a:hover{background:#eaeef2; color:var(--fg);}
+  nav.side a.active{background:#dde3ea; color:var(--fg); font-weight:600;}
+  nav.side .grp{font-size:11px; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--fg-faint); padding:16px 10px 4px; font-weight:600;}
+
+  main{flex:1 1 auto; min-width:0; padding:36px 40px 120px; max-width:calc(var(--maxw) + 80px);}
+  .wrap{max-width:var(--maxw);}
+
+  h1{font-size:30px; font-weight:700; line-height:1.25; margin:0 0 8px; letter-spacing:-.01em;}
+  h2{font-size:22px; font-weight:600; line-height:1.3; margin:48px 0 14px; padding-bottom:7px;
+    border-bottom:1px solid var(--border-soft); scroll-margin-top:16px;}
+  h3{font-size:17px; font-weight:600; margin:28px 0 10px;}
+  h4{font-size:14.5px; font-weight:600; margin:20px 0 8px; color:var(--fg);}
+  p{margin:0 0 13px;}
+  a{color:var(--link); text-decoration:none;} a:hover{text-decoration:underline;}
+  ul,ol{margin:0 0 13px; padding-left:24px;} li{margin:3px 0;}
+  strong{font-weight:600; color:var(--fg);}
+  hr{border:0; border-top:1px solid var(--border-soft); margin:36px 0;}
+
+  code{font-family:var(--mono); font-size:85%; background:var(--code-bg);
+    padding:.15em .4em; border-radius:5px; color:#1f2328;}
+  pre{background:var(--code-bg); border:1px solid var(--border-soft); border-radius:8px;
+    padding:14px 16px; overflow-x:auto; margin:0 0 14px; position:relative;}
+  pre code{background:none; padding:0; font-size:12.5px; line-height:1.6; display:block;}
+  .copy-btn{position:absolute; top:8px; right:8px; font-family:var(--sans); font-size:11px;
+    background:#fff; border:1px solid var(--border); border-radius:6px; padding:3px 9px;
+    cursor:pointer; color:var(--fg-muted); opacity:0; transition:opacity .12s;}
+  pre:hover .copy-btn{opacity:1;} .copy-btn:hover{background:var(--code-bg); color:var(--fg);}
+  .copy-btn.copied{color:var(--ok); border-color:var(--ok-bd);}
+
+  /* 状态 badge */
+  .badge{display:inline-block; font-family:var(--mono); font-size:11px; font-weight:600;
+    padding:1px 7px; border-radius:20px; letter-spacing:.02em; vertical-align:middle; white-space:nowrap;}
+  /* 全部统一灰框灰底，只靠 badge 内文字区分状态 */
+  .badge.stable,.badge.partial,.badge.experimental,.badge.deprecated,
+  .badge.unknown,.badge.unverified{background:var(--co-bg-strong); color:var(--fg-muted); border:1px solid var(--co-bd-strong);}
+
+  /* callout：一律灰底灰框，靠标题文字区分类型，不用彩色 */
+  .callout{border:1px solid var(--co-bd); background:var(--co-bg); border-radius:8px;
+    padding:12px 16px; margin:0 0 16px; border-left-width:4px; border-left-color:var(--co-bd-strong); font-size:14px;}
+  .callout .ct{font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em;
+    margin:0 0 6px; display:flex; align-items:center; gap:6px; color:var(--co-ct);}
+  .callout p:last-child{margin-bottom:0;}
+  /* 危险/警示靠更深的灰底与左边框，而非红色 */
+  .callout.danger,.callout.warn{background:var(--co-bg-strong); border-left-color:#6e7781;}
+
+  /* 表格 */
+  .tbl-wrap{overflow-x:auto; margin:0 0 16px; border:1px solid var(--border); border-radius:8px;}
+  table{border-collapse:collapse; width:100%; font-size:13.5px;}
+  th,td{text-align:left; padding:8px 12px; border-bottom:1px solid var(--border-soft); vertical-align:top;}
+  th{background:var(--code-bg); font-weight:600; white-space:nowrap; color:var(--fg);}
+  tr:last-child td{border-bottom:none;}
+  td code,th code{font-size:12px; white-space:nowrap;}
+  .tbl-wrap table td:first-child{white-space:nowrap;}
+
+  /* 卡片（模块卡/规则卡/命令卡/数据卡/配置卡） */
+  .card{border:1px solid var(--border); border-radius:8px; margin:0 0 18px; overflow:hidden;}
+  .card>.hd{background:var(--code-bg); padding:10px 16px; border-bottom:1px solid var(--border-soft);
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .card>.hd .nm{font-family:var(--mono); font-weight:600; font-size:14px;}
+  .card>.bd{padding:4px 0;}
+  .card dl{display:grid; grid-template-columns:160px 1fr; margin:0;}
+  .card dt{font-weight:600; font-size:12.5px; color:var(--fg-muted); padding:7px 16px; border-bottom:1px solid var(--border-soft); background:#fcfdfe;}
+  .card dd{margin:0; padding:7px 16px; font-size:13.5px; border-bottom:1px solid var(--border-soft);}
+  .card dl>dt:last-of-type,.card dl>dd:last-of-type{border-bottom:none;}
+  .card dd code{font-size:12px;}
+
+  .src{font-family:var(--mono); font-size:11.5px; color:var(--fg-muted);}
+  .ev{font-family:var(--mono); font-size:11.5px; color:var(--fg-faint);}
+  .tag{display:inline-block; font-family:var(--mono); font-size:11px; background:var(--co-bg-strong);
+    border:1px solid var(--border); border-radius:5px; padding:1px 6px; color:var(--fg-muted);}
+  .toplink{display:inline-block; font-size:12px; color:var(--fg-faint); margin-left:8px;}
+
+  /* 数据流 SVG */
+  .diagram{border:1px solid var(--border); border-radius:8px; padding:18px; overflow-x:auto; background:#fcfdfe; margin:0 0 8px;}
+  .diagram svg{display:block; min-width:720px; width:100%; height:auto;}
+  .caption{font-size:12.5px; color:var(--fg-muted); margin:8px 2px 18px; line-height:1.6;}
+
+  .lead{font-size:16px; color:var(--fg-muted); line-height:1.6; margin:0 0 20px;}
+  .keyval{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:0 0 20px;}
+  .keyval .kv{border:1px solid var(--border); border-radius:8px; padding:12px 14px; background:#fcfdfe;}
+  .keyval .kv .k{font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--fg-faint); font-weight:600; margin-bottom:4px;}
+  .keyval .kv .v{font-size:13.5px; color:var(--fg);}
+
+  footer{margin-top:48px; padding-top:20px; border-top:1px solid var(--border-soft);
+    font-size:12.5px; color:var(--fg-faint);}
+
+  /* 移动端 */
+  .nav-toggle{display:none;}
+  @media(max-width:900px){
+    nav.side{position:fixed; left:0; top:0; z-index:50; transform:translateX(-100%); transition:transform .2s; box-shadow:2px 0 12px rgba(0,0,0,.1);}
+    body.nav-open nav.side{transform:translateX(0);}
+    main{padding:60px 20px 100px;}
+    .nav-toggle{display:inline-flex; position:fixed; top:12px; left:12px; z-index:60;
+      background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:7px 11px;
+      font-family:var(--sans); font-size:13px; cursor:pointer; align-items:center; gap:6px;}
+    .card dl{grid-template-columns:1fr;}
+    .card dt{border-bottom:none; padding-bottom:0; background:none;}
+  }
+  @media print{
+    nav.side,.nav-toggle,.copy-btn{display:none!important;}
+    main{padding:0; max-width:none;} body{font-size:11pt;}
+    .card,.callout,pre,.tbl-wrap,.diagram{break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+<button class="nav-toggle" onclick="document.body.classList.toggle('nav-open')">☰ 目录</button>
+<div class="layout">
+<nav class="side" id="sidenav">
+  <div class="brand">AgentSecTool Scanner<small>OpenClaw 公网暴露面扫描器 · 项目文档</small></div>
+  <a href="#overview">概览 Overview</a>
+  <a href="#quickstart">快速开始 Quickstart</a>
+  <a href="#architecture">架构 Architecture</a>
+  <a href="#concepts">核心概念 Core Concepts</a>
+  <a href="#workflows">工作流 Workflows</a>
+  <a href="#rules">判定与决策规则 Rules</a>
+  <a href="#data-model">数据模型 Data Model</a>
+  <a href="#configuration">配置 Configuration</a>
+  <a href="#commands">命令参考 Commands</a>
+  <a href="#validation">验证 Validation</a>
+  <a href="#troubleshooting">失败与排错 Troubleshooting</a>
+  <a href="#security">安全与运营边界 Security</a>
+  <a href="#maintenance">维护 Maintenance</a>
+  <a href="#agent">智能体须知 Agent Instructions</a>
+  <a href="#limitations">已知限制 / TODO</a>
+</nav>
+<main>
+<div class="wrap">
+
+<!-- ========== OVERVIEW ========== -->
+<section id="overview">
+  <h1>AgentSecTool Scanner — 项目文档</h1>
+  <p class="lead">在授权范围内发现公网暴露的 OpenClaw 网关，只读地判定其是否为 OpenClaw、测定版本并归档，服务于后续的漏洞协同披露。本文档是工程接手契约：让接手者无需询问原作者即可理解目标、跑通最小闭环、定位模块、解释规则、执行测试、判断边界、排查失败。</p>
+
+  <div class="keyval">
+    <div class="kv"><div class="k">一句话定义</div><div class="v">OpenClaw 公网暴露面扫描器：发现 → 只读探测判定 → 版本测定 → SQLite 归档</div></div>
+    <div class="kv"><div class="k">当前状态</div><div class="v">主链路已对真实数据跑通（assets 5762 / observations 5762 / probe_records 28810），核心研判有 Go 单测固化</div></div>
+    <div class="kv"><div class="k">技术栈</div><div class="v">Go 1.24（探测引擎 ocprobe）+ Python 标准库（发现 / 测绘 / 落地 / 看板）+ SQLite + echarts（看板地图）</div></div>
+    <div class="kv"><div class="k">权威数据位置</div><div class="v"><code>data/scanner/scan_results.sqlite</code>（扫描结果，101MB，已 gitignore）</div></div>
+  </div>
+
+  <h3>核心能力</h3>
+  <ul>
+    <li><strong>只读探测判定</strong>：对单个 IP:端口 做 WebSocket + HTTP 只读探测，按证据组合白名单（C1/C2/C3）二元研判是否为 OpenClaw。<span class="ev">prober/openclaw/probe.go:22-74, signals.go:26-56</span></li>
+    <li><strong>版本测定</strong>：优先直读 <code>serverVersion</code>（<code>direct</code>），否则用首页构建产物的资产哈希集合精确匹配指纹库反推（<code>implicit</code> / <code>implicit-range</code>）。<span class="ev">version.go:13-23, fingerprints.go:41-56</span></li>
+    <li><strong>发现层</strong>：主动扫描（masscan / zmap / 内置 async connect）+ 被动种子（FOFA / Shodan），合并去重产出 <code>candidates.csv</code>。<span class="ev">discovery/</span></li>
+    <li><strong>落地归档</strong>：<code>results.jsonl</code> → SQLite，入库时按 IP 富化地理位置。<span class="ev">store/load.py</span></li>
+    <li><strong>看板</strong>：纯标准库只读看板，含可切换世界/中国的 2D 散点地图。<span class="ev">dashboard/</span></li>
+  </ul>
+
+  <h3>核心约束</h3>
+  <ul>
+    <li><strong>探测全程只读</strong>（函数级有单测固化）：探测只发 HTTP 升级请求与无鉴权 GET，绝不发 WS 数据帧或利用面请求。<span class="ev">ws.go:24-79, probe_test.go:55-89</span> 注：整条 runner 调用链未抓包断言，见 <a href="#validation">验证</a>。</li>
+    <li><strong>凭据绝不入库</strong>：FOFA / MaxMind 凭据走 <code>.ini</code> 或环境变量，配置文件已 gitignore。</li>
+    <li><strong>真实数据绝不入库</strong>：<code>data/</code>、<code>scan_test/results/</code> 含真实暴露主机数据，已 gitignore。</li>
+  </ul>
+
+  <h3>非目标</h3>
+  <ul>
+    <li><strong>不</strong>做漏洞利用——只读探测，绝不发 <code>connect</code> 帧或 <code>config.apply</code>（后者是 CVE 利用面）。</li>
+    <li><strong>不</strong>把 FOFA / ClawSec 的平台标注当作项目确认事实——它们是外部测绘数据源、只提供候选与平台自己的版本标注。</li>
+    <li><strong>不</strong>处理 IPv6（ocprobe 通配枚举只对 IPv4 第三位有意义）。</li>
+    <li>下游的「版本→CVE 映射、协同披露流程」尚未实现，见 <a href="#limitations">已知限制</a>。</li>
+  </ul>
+
+  <div class="callout info">
+    <p class="ct">NOTE · 从哪开始读</p>
+    <p>第一次接手：<a href="#quickstart">快速开始</a>（跑通本地最小闭环）→ <a href="#architecture">架构</a>（模块与数据流）→ <a href="#rules">判定规则</a>（C1/C2/C3 与 T1–T7）。要改代码的智能体直接看 <a href="#agent">智能体须知</a>。要排错看 <a href="#troubleshooting">失败与排错</a>。</p>
+  </div>
+</section>
+
+<!-- ========== QUICKSTART ========== -->
+<section id="quickstart">
+  <h2>快速开始 Quickstart</h2>
+  <p>最小可复现闭环。所有命令<strong>在项目根目录</strong>（<code>AgentSecTool_Scanner/</code>）运行——Python 模块以 <code>python3 -m</code> 调用，Makefile 已设 <code>PYTHONPATH</code>；在子目录内运行会报 <code>No module named …</code>。</p>
+
+  <div class="callout warn">
+    <p class="ct">WARNING · 不要用 make demo / make probe 作为最小路径</p>
+    <p>这两个 Makefile target 内部用 <code>ocprobe -f candidates.csv</code>，但 <code>ocprobe</code> <strong>没有 <code>-f</code> 参数</strong>，实跑报 <code>flag provided but not defined: -f</code> 并以退出码 2 失败。<span class="ev">Makefile probe/demo target，已复核</span> 正确的探测用法见下方第 3 步与 <a href="#commands">命令参考</a>。此问题列入 <a href="#limitations">已知限制</a>。</p>
+  </div>
+
+  <h3>1 · 运行测试（无需任何外部依赖 / 凭据 / 网络）</h3>
+  <pre><code>make test</code></pre>
+  <ul>
+    <li><strong>运行目录</strong>：项目根 ｜ <strong>写文件/库</strong>：否 ｜ <strong>网络</strong>：否 ｜ <strong>凭据</strong>：否 ｜ <strong>幂等</strong>：是</li>
+    <li><strong>实际执行</strong>：<code>go -C prober build</code> + <code>go -C prober test ./...</code> + <code>python3 -m unittest discovery.tests.test_discovery store.tests.test_store progress.tests.test_blocks fofa.tests.test_pull</code>。<span class="ev">Makefile:23-25</span></li>
+    <li><strong>成功标志</strong>：Go 三包 <code>ok</code> + Python <code>24 tests OK</code>（已复核全过）。</li>
+    <li><strong>注意</strong>：<code>make test</code> 只跑 5 个模块的测试；clawsec/geoip/dashboard/scope/fingerprint 无单测，见 <a href="#validation">验证</a>。</li>
+  </ul>
+
+  <h3>2 · 构建探测器</h3>
+  <pre><code>go -C prober build -o bin/ocprobe ./cmd/ocprobe</code></pre>
+  <ul>
+    <li><strong>产物</strong>：<code>prober/bin/ocprobe</code>（gitignore）｜ <strong>网络/凭据</strong>：否（首次会拉 Go 依赖）｜ <strong>幂等</strong>：是</li>
+  </ul>
+
+  <h3>3 · 探测一个目标（只读，安全）</h3>
+  <p>目标作为<strong>位置参数</strong>给出（精确 IP / CIDR / 通配 IP / 每行一个目标的文件路径）：</p>
+  <pre><code># 探测单个 IP，逐行打印结论
+prober/bin/ocprobe -port 18789 203.0.113.10
+
+# 带指纹库做版本反推、结果落盘供入库
+prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o results.jsonl targets.txt</code></pre>
+  <ul>
+    <li><strong>运行目录</strong>：项目根 ｜ <strong>写文件</strong>：仅在给 <code>-o</code> 时写该 JSONL（<code>os.Create</code> 截断重建）｜ <strong>写库</strong>：否 ｜ <strong>网络</strong>：<strong>是，对目标 IP 发起 TCP/HTTP/WS 连接</strong> ｜ <strong>凭据</strong>：否 ｜ <strong>幂等</strong>：是（同名 <code>-o</code> 文件会被覆盖）</li>
+    <li><strong>成功标志</strong>：终端逐行打印 <code>IP:端口 OpenClaw version=…</code> 或 <code>not-openclaw …</code>。</li>
+    <li><strong>大规模扫描</strong>：加 <code>--progress</code>（单行刷新进度，不刷屏）、<code>--skip-unreachable</code>（不落盘探不到的目标）。见 <a href="#commands">命令参考</a>。</li>
+  </ul>
+  <div class="callout danger">
+    <p class="ct">WARNING · 这一步会对真实目标发包</p>
+    <p>探测是只读的（不发利用帧），但仍会向目标 IP 发起真实连接。最小路径请用你拥有或获授权的目标 / 本地靶机，不要拿公网随机 IP 当 Quickstart。对公网的大规模主动探测属运营动作，见 <a href="#security">安全与运营边界</a>。</p>
+  </div>
+
+  <h3>4 · 入库（可选，需 venv 装 geoip2）</h3>
+  <pre><code>.venv/bin/python3 -m store --in results.jsonl --db data/scanner/scan_results.sqlite</code></pre>
+  <ul>
+    <li><strong>写库</strong>：是，写 <code>scan_results.sqlite</code>（assets upsert / observations 追加）｜ <strong>网络</strong>：否 ｜ <strong>凭据</strong>：否 ｜ <strong>幂等</strong>：是（同一观测重跑会追加 observations，assets 合并更新）</li>
+    <li><strong>为何用 venv</strong>：入库时调 geoip 富化，依赖第三方包 <code>geoip2</code>；系统 python 无此包则地理列留空（软依赖、不阻断）。<span class="ev">store/load.py:88-91</span></li>
+  </ul>
+
+  <h3>5 · 看板查看结果（只读）</h3>
+  <pre><code>python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787</code></pre>
+  <ul>
+    <li><strong>网络</strong>：仅监听 <code>127.0.0.1:8787</code>（不对公网暴露）｜ <strong>写库</strong>：否（纯只读）｜ <strong>凭据</strong>：否</li>
+    <li>浏览器开 <code>http://127.0.0.1:8787/</code>。库不存在仅告警、不退出。<span class="ev">dashboard/server.py:294-309</span></li>
+  </ul>
+</section>
+
+<!-- ========== ARCHITECTURE ========== -->
+<section id="architecture">
+  <h2>架构 Architecture</h2>
+  <p>系统分两条链路。<strong>正式主链路</strong>：发现 → 探测 → 落地 → 看板。<strong>供料与辅助链路</strong>：FOFA / ClawSec（被动测绘数据源）、geoip（富化）、指纹库、progress / scope（调度）；fingerprint / scan_test 是一次性历史工具。判定与版本测定<strong>只发生在 ocprobe</strong>。</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 760 410" role="img" aria-label="模块与数据流">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9" fill="none" stroke="#6e7781" stroke-width="1.6"/></marker>
+      </defs>
+      <!-- 行1：发现 → candidates → ocprobe -->
+      <text x="24" y="24" font-family="ui-monospace,monospace" font-size="11" fill="#6e7781">正式主链路</text>
+      <rect x="24" y="36" width="150" height="52" rx="7" fill="#fff" stroke="#afb8c1" stroke-width="1.2"/>
+      <text x="40" y="60" font-size="12.5" fill="#1f2328" font-family="-apple-system,sans-serif">发现 discovery</text>
+      <text x="40" y="77" font-size="10" fill="#6e7781" font-family="ui-monospace,monospace">主动+被动种子</text>
+      <path d="M174,62 L208,62" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#ah)"/>
+      <rect x="208" y="36" width="140" height="52" rx="7" fill="#f0f2f4" stroke="#afb8c1" stroke-width="1.2"/>
+      <text x="224" y="60" font-size="12" fill="#1f2328" font-family="-apple-system,sans-serif">candidates.csv</text>
+      <text x="224" y="77" font-size="10" fill="#6e7781" font-family="ui-monospace,monospace">ip,port 清单</text>
+      <path d="M348,62 L382,62" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#ah)"/>
+      <!-- ocprobe：强调用粗灰边 + 浅灰底，不用纯黑 -->
+      <rect x="382" y="30" width="266" height="64" rx="7" fill="#e9ecf0" stroke="#57606a" stroke-width="2.4"/>
+      <text x="400" y="52" font-size="13" font-weight="600" fill="#1f2328" font-family="-apple-system,sans-serif">探测引擎 ocprobe（扫描器本体）</text>
+      <text x="400" y="70" font-size="10" fill="#57606a" font-family="ui-monospace,monospace">只读探测 · 判定 C1/C2/C3 · 版本测定</text>
+      <text x="400" y="84" font-size="9.5" fill="#8c959f" font-family="ui-monospace,monospace">prober/openclaw/</text>
+      <!-- ocprobe → results.jsonl（竖直向下，居中对齐 515）-->
+      <path d="M515,94 L515,128" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#ah)"/>
+      <rect x="425" y="128" width="180" height="48" rx="7" fill="#f0f2f4" stroke="#afb8c1" stroke-width="1.2"/>
+      <text x="441" y="150" font-size="12" fill="#1f2328" font-family="-apple-system,sans-serif">results.jsonl</text>
+      <text x="441" y="166" font-size="10" fill="#6e7781" font-family="ui-monospace,monospace">逐目标研判+版本</text>
+      <!-- results → store（竖直向下，居中 515）-->
+      <path d="M515,176 L515,206" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#ah)"/>
+      <rect x="402" y="206" width="226" height="56" rx="7" fill="#fff" stroke="#afb8c1" stroke-width="1.2"/>
+      <text x="418" y="230" font-size="12.5" fill="#1f2328" font-family="-apple-system,sans-serif">落地 store → SQLite</text>
+      <text x="418" y="248" font-size="9" fill="#6e7781" font-family="ui-monospace,monospace">assets · observations · probe_records（+geoip）</text>
+      <!-- store → dashboard（向左，水平线在框下方 234，不压字）-->
+      <path d="M402,234 L320,234" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#ah)"/>
+      <rect x="150" y="208" width="150" height="52" rx="7" fill="#fff" stroke="#afb8c1" stroke-width="1.2"/>
+      <text x="166" y="232" font-size="12" fill="#1f2328" font-family="-apple-system,sans-serif">看板 dashboard</text>
+      <text x="166" y="249" font-size="10" fill="#6e7781" font-family="ui-monospace,monospace">只读可视化</text>
+      <!-- 供料链路（底部一行）-->
+      <text x="24" y="312" font-family="ui-monospace,monospace" font-size="11" fill="#6e7781">供料 / 辅助链路（不参与判定）</text>
+      <rect x="24" y="324" width="180" height="52" rx="7" fill="#fff" stroke="#afb8c1" stroke-width="1.2" stroke-dasharray="5 3"/>
+      <text x="40" y="348" font-size="12" fill="#1f2328" font-family="-apple-system,sans-serif">FOFA / ClawSec 测绘</text>
+      <text x="40" y="365" font-size="9.5" fill="#6e7781" font-family="ui-monospace,monospace">候选归档·平台版本标注</text>
+      <rect x="224" y="324" width="170" height="52" rx="7" fill="#fff" stroke="#afb8c1" stroke-width="1.2" stroke-dasharray="5 3"/>
+      <text x="240" y="348" font-size="12" fill="#1f2328" font-family="-apple-system,sans-serif">指纹库 / geoip</text>
+      <text x="240" y="365" font-size="9.5" fill="#6e7781" font-family="ui-monospace,monospace">版本反推·地理富化</text>
+      <!-- 供料 → ocprobe：虚线从供料区右侧上行到 ocprobe 底部中点，正交、绕开所有框 -->
+      <path d="M394,350 L678,350 L678,94" fill="none" stroke="#8c959f" stroke-width="1.3" stroke-dasharray="4 4" marker-end="url(#ah)"/>
+      <text x="408" y="343" font-size="9.5" fill="#8c959f" font-family="ui-monospace,monospace">可选喂入：export 候选 / 指纹反推</text>
+    </svg>
+  </div>
+  <p class="caption">全灰度。实线＝正式主链路数据流；虚线框与虚线箭头＝供料 / 辅助链路（可选喂入）。粗边框的 ocprobe 是唯一做判定与版本测定的组件——强调靠边框粗细而非填充色。FOFA / ClawSec 只提供候选与平台标注，需经 ocprobe 才成为项目确认事实。箭头方向＝数据流向。</p>
+
+  <h3>模块清单</h3>
+  <p>状态标签口径：<span class="badge stable">stable</span> 正式主链路且有单测；<span class="badge partial">partial</span> 接入运营但无单测；<span class="badge experimental">experimental</span> 一次性 / 验证性工具。</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>模块</th><th>状态</th><th>链路</th><th>职责</th><th>入口</th><th>单测</th></tr></thead>
+    <tbody>
+      <tr><td><code>prober/openclaw</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>只读探测核心：判定 + 版本测定</td><td><code>openclaw.Probe()</code></td><td>有（Go 3 包）</td></tr>
+      <tr><td><code>prober/cmd/ocprobe</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>探测 runner：目标展开 + 并发 + 落 JSONL</td><td><code>ocprobe</code></td><td>有</td></tr>
+      <tr><td><code>prober/zgrab</code></td><td><span class="badge experimental">experimental</span></td><td>主链路(备)</td><td>ZGrab2 自定义模块，薄封装 Probe</td><td><code>zgrab-openclaw openclaw</code></td><td>无（独立 go.mod，不在 go test ./... 范围）</td></tr>
+      <tr><td><code>discovery</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>发现层：主动扫描+被动种子→candidates.csv</td><td><code>python3 -m discovery</code></td><td>有</td></tr>
+      <tr><td><code>store</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>落地：jsonl→SQLite，入库时 geoip 富化</td><td><code>python3 -m store</code></td><td>有</td></tr>
+      <tr><td><code>progress</code></td><td><span class="badge stable">stable</span></td><td>辅助调度</td><td>CIDR 块切分 + 原子领取（断点续扫）</td><td><code>python3 -m progress</code></td><td>有</td></tr>
+      <tr><td><code>fofa</code></td><td><span class="badge stable">stable</span></td><td>供料</td><td>FOFA 被动测绘：候选归档+按省统计</td><td><code>python3 -m fofa</code></td><td>有</td></tr>
+      <tr><td><code>clawsec</code></td><td><span class="badge partial">partial</span></td><td>供料</td><td>ClawSec 每日快照归档（免凭据）</td><td><code>python3 -m clawsec</code></td><td>无</td></tr>
+      <tr><td><code>geoip</code></td><td><span class="badge partial">partial</span></td><td>辅助富化</td><td>IP→城市离线解析（GeoLite2）+ 回填</td><td><code>python3 -m geoip.backfill</code></td><td>无</td></tr>
+      <tr><td><code>dashboard</code></td><td><span class="badge partial">partial</span></td><td>辅助</td><td>只读看板（4 个 API + echarts 地图）</td><td><code>python3 -m dashboard</code></td><td>无</td></tr>
+      <tr><td><code>scope</code></td><td><span class="badge partial">partial</span></td><td>辅助</td><td>APNIC→中国 CIDR 全集生成</td><td><code>python3 -m scope.cn_ranges</code></td><td>无</td></tr>
+      <tr><td><code>fingerprint</code></td><td><span class="badge experimental">experimental</span></td><td>工具</td><td>指纹库采集（build/collect）+ 一次性拆库迁移</td><td><code>python3 fingerprint/*.py</code></td><td>无</td></tr>
+      <tr><td><code>scan_test</code></td><td><span class="badge experimental">experimental</span></td><td>验证</td><td>对真实公网目标的一次性实战验证脚本与结果</td><td>各脚本</td><td>无</td></tr>
+    </tbody>
+  </table></div>
+  <p class="caption">「链路」列：主链路＝产品路径；供料＝向扫描器提供探测目标/外部标注；辅助＝调度/富化/可视化；工具/验证＝一次性。详见各模块在 <a href="#commands">命令参考</a> 与 <a href="#data-model">数据模型</a> 的展开。</p>
+
+  <div class="callout invariant">
+    <p class="ct">INVARIANT · 不变量：判定只在 ocprobe</p>
+    <p>FOFA / ClawSec / scan_test 都<strong>不</strong>做 OpenClaw 判定或版本测定。它们提供候选或平台自报的版本标注；是否真为 OpenClaw、本项目认可的版本是多少，一律由 ocprobe 的只读探测得出。这是区分「项目确认事实」与「外部平台标注」的根本边界。</p>
+  </div>
+</section>
+
+<!-- ========== CORE CONCEPTS ========== -->
+<section id="concepts">
+  <h2>核心概念 Core Concepts</h2>
+  <p>本节定义全文反复出现的术语。后文用到的每个编号、状态、规则名、数据对象都在此或首次出现处落到具体对象。</p>
+
+  <h3>测试项 T1–T7（探测采集的证据信号）</h3>
+  <p>每次探测对一台主机采集 7 个测试项，按可仿冒难度分确证 / 强 / 弱三级。定义见 <span class="ev">result.go:5-13</span>，采集见 <span class="ev">http.go / ws.go</span>。下表每项的「真实返回样字」取自本项目对 6-20 中国 18789 段的实测结果（<code>scan_test/results/cn-2026-06-20.jsonl</code>，约 1.2 万个确认实例），非杜撰。</p>
+
+  <h4>T1 <span class="tag">确证</span> control-ui-config 返回 200 且体含 serverVersion</h4>
+  <div class="card"><div class="bd"><dl>
+    <dt>采集方式</dt><dd>GET <code>/__openclaw/control-ui-config.json</code>，解析 JSON 取 <code>serverVersion</code> <span class="ev">http.go:59-80</span></dd>
+    <dt>真实返回样字</dt><dd>状态行 <code>HTTP/1.1 200</code>，响应体 JSON 含 <code>"serverVersion":"2026.4.11"</code>（实测版本字样：<code>2026.4.11 / 2026.3.11 / 2026.3.12 / 2026.3.7 / 2026.3.24</code> 等，共 5985 例直读到版本）</dd>
+    <dt>这意味着什么</dt><dd>该路径是 OpenClaw 控制台前端的配置端点，返回体里的 <code>serverVersion</code> 是服务端<strong>自报的运行版本号</strong>。能拿到这个字段，说明背后跑的就是 OpenClaw 的控制面，且这台没对该端点做鉴权防护。</dd>
+    <dt>与判定的直接联系</dt><dd><strong>确证级、单独达标（C1）</strong>。仿冒一个返回「200 + 合法 serverVersion JSON」的该专有路径，成本等同真实现该端点契约。版本也由此直读（source=direct）。</dd>
+    <dt>不应如何理解</dt><dd>不是「该路径返回 200」就命中——必须体里真有 <code>serverVersion</code> 字段。200 但无该字段不算 T1（走 C3 或不命中）。</dd>
+  </dl></div></div>
+
+  <h4>T2 <span class="tag">强</span> WebSocket 连上后服务端立即推 connect.challenge 帧</h4>
+  <div class="card"><div class="bd"><dl>
+    <dt>采集方式</dt><dd>WS 升级后只读首帧，匹配事件名 <span class="ev">ws.go:24-79</span>（只读不变量：绝不回发任何帧）</dd>
+    <dt>真实返回样字</dt><dd>先 <code>HTTP/1.1 101 Switching Protocols</code>，随即推一帧：<code>{"type":"event","event":"connect.challenge","payload":{"nonce":"643e64e5-…","ts":1782139659263}}</code></dd>
+    <dt>这意味着什么</dt><dd>客户端一连上，服务端<strong>主动</strong>下发一个带 nonce/时间戳的握手挑战——这是 OpenClaw 网关 WS 协议的固有开场行为，是<strong>动态协议交互</strong>，不是某个能被下载保存的静态文件。</dd>
+    <dt>与判定的直接联系</dt><dd><strong>强证据，是 C2 / C3 的必要条件</strong>。要伪造它必须真跑一个会主动推 connect.challenge 的 WS 服务端，他者框架罕有此行为。但单独 T2 不达标（防单信号被仿冒）。</dd>
+    <dt>不应如何理解</dt><dd>不是「能建立 WS 连接」就命中——必须收到 <code>connect.challenge</code> 事件帧。</dd>
+  </dl></div></div>
+
+  <h4>T3 <span class="tag">强</span> control-ui-config 返回 401</h4>
+  <div class="card"><div class="bd"><dl>
+    <dt>采集方式</dt><dd>同 T1 的 GET，看状态码 ==401 <span class="ev">http.go:79</span></dd>
+    <dt>真实返回样字</dt><dd>状态行 <code>HTTP/1.1 401</code>，响应体 <code>{"error":{"message":"Unauthorized","type":"unauthorized"}}</code>（实测 control-ui 状态分布：200 占 9653、<strong>401 占 2604</strong>、404 占 1299）</dd>
+    <dt>这意味着什么</dt><dd>这台 OpenClaw 对配置端点<strong>做了鉴权防护</strong>——端点存在（所以不是 404）但要求授权（所以是 401）。那段固定的 unauthorized JSON 体本身就是 OpenClaw 的特征错误响应。</dd>
+    <dt>与判定的直接联系</dt><dd><strong>强证据，与 T2 联合构成 C2</strong>。它专门覆盖「已防护、拿不到版本号」的实例——这类实例 T1 不中，靠 T2+T3 仍能确认是 OpenClaw（只是版本未知）。</dd>
+    <dt>不应如何理解</dt><dd>401 才算 T3；返回 200 不算（200 走 T1 或不命中），404 说明端点不存在、更不算。</dd>
+  </dl></div></div>
+
+  <h4>T4 <span class="tag">强</span> /healthz 返回特征体</h4>
+  <div class="card"><div class="bd"><dl>
+    <dt>采集方式</dt><dd>GET <code>/healthz</code>，精确匹配体内容 <span class="ev">http.go</span></dd>
+    <dt>真实返回样字</dt><dd><code>HTTP/1.1 200</code>，体 <code>{"ok":true,"status":"live"}</code>（实测 healthz_match=true 占 10555 / 命中率高）</dd>
+    <dt>这意味着什么</dt><dd>OpenClaw 网关的健康检查端点返回的固定 JSON。这个 <code>{"ok":true,"status":"live"}</code> 字面体是 OpenClaw 的特征，区别于其它服务常见的 <code>OK</code> / <code>{"status":"healthy"}</code> 等。</dd>
+    <dt>与判定的直接联系</dt><dd><strong>强证据，与 T2 联合构成 C2</strong>（当 T3 未中但 healthz 命中时）。是已防护实例的另一条确认路径。</dd>
+    <dt>不应如何理解</dt><dd>不是「/healthz 返回 200」就命中——必须体精确等于该特征 JSON。</dd>
+  </dl></div></div>
+
+  <h4>T5 <span class="tag">弱</span> favicon.ico 的 MD5 等于已知值</h4>
+  <div class="card"><div class="bd"><dl>
+    <dt>采集方式</dt><dd>GET <code>/favicon.ico</code>，算 MD5 比对常量 <span class="ev">http.go:82-89</span></dd>
+    <dt>真实返回样字</dt><dd>MD5 <code>f58854f6450618729679ad33622bebaf</code>（实测 12181 例为此值、跨版本恒定；另有极少数离群值如 <code>eb84864…</code> 各 1 例，属自定义图标）</dd>
+    <dt>这意味着什么</dt><dd>OpenClaw 默认前端图标的字节指纹。绝大多数实例用默认图标，故该 MD5 高度一致；但图标是<strong>可被原样下载复制的静态文件</strong>。</dd>
+    <dt>与判定的直接联系</dt><dd><strong>弱证据，不单独达标</strong>。任何人都能抓一份真实例的 favicon 挂到伪造站上，故仅凭它不足以判定。仅作辅助佐证。</dd>
+    <dt>不应如何理解</dt><dd>MD5 不匹配不代表不是 OpenClaw（可能换了自定义图标）；匹配也不单独证明是 OpenClaw。</dd>
+  </dl></div></div>
+
+  <h4>T6 <span class="tag">弱</span> 首页 &lt;title&gt; 含 OpenClaw 标记</h4>
+  <div class="card"><div class="bd"><dl>
+    <dt>采集方式</dt><dd>GET <code>/</code>，正则抽 <code>&lt;title&gt;</code> <span class="ev">http.go:42-57</span></dd>
+    <dt>真实返回样字</dt><dd><code>OpenClaw Control</code>（实测 12124 例）；离群样字：<code>Clawdbot Control</code>（62，疑似改名分支）、<code>OpenClaw 控制台</code>、甚至 <code>军机处 · 三省六部总控台</code> / <code>中创云服智能体 控制</code>（各 1，自定义标题）</dd>
+    <dt>这意味着什么</dt><dd>默认前端页面标题。多数实例保留默认 <code>OpenClaw Control</code>，但标题是<strong>可任意改写的静态文本</strong>——离群样字正说明有人把标题改成了自定义内容。</dd>
+    <dt>与判定的直接联系</dt><dd><strong>弱证据，不单独达标</strong>。可被静态克隆首页伪造，也可被真实例自定义掉，故两个方向都不可靠，仅作辅助。</dd>
+    <dt>不应如何理解</dt><dd>title 不含标记不代表不是 OpenClaw（被改名）；含标记也可能是克隆站。</dd>
+  </dl></div></div>
+
+  <h4>T7 <span class="tag">弱</span> 响应头三件套</h4>
+  <div class="card"><div class="bd"><dl>
+    <dt>采集方式</dt><dd>检查首页响应头是否同时含三个头 <span class="ev">http.go:166-174 hasHeaderTriplet()</span></dd>
+    <dt>真实返回样字</dt><dd>三头需同时满足：<code>X-Content-Type-Options: nosniff</code>、<code>Referrer-Policy: no-referrer</code>、<code>Permissions-Policy: …microphone=(self)…</code>（实测 header_triplet=true 占 3239，命中率明显低于其它信号）</dd>
+    <dt>这意味着什么</dt><dd>OpenClaw 默认下发的一组安全响应头组合。但这三个头都是<strong>通用 Web 安全头</strong>，其它框架/反代也可能配置相同组合。</dd>
+    <dt>与判定的直接联系</dt><dd><strong>弱证据，不单独达标，区分力最低</strong>。常见框架默认即可凑齐，误报空间大，仅作辅助佐证。</dd>
+    <dt>不应如何理解</dt><dd>三件套齐全不单独证明是 OpenClaw；不齐也不否定（可能被反代改写了头）。</dd>
+  </dl></div></div>
+
+  <div class="callout invariant">
+    <p class="ct">INVARIANT · 为什么分确证/强/弱三级</p>
+    <p>分级的依据是<strong>可仿冒成本</strong>，不是「看起来像不像」。确证（T1）与强证据（T2/T3/T4）要伪造必须真实现 OpenClaw 的专有端点契约或动态协议行为；弱证据（T5/T6/T7）都是可被静态复制或通用框架即可凑齐的表面特征。所以达标白名单只用确证级单独成立、或强证据跨表面联合，弱证据无论多少都不单独达标——见 <a href="#rules">判定规则</a>。</p>
+  </div>
+
+  <h3>资产哈希（assetHashMatch）</h3>
+  <p>首页引用的 <code>assets/index-&lt;hash&gt;.js</code> / <code>.css</code> 文件名集合。哈希由 Vite 构建产物的内容算出，同版本恒定、跨版本不同。<strong>assetHashMatch</strong> = 该集合与指纹库某版本条目的 <code>asset_hashes</code> 精确相等（<code>setsEqual</code>，非子集）。它既是隐式版本反推的信号，也是判定规则 C3 的一个条件。<span class="ev">fingerprints.go:41-56</span></p>
+  <div class="callout warn">
+    <p class="ct">WARNING · 资产哈希的采集面与 T5/T6 同源</p>
+    <p>资产哈希是从首页明文 HTML 正则抽取文件名得到的，扫描器<strong>不</strong>二次请求那两个资产、不校验真实字节。所以单独的资产哈希可被「镜像一份真首页」廉价伪造，与伪造 T6 同难度。因此 C3 要求它必须与 T2（动态 WS 行为）联合。详见 <a href="#rules">判定规则 C3</a>。</p>
+  </div>
+
+  <h3>category：资产收录三值枚举</h3>
+  <p>入库时 <code>store.classify()</code> 把一条探测结果分桶；探不到的不收录。<span class="ev">store/load.py:52-66</span></p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>枚举值</th><th>含义</th><th>判定条件</th></tr></thead>
+    <tbody>
+      <tr><td><code>confirmed</code></td><td>明确 OpenClaw 且取到版本</td><td><code>is_openclaw</code> 且有 version / version_candidates</td></tr>
+      <tr><td><code>confirmed_no_version</code></td><td>明确 OpenClaw 但版本未取到</td><td><code>is_openclaw</code> 但无版本</td></tr>
+      <tr><td><code>suspect</code></td><td>命中部分特征、未达白名单</td><td>非 openclaw 但 matched 非空</td></tr>
+      <tr><td>（不收录）</td><td>探不到 / 纯无命中</td><td>classify 返回 None，跳过</td></tr>
+    </tbody>
+  </table></div>
+  <p>资产的 category 取该资产历次观测中<strong>最强的一档</strong>（rank：suspect &lt; confirmed_no_version &lt; confirmed），只升不降。<span class="ev">store/load.py:48-49,116-128</span></p>
+
+  <h3>版本来源 version_source</h3>
+  <ul>
+    <li><code>direct</code>：直读 control-ui 的 serverVersion，最可靠。</li>
+    <li><code>implicit</code>：资产哈希唯一命中指纹库某版本，反推得出。</li>
+    <li><code>implicit-range</code>：资产哈希命中多个版本（构建产物相同、不可区分的版本区间，如 2026.3.7=2026.3.8），返回代表版本 + 全部候选。<span class="ev">version.go:13-23</span></li>
+  </ul>
+
+  <h3>隐位 IP（masked_ip，ClawSec 专有）</h3>
+  <p>ClawSec 平台公开列表把 IP 的<strong>第三位</strong>隐藏成 <code>*</code>（如 <code>1.14.*.22</code>）。补全靠 ocprobe 对该通配段枚举第三位 0–255。这是 ClawSec 数据特有，与本项目权威数据无关。</p>
+
+  <div class="callout invariant">
+    <p class="ct">INVARIANT · 术语口径校正（与旧注释/旧文档不一致处）</p>
+    <p>① <code>consts.go:26</code> 把判定口径概括为「WS 挑战 或 ≥2 跨表面信号」，<strong>不精确</strong>——T1 单独（确证级、非 WS）也达标，且「≥2」必须跨表面（同表面 T3+T4 不达标）。以 <a href="#rules">规则白名单</a> 为准。② <code>schema.sql:1</code> 注释称资产「按内容指纹或 ip:port 去重」，<strong>实际只按 ip:port</strong>（<code>identity_key = "ipport:{ip}:{port}"</code>），不按内容指纹合并。<span class="ev">store/load.py:12-18</span></p>
+  </div>
+</section>
+
+<!-- ========== WORKFLOWS ========== -->
+<section id="workflows">
+  <h2>工作流 Workflows</h2>
+  <p>每条工作流写成从输入到输出的闭环，含前置条件、步骤、产物、验证、失败恢复、禁止事项。命令的逐项副作用见 <a href="#commands">命令参考</a>。</p>
+
+  <h3>WF-1 · 本地测试工作流</h3>
+  <ul>
+    <li><strong>前置</strong>：装 Go 1.24 与 Python 3；无需凭据/网络。</li>
+    <li><strong>步骤</strong>：<code>make test</code></li>
+    <li><strong>产物</strong>：无（不写文件/库）。<strong>验证</strong>：Go 三包 ok + Python 24 tests OK。</li>
+    <li><strong>失败恢复</strong>：可任意重跑（幂等）。</li>
+    <li><strong>禁止</strong>：无。</li>
+  </ul>
+
+  <h3>WF-2 · 正式扫描工作流（发现 → 探测 → 落地）</h3>
+  <ul>
+    <li><strong>前置</strong>：构建 ocprobe；准备目标（candidates.csv 或目标文件）；如走 FOFA 种子需配置凭据。</li>
+    <li><strong>步骤</strong>：① <code>python3 -m discovery …</code> 产 candidates.csv → ② <code>ocprobe -port … -fingerprints … -o results.jsonl &lt;目标&gt;</code> → ③ <code>.venv/bin/python3 -m store --in results.jsonl</code>。</li>
+    <li><strong>注意</strong>：candidates.csv 是 <code>ip,port</code> 两列，<strong>不能</strong>直接作为 ocprobe 的目标文件（ocprobe 目标文件要求每行一个 IP，端口走 <code>-port</code>）。需自行抽列或按 IP 生成目标文件。</li>
+    <li><strong>产物</strong>：candidates.csv（临时）、results.jsonl（临时）、scan_results.sqlite（权威）。</li>
+    <li><strong>验证</strong>：<code>python3 -m store --stats</code> 看分桶计数；看板查看。</li>
+    <li><strong>失败恢复</strong>：results.jsonl 同名会被覆盖；入库后历史在 observations（append-only），重跑安全。</li>
+    <li><strong>禁止</strong>：对未授权目标做大规模主动扫描（见 <a href="#security">安全边界</a>）。</li>
+  </ul>
+
+  <h3>WF-3 · ClawSec 持续运营拉取</h3>
+  <ul>
+    <li><strong>前置</strong>：免凭据。</li>
+    <li><strong>步骤</strong>：<code>python3 -m clawsec pull</code>（前台常驻）。先续拉当前快照，再每 <code>--watch-interval</code> 秒（默认 600）轮询平台 lastScanTime，出现更新日期即拉新批。Ctrl-C 停。</li>
+    <li><strong>产物</strong>：<code>data/clawsec/clawsec.sqlite</code> 的 clawsec_snapshots（每日快照，跨日各留一行）。</li>
+    <li><strong>失败恢复</strong>：断点续传按 (snapshot_date, page)；中断重跑接着拉；某日全量已入库则幂等跳过。</li>
+    <li><strong>禁止 / 须知</strong>：平台<strong>持续返回 502/503/504 时单批 pull 会无限退避重试、永不退出</strong>（这是有意的无人值守设计）。<span class="ev">clawsec/client.py:63-66</span></li>
+  </ul>
+
+  <h3>WF-4 · 结果查看工作流</h3>
+  <ul>
+    <li><strong>步骤</strong>：<code>python3 -m dashboard</code> → 浏览器 <code>http://127.0.0.1:8787/</code>；或 <code>python3 -m store --report out.html</code> 出报告。</li>
+    <li><strong>产物</strong>：看板只读不产物；report 写指定文件。<strong>禁止</strong>：把看板暴露到公网（默认只听回环）。</li>
+  </ul>
+
+  <h3>WF-5 · 指纹库维护工作流（版本演进时）</h3>
+  <ul>
+    <li><strong>触发</strong>：OpenClaw 发布新版本，公网出现指纹库未覆盖的实例（隐式反推返回未知）。</li>
+    <li><strong>步骤</strong>：<code>python3 fingerprint/collect_corpus.py --repo &lt;本地 openclaw 仓库&gt; --only &lt;版本列表&gt;</code>（优先官方镜像静态提取）。</li>
+    <li><strong>产物</strong>：<code>fingerprints/fingerprints.json</code> 新增/覆盖对应版本条目。</li>
+    <li><strong>验证</strong>：重扫相关目标，原先 suspect 的实例若属新版应被 C3 救回。</li>
+    <li><strong>禁止</strong>：依赖 <code>local-build</code> 来源条目作为权威——本机构建的哈希未必等同官方分发，须独立核验（见 <a href="#limitations">限制</a>）。</li>
+  </ul>
+</section>
+
+<!-- ========== RULES ========== -->
+<section id="rules">
+  <h2>判定与决策规则 Rules and Decision Logic</h2>
+  <p>研判是二元的（是 / 否），不用概率分值。当且仅当满足达标白名单中任一条件时判为 OpenClaw，其余一切组合为否。实现：<code>evaluate(ev, assetHashMatch)</code> <span class="ev">signals.go:26-56</span>。三条规则<strong>对称展开</strong>如下。</p>
+
+  <h3>达标白名单总览</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>规则</th><th>布尔条件</th><th>表面组合</th><th>覆盖场景</th></tr></thead>
+    <tbody>
+      <tr><td><code>C1</code></td><td><code>T1</code></td><td>HTTP 路由面（确证级）</td><td>未防护实例，control-ui 直接自报版本</td></tr>
+      <tr><td><code>C2</code></td><td><code>T2 && (T3 || T4)</code></td><td>WS 协议面 × HTTP 路由面</td><td>已防护实例（control-ui 401）或 healthz 命中</td></tr>
+      <tr><td><code>C3</code></td><td><code>T2 && assetHashMatch</code></td><td>WS 协议面 × HTTP 静态构建产物面</td><td>control-ui 返 200 但无 serverVersion、非 401、healthz 未中，但资产指纹命中库</td></tr>
+    </tbody>
+  </table></div>
+  <p>判定式：<code>is_openclaw = C1 || C2 || C3</code>。优先级：<code>evaluate</code> 中 C1 先于 C2 先于 C3 命中并打 rule 标签，但三者是「或」关系、不互斥。<span class="ev">signals.go:48-55</span></p>
+
+  <h3>完整研判路径（决策树）</h3>
+  <p>从一个目标进入到最终分类的全部 if 分支。判断节点（菱形）按代码实际短路顺序排列：可达性门槛 <span class="ev">probe.go:37-42</span> → 证据采集 → <code>evaluate</code> 的 switch <span class="ev">signals.go:46-55</span> → 终端分类。</p>
+  <div class="diagram">
+    <svg viewBox="0 0 900 720" role="img" aria-label="研判决策树">
+      <defs>
+        <marker id="da" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9" fill="none" stroke="#6e7781" stroke-width="1.6"/></marker>
+      </defs>
+      <style>
+        .dn{fill:#fff;stroke:#afb8c1;stroke-width:1.2}
+        .dd{fill:#f0f2f4;stroke:#57606a;stroke-width:1.4}
+        .dr-ok{fill:#e9ecf0;stroke:#57606a;stroke-width:1.8}
+        .dr-no{fill:#fff;stroke:#afb8c1;stroke-width:1.2;stroke-dasharray:5 3}
+        .dt{font-family:-apple-system,sans-serif;fill:#1f2328}
+        .dm{font-family:ui-monospace,monospace;fill:#57606a}
+        .de{font-family:ui-monospace,monospace;fill:#8c959f;font-size:10px}
+        .dl{stroke:#6e7781;stroke-width:1.4;fill:none}
+      </style>
+
+      <!-- 起点 -->
+      <rect class="dn" x="350" y="14" width="160" height="34" rx="17"/>
+      <text class="dt" x="430" y="35" font-size="12" text-anchor="middle">目标 IP:端口</text>
+      <path class="dl" d="M430,48 L430,70" marker-end="url(#da)"/>
+
+      <!-- D1: TCP 可达？ -->
+      <path class="dd" d="M430,72 L520,108 L430,144 L340,108 Z"/>
+      <text class="dt" x="430" y="105" font-size="12" text-anchor="middle">TCP 端口</text>
+      <text class="dt" x="430" y="120" font-size="12" text-anchor="middle">可达？</text>
+      <!-- D1 No → 右：按错误分类 -->
+      <path class="dl" d="M520,108 L640,108" marker-end="url(#da)"/>
+      <text class="de" x="560" y="101" text-anchor="middle">否</text>
+      <rect class="dr-no" x="640" y="82" width="240" height="52" rx="7"/>
+      <text class="dt" x="652" y="103" font-size="11.5">不落盘可达性失败（--skip 时）</text>
+      <text class="dm" x="652" y="122" font-size="10">timeout / refused / unreachable / down</text>
+      <!-- D1 Yes ↓ -->
+      <path class="dl" d="M430,144 L430,168" marker-end="url(#da)"/>
+      <text class="de" x="442" y="160">是</text>
+
+      <!-- 采集证据 -->
+      <rect class="dn" x="320" y="168" width="220" height="46" rx="7"/>
+      <text class="dt" x="430" y="188" font-size="11.5" text-anchor="middle">采集证据 T1–T7 + 资产哈希</text>
+      <text class="dm" x="430" y="205" font-size="10" text-anchor="middle">probeHTTP · probeWS · MatchImplicit</text>
+      <path class="dl" d="M430,214 L430,238" marker-end="url(#da)"/>
+
+      <!-- D2: C1 = T1 ? -->
+      <path class="dd" d="M430,240 L540,280 L430,320 L320,280 Z"/>
+      <text class="dt" x="430" y="276" font-size="12" text-anchor="middle">T1？</text>
+      <text class="dm" x="430" y="293" font-size="9.5" text-anchor="middle">control-ui 200+ver</text>
+      <!-- D2 Yes → C1 -->
+      <path class="dl" d="M540,280 L650,280" marker-end="url(#da)"/>
+      <text class="de" x="595" y="273" text-anchor="middle">是</text>
+      <rect class="dr-ok" x="650" y="256" width="230" height="48" rx="7"/>
+      <text class="dt" x="665" y="277" font-size="12" font-weight="600">OpenClaw · rule=C1</text>
+      <text class="dm" x="665" y="295" font-size="10">version=direct（直读自报版本）</text>
+      <!-- D2 No ↓ -->
+      <path class="dl" d="M430,320 L430,344" marker-end="url(#da)"/>
+      <text class="de" x="442" y="336">否</text>
+
+      <!-- D3: C2 = T2 && (T3||T4) ? -->
+      <path class="dd" d="M430,346 L560,392 L430,438 L300,392 Z"/>
+      <text class="dt" x="430" y="385" font-size="12" text-anchor="middle">T2 且</text>
+      <text class="dt" x="430" y="400" font-size="12" text-anchor="middle">(T3 或 T4)？</text>
+      <!-- D3 Yes → C2 -->
+      <path class="dl" d="M560,392 L650,392" marker-end="url(#da)"/>
+      <text class="de" x="605" y="385" text-anchor="middle">是</text>
+      <rect class="dr-ok" x="650" y="368" width="230" height="48" rx="7"/>
+      <text class="dt" x="665" y="389" font-size="12" font-weight="600">OpenClaw · rule=C2</text>
+      <text class="dm" x="665" y="407" font-size="10">WS强证据 × HTTP路由面（已防护实例）</text>
+      <!-- D3 No ↓ -->
+      <path class="dl" d="M430,438 L430,462" marker-end="url(#da)"/>
+      <text class="de" x="442" y="454">否</text>
+
+      <!-- D4: C3 = T2 && assetHashMatch ? -->
+      <path class="dd" d="M430,464 L560,510 L430,556 L300,510 Z"/>
+      <text class="dt" x="430" y="503" font-size="12" text-anchor="middle">T2 且</text>
+      <text class="dt" x="430" y="518" font-size="12" text-anchor="middle">资产哈希命中？</text>
+      <!-- D4 Yes → C3 -->
+      <path class="dl" d="M560,510 L650,510" marker-end="url(#da)"/>
+      <text class="de" x="605" y="503" text-anchor="middle">是</text>
+      <rect class="dr-ok" x="650" y="486" width="230" height="48" rx="7"/>
+      <text class="dt" x="665" y="507" font-size="12" font-weight="600">OpenClaw · rule=C3</text>
+      <text class="dm" x="665" y="525" font-size="10">WS强证据 × 资产指纹（version=implicit）</text>
+      <!-- D4 No ↓ -->
+      <path class="dl" d="M430,556 L430,580" marker-end="url(#da)"/>
+      <text class="de" x="442" y="572">否</text>
+
+      <!-- D5: matched 空 且 control_ui_status==0 ? -->
+      <path class="dd" d="M430,582 L560,624 L430,666 L300,624 Z"/>
+      <text class="dt" x="430" y="619" font-size="11.5" text-anchor="middle">无任何命中 且</text>
+      <text class="dt" x="430" y="634" font-size="11.5" text-anchor="middle">control-ui 无响应？</text>
+      <!-- D5 Yes → down -->
+      <path class="dl" d="M560,624 L650,624" marker-end="url(#da)"/>
+      <text class="de" x="605" y="617" text-anchor="middle">是</text>
+      <rect class="dr-no" x="650" y="602" width="230" height="44" rx="7"/>
+      <text class="dt" x="665" y="622" font-size="11.5">非目标服务 · 标 down</text>
+      <text class="dm" x="665" y="639" font-size="10">连得上但非 OpenClaw，不收录</text>
+      <!-- D5 No ↓ suspect -->
+      <path class="dl" d="M430,666 L430,688" marker-end="url(#da)"/>
+      <text class="de" x="442" y="680">否</text>
+      <rect class="dr-no" x="320" y="688" width="220" height="30" rx="7"/>
+      <text class="dt" x="430" y="708" font-size="11.5" text-anchor="middle">suspect（命中部分特征，未达标）</text>
+    </svg>
+  </div>
+  <p class="caption">全灰度。菱形＝判断节点（按 <code>evaluate</code> switch 的实际短路顺序），实线粗框矩形＝判为 OpenClaw 的三个出口（C1/C2/C3），虚线框矩形＝非 OpenClaw 出口。每条边上「是/否」标明分支方向；箭头方向＝控制流。C1/C2/C3 任一命中即短路返回，不再往下判。最末 suspect 与 down 的区分见 <a href="#concepts">category 枚举</a> 与 <a href="#data-model">数据模型</a>（探不到的目标在更前的可达性门槛即被拦下，不进入本树的证据判定段）。</p>
+
+  <!-- C1 卡 -->
+  <div class="card">
+    <div class="hd"><span class="nm">C1 = T1</span><span class="badge stable">stable</span></div>
+    <div class="bd"><dl>
+      <dt>目标</dt><dd>识别未防护、自报版本的 OpenClaw 实例</dd>
+      <dt>输入信号</dt><dd>T1：control-ui-config 返回 200 且体含 serverVersion</dd>
+      <dt>触发条件</dt><dd><code>ControlUIStatus == 200 && ServerVersion != ""</code></dd>
+      <dt>拒绝条件</dt><dd>200 但无 serverVersion（不命中 T1）；401/其它状态</dd>
+      <dt>输出</dt><dd>is_openclaw=true, rule="C1", 版本走 direct</dd>
+      <dt>信任假设</dt><dd>仿冒一个返回「200+合法 serverVersion」的该端点，成本等同于真实实现该端点契约</dd>
+      <dt>误判来源</dt><dd>静态镜像了真实例 control-ui 响应（含 serverVersion）的克隆站可命中 — 与 T5/T6 同源弱点 <span class="badge unverified">UNVERIFIED</span>（无对抗测试）</dd>
+      <dt>漏判来源</dt><dd>实例已防护（control-ui 返 401）或新版不在该端点暴露 serverVersion → T1 不中，由 C2/C3 兜底</dd>
+      <dt>实现位置</dt><dd><span class="ev">signals.go:27,49</span></dd>
+      <dt>测试覆盖</dt><dd>TestEvaluate「T1 control-ui 200+ver」→ C1 <span class="ev">probe_test.go:91-130</span></dd>
+      <dt>样例</dt><dd>输入 <code>{ControlUIStatus:200, ServerVersion:"2026.5.17"}</code> → 输出 true, "C1"</dd>
+    </dl></div>
+  </div>
+
+  <!-- C2 卡 -->
+  <div class="card">
+    <div class="hd"><span class="nm">C2 = T2 && (T3 || T4)</span><span class="badge stable">stable</span></div>
+    <div class="bd"><dl>
+      <dt>目标</dt><dd>用跨表面双强证据识别已防护实例（含 control-ui 401）</dd>
+      <dt>输入信号</dt><dd>T2（WS challenge）必中，且 T3（control-ui 401）或 T4（healthz）至少一个</dd>
+      <dt>触发条件</dt><dd><code>WSChallenge && (ControlUIStatus==401 || HealthzMatch)</code></dd>
+      <dt>拒绝条件</dt><dd>T2 缺失；或仅同表面双强（如 T3+T4 但无 T2）</dd>
+      <dt>输出</dt><dd>is_openclaw=true, rule="C2"</dd>
+      <dt>信任假设</dt><dd>跨表面：WS 协议面（动态行为）× HTTP 路由面（强证据），两表面须同时被构造才可伪造</dd>
+      <dt>误判来源</dt><dd>同时实现「推 connect.challenge 的 WS 端点」+「对该路径回 401 或 healthz 特征」的伪造目标 — 成本接近真实例</dd>
+      <dt>漏判来源</dt><dd>control-ui 返 200（非 401，T3 不中）且 healthz 未中 → C2 不成立，由 C3 兜底</dd>
+      <dt>实现位置</dt><dd><span class="ev">signals.go:51</span></dd>
+      <dt>测试覆盖</dt><dd>TestEvaluate「T2+T3 ws+401」「T2+T4 ws+healthz」→ C2；反例「T3+T4 same surface」「T2 ws alone」→ false <span class="ev">probe_test.go</span></dd>
+      <dt>样例</dt><dd>输入 <code>{WSChallenge:true, ControlUIStatus:401}</code> → true, "C2"</dd>
+    </dl></div>
+  </div>
+
+  <!-- C3 卡 -->
+  <div class="card">
+    <div class="hd"><span class="nm">C3 = T2 && assetHashMatch</span><span class="badge stable">stable</span></div>
+    <div class="bd"><dl>
+      <dt>目标</dt><dd>为 control-ui 返 200 但无 serverVersion、非 401、healthz 未中的真实例补达标路径（否则被 C1/C2 双双漏判）</dd>
+      <dt>输入信号</dt><dd>T2（WS challenge）+ assetHashMatch（首页资产哈希集合精确命中指纹库某版本）</dd>
+      <dt>触发条件</dt><dd><code>WSChallenge && (db != nil && MatchImplicit(ev) 非空)</code></dd>
+      <dt>拒绝条件</dt><dd>资产指纹单独成立不达标（必须叠加 T2）；指纹库未加载（db==nil）则 C3 恒假</dd>
+      <dt>输出</dt><dd>is_openclaw=true, rule="C3"，版本同时由同一次 MatchImplicit 反推带出</dd>
+      <dt>信任假设</dt><dd>WS 协议面（动态、须真跑服务端）× HTTP 静态构建产物面（资产哈希逐版本唯一）正交联合 → 抗仿冒性不低于 C2</dd>
+      <dt>误判来源</dt><dd>既透传真实例 WS 流量又镜像其前端 bundle 的代理 — 但其背后确有真实例，暴露面语义下判 true 非有害误报</dd>
+      <dt>漏判来源</dt><dd>资产哈希不在指纹库（新版未采集 / 纯 alpha 无镜像）→ C3 不中，仍记 suspect</dd>
+      <dt>实现位置</dt><dd><span class="ev">signals.go:53; probe.go 算一次 MatchImplicit 供判定与版本共用</span></dd>
+      <dt>测试覆盖</dt><dd>TestEvaluate「T2+assetHash」→ C3；反例「assetHash alone no ws」「assetHash + weak no ws」→ false <span class="ev">probe_test.go</span></dd>
+      <dt>样例</dt><dd>输入 <code>{WSChallenge:true, ControlUIStatus:200}</code> + 资产哈希命中 → true, "C3", version=implicit</dd>
+    </dl></div>
+  </div>
+
+  <h3>版本测定规则（determineVersion）</h3>
+  <ul>
+    <li><strong>优先直读</strong>：<code>ServerVersion != ""</code> → 取该版本，source=<code>direct</code>，去前导 <code>v</code>。</li>
+    <li><strong>否则隐式反推</strong>：用资产哈希集合与指纹库做 <code>setsEqual</code> 精确相等匹配（<code>MatchImplicit</code>）。唯一命中 → <code>implicit</code>；多命中（不可区分区间）→ <code>implicit-range</code> + 全部候选；不命中 → 全空。<span class="ev">version.go:13-23, fingerprints.go:41-56</span></li>
+  </ul>
+  <div class="callout warn">
+    <p class="ct">WARNING · 版本测定的两个待验证点</p>
+    <p>① <code>implicit</code>（唯一命中）分支无测试直接断言其 source 标记（仅 <code>implicit-range</code> 与 <code>direct</code> 有断言）。<span class="badge unverified">UNVERIFIED</span> ② 指纹库 23 条 <code>local-build</code> 来源条目的哈希未必等同官方分发，对 implicit 反推准确性的影响未独立核验。<span class="badge unverified">UNVERIFIED</span> 见 <a href="#limitations">限制</a>。</p>
+  </div>
+</section>
+
+<!-- ========== DATA MODEL ========== -->
+<section id="data-model">
+  <h2>数据模型 Data Model</h2>
+  <p>数据按子系统分库存放（本地 SQLite，模块自建表）。每个数据对象标注权威性分类：<span class="tag">权威</span> 项目正式状态 · <span class="tag">外部</span> 第三方平台数据，不等于项目确认 · <span class="tag">临时</span> 可删的中间产物 · <span class="tag">敏感</span> 含真实暴露主机/凭据。</p>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>数据对象</th><th>库</th><th>身份键</th><th>写入语义</th><th>分类</th><th>可提交</th></tr></thead>
+    <tbody>
+      <tr><td><code>assets</code></td><td>data/scanner/</td><td><code>sha1("ipport:{ip}:{port}")</code></td><td>当前态 upsert（合并更新）</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否（data/ gitignore）</td></tr>
+      <tr><td><code>observations</code></td><td>data/scanner/</td><td>自增 id（不去重）</td><td>append-only 时序</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
+      <tr><td><code>probe_records</code></td><td>data/scanner/</td><td>自增 id</td><td>append-only，完整请求/响应原文</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
+      <tr><td><code>fofa_candidates</code></td><td>data/fofa/</td><td><code>(ip, port)</code></td><td>当前态 upsert</td><td><span class="tag">外部</span><span class="tag">敏感</span></td><td>否</td></tr>
+      <tr><td><code>clawsec_snapshots</code></td><td>data/clawsec/</td><td><code>(snapshot_date, id)</code></td><td>每日快照（跨日追加）</td><td><span class="tag">外部</span><span class="tag">敏感</span></td><td>否</td></tr>
+      <tr><td><code>scan_blocks</code></td><td>data/scanner/</td><td><code>(campaign, block_cidr)</code></td><td>就地更新状态</td><td><span class="tag">权威</span></td><td>否</td></tr>
+      <tr><td><code>fingerprints.json</code></td><td>fingerprints/</td><td><code>version</code></td><td>整条覆盖</td><td><span class="tag">权威</span></td><td><strong>是</strong>（git 跟踪）</td></tr>
+      <tr><td><code>candidates.csv</code></td><td>项目根</td><td>(ip,port) 内存去重</td><td>整文件覆盖</td><td><span class="tag">临时</span></td><td>否</td></tr>
+      <tr><td><code>results.jsonl</code></td><td>指定路径</td><td>不去重</td><td><code>os.Create</code> 截断重建</td><td><span class="tag">临时</span><span class="tag">敏感</span></td><td>否</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout danger">
+    <p class="ct">WARNING · 文档纠错：指纹库是被 git 跟踪的，不是被忽略</p>
+    <p>旧文档（<code>docs/项目文档.html</code>）称「指纹库文件均已纳入 .gitignore」，<strong>与事实不符</strong>。<code>fingerprints/fingerprints.json</code> 实为 git 跟踪、未被忽略（<code>.gitignore</code> 只忽略 <code>fingerprints/*.local.json</code>）。<span class="ev">git check-ignore 退出码 1，已复核</span> 指纹库是需要随仓库走的权威数据，被跟踪是正确的。</p>
+  </div>
+
+  <h4><code>assets</code> 字段级（store/schema.sql:7-23）</h4>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>字段</th><th>语义</th></tr></thead>
+    <tbody>
+      <tr><td><code>asset_id</code> / <code>identity_key</code></td><td>身份键 sha1("ipport:{ip}:{port}")，按 IP:端口去重，<strong>不</strong>按内容指纹合并</td></tr>
+      <tr><td><code>category</code></td><td>三值枚举，取历次最强档（只升不降）</td></tr>
+      <tr><td><code>latest_version</code> / <code>version_source</code></td><td>版本与来源，COALESCE 保留旧值</td></tr>
+      <tr><td><code>first_seen</code> / <code>last_seen</code></td><td>首见仅首次写、永不改；最近见每次刷新</td></tr>
+      <tr><td><code>observations</code></td><td>该资产被观测次数，每次 +1</td></tr>
+      <tr><td><code>country</code> / <code>region</code> / <code>city</code> / <code>lat</code> / <code>lng</code></td><td>geoip 富化（COALESCE）。<strong>现状 region/city 为英文</strong>（cn_names 映射空），见下方说明</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout warn">
+    <p class="ct">WARNING · 地名现状是英文，中文化为待办</p>
+    <p>geoip 取库的英文名后查本地映射表 <code>geoip/cn_names.py</code> 的 <code>CITY_ZH</code> / <code>REGION_ZH</code> 转中文。但这两个 dict <strong>当前为空</strong>，未命中即原样保留英文。已复核：<code>assets.region</code> 实际全英文（Guangdong / Jiangsu / Sichuan…），lat 填充率 100%、region 88%。中文化是<strong>待办</strong>，非现状。<span class="ev">geoip/cn_names.py:22-27, lookup.py:82-83</span></p>
+  </div>
+
+  <h4>外部数据 vs 项目确认</h4>
+  <div class="callout invariant">
+    <p class="ct">INVARIANT · fofa_candidates / clawsec_snapshots 是外部标注，不是项目确认事实</p>
+    <p>这两张表的版本字段是 FOFA / ClawSec 平台<strong>自己</strong>的标注（如 clawsec 的 <code>their_version</code>），不代表本项目通过探测确认的结论。只有经 ocprobe 探测、入 <code>assets/observations</code> 的版本才是项目确认事实。双源版本对比时这一区分是前提。</p>
+  </div>
+</section>
+
+<!-- ========== CONFIGURATION ========== -->
+<section id="configuration">
+  <h2>配置 Configuration</h2>
+  <p>凭据走 <code>.ini</code> 配置文件或环境变量，配置文件已 gitignore。优先级一般为：命令行入参 &gt; 环境变量 &gt; 配置文件。</p>
+
+  <div class="callout danger">
+    <p class="ct">WARNING · 凭据安全</p>
+    <p>本文档<strong>不</strong>列出任何凭据的真实值。<code>fofa/fofa.ini</code> 与 <code>geoip/geoip.ini</code> 含真实有效的明文凭据，已 gitignore 且从未进入 git 历史（已复核）。但明文落在工作区，建议定期轮换并限制文件权限。</p>
+  </div>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>配置项</th><th>来源</th><th>必需</th><th>默认</th><th>作用</th><th>错配表现</th></tr></thead>
+    <tbody>
+      <tr><td><code>FOFA_EMAIL</code> / <code>FOFA_KEY</code></td><td>环境变量 或 <code>fofa/fofa.ini</code></td><td>用 FOFA 时必需</td><td>—</td><td>FOFA 拉取/被动种子的凭据</td><td>discovery 缺则 <code>sys.exit</code>；fofa 模块缺则拉取失败</td></tr>
+      <tr><td><code>SHODAN_API_KEY</code></td><td>环境变量</td><td>用 Shodan 时必需</td><td>—</td><td>Shodan 被动种子</td><td>discovery 加 <code>--shodan</code> 缺则 <code>sys.exit</code></td></tr>
+      <tr><td>MaxMind account_id / license_key</td><td><code>geoip/geoip.ini</code></td><td>下载库时需</td><td>—</td><td>下载 GeoLite2 库；运行时富化只需库文件本身</td><td>缺库文件则 geoip 软降级、地理列留空</td></tr>
+      <tr><td><code>[probe] concurrency</code></td><td><code>prober/config.toml</code> 或 <code>-concurrency</code></td><td>否</td><td>16（内置）</td><td>全局并发探测数</td><td>过高撞 ulimit/conntrack（见安全节）</td></tr>
+      <tr><td><code>[probe] timeout_per_ip</code></td><td>config.toml 或 <code>-timeout</code></td><td>否</td><td>8s</td><td>单 IP 探测超时</td><td>过短漏判慢机；过长拖慢枚举</td></tr>
+      <tr><td><code>[probe] rate</code></td><td>config.toml 或 <code>-rate</code></td><td>否</td><td>50</td><td>单 IP 每秒发包上限（per-worker，0=不限）</td><td>注：实现为 per-worker sleep，非全局限速（见安全节）</td></tr>
+      <tr><td><code>[scan] deadline</code></td><td>config.toml 或 <code>-deadline</code></td><td>否</td><td>0（不限）</td><td>整个任务总时长上限</td><td>—</td></tr>
+      <tr><td><code>[scan] ports</code></td><td>config.toml 或 <code>-port</code></td><td>否</td><td>18789（内置）</td><td>默认端口集</td><td>空且未给 -port 则报「未指定端口」</td></tr>
+      <tr><td><code>geoip/geoip.ini [geoip] city_db</code></td><td>配置文件</td><td>否</td><td>data/geoip/GeoLite2-City.mmdb</td><td>GeoLite2 库路径</td><td>路径错则 geoip 软降级</td></tr>
+    </tbody>
+  </table></div>
+  <p class="caption"><code>config/</code> 目录只含示例文件（<code>scanner.example.yaml</code> / <code>blocklist.example.txt</code>）；ocprobe 的运行配置实为 <code>prober/config.toml</code>。<span class="ev">config/ ls; prober/config.toml:1-16</span></p>
+
+  <div class="callout todo">
+    <p class="ct">TODO：scanner_identity 缺失</p>
+    <p>config 注释提到「规模化扫描前必须填写」rDNS / info_url / abuse_contact 这组可识别扫描标识，但当前 <code>scannerUserAgent</code> 常量<strong>不含</strong> abuse 联系信息（<code>consts.go</code> 注释自承待办）。文档不声称「带 abuse 联系信息」。见 <a href="#limitations">限制</a>。<span class="badge unverified">UNVERIFIED</span></p>
+  </div>
+</section>
+
+<!-- ========== COMMANDS ========== -->
+<section id="commands">
+  <h2>命令参考 Commands and Reference</h2>
+  <p>完整命令索引（Quickstart 是最小路径，这里是全集）。每条标注副作用。所有命令<strong>在项目根运行</strong>。</p>
+
+  <h3><code>ocprobe</code>（探测引擎）</h3>
+  <p>目标为<strong>位置参数</strong>：精确 IP / CIDR / 通配 IP（<code>1.14.*.22</code>）/ 每行一个 IP 的文件。<strong>无 <code>-f</code> 参数。</strong></p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>flag</th><th>默认</th><th>作用</th></tr></thead>
+    <tbody>
+      <tr><td><code>-port</code></td><td>config（18789）</td><td>端口，逗号分隔多个</td></tr>
+      <tr><td><code>-concurrency</code></td><td>16</td><td>全局并发 worker 数</td></tr>
+      <tr><td><code>-timeout</code></td><td>8s</td><td>单 IP 探测超时</td></tr>
+      <tr><td><code>-rate</code></td><td>50</td><td>单 IP 每秒发包上限（per-worker）</td></tr>
+      <tr><td><code>-deadline</code></td><td>0</td><td>任务总时长上限</td></tr>
+      <tr><td><code>-fingerprints</code></td><td>（空）</td><td>指纹库路径，启用隐式版本反推</td></tr>
+      <tr><td><code>-o</code></td><td>（不落盘）</td><td>JSONL 输出文件（os.Create 截断重建）</td></tr>
+      <tr><td><code>-l</code></td><td>关</td><td>详细日志：每 IP 完整研判依据</td></tr>
+      <tr><td><code>-tls</code></td><td>关</td><td>强制 TLS（443/8443/9443 自动）</td></tr>
+      <tr><td><code>--progress</code></td><td>关</td><td>单行刷新进度（替代逐行输出），写 stderr</td></tr>
+      <tr><td><code>--skip-unreachable</code></td><td>关</td><td>不落盘探不到的目标（大规模枚举省输出）</td></tr>
+      <tr><td><code>-report</code> / <code>-resume</code></td><td>—</td><td>占位 flag，<strong>未实现</strong>（<code>_</code> 丢弃）</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>副作用</strong>：写网络（对目标发 TCP/HTTP/WS）｜ 写文件仅在 <code>-o</code>｜ 不写库 ｜ 无凭据 ｜ 幂等（同名 -o 覆盖）。</p>
+
+  <h4>ocprobe 命令样例</h4>
+  <pre><code># 最小：探测单个 IP，结论逐行打印
+prober/bin/ocprobe -port 18789 203.0.113.10
+
+# 探一个 CIDR / 通配段（通配第三位枚举 0-255）
+prober/bin/ocprobe -port 18789 203.0.113.0/24
+prober/bin/ocprobe -port 18789 '1.14.*.22'
+
+# 典型：目标文件 + 指纹库版本反推 + 结果落盘
+prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o results.jsonl targets.txt
+
+# 大规模枚举：高并发 + 单行进度 + 探不到的不落盘 + 限速 + 缩短超时
+prober/bin/ocprobe -port 18789 -concurrency 4000 -timeout 5s -rate 50 \
+  --progress --skip-unreachable -fingerprints fingerprints/fingerprints.json \
+  -o results.jsonl targets.txt
+
+# 逐 IP 完整研判依据（排查为何某目标未达标）
+prober/bin/ocprobe -port 18789 -l 203.0.113.10</code></pre>
+  <div class="callout invariant">
+    <p class="ct">WARNING · 危险/易错参数</p>
+    <p><code>-o</code> 对同名文件<strong>截断重建</strong>（非追加），勿覆盖未入库的结果。大规模扫描请确保对目标已获授权，见 <a href="#security">安全与运营边界</a>。<code>-f</code> <strong>不存在</strong>，目标用位置参数。</p>
+  </div>
+
+  <h3>Python 模块命令</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>命令</th><th>用途</th><th>写库</th><th>网络</th><th>凭据</th><th>幂等/重跑</th></tr></thead>
+    <tbody>
+      <tr><td><code>python3 -m discovery</code></td><td>发现层产 candidates.csv</td><td>否（写 csv）</td><td>是（扫描/查 API）</td><td>FOFA/Shodan 时需</td><td>csv 整文件覆盖</td></tr>
+      <tr><td><code>python3 -m fofa pull/export/…</code></td><td>FOFA 候选归档/导出/统计</td><td>是（fofa.sqlite）</td><td>是</td><td>需 FOFA</td><td>upsert，可续</td></tr>
+      <tr><td><code>python3 -m clawsec pull</code></td><td>ClawSec 每日快照<strong>持续运营</strong></td><td>是（clawsec.sqlite）</td><td>是（明文 http）</td><td>免</td><td>可续；持续 5xx 可能<strong>永不退出</strong></td></tr>
+      <tr><td><code>.venv/bin/python3 -m store --in …</code></td><td>jsonl 入库</td><td>是（scan_results）</td><td>否</td><td>否</td><td>observations 追加、assets 合并</td></tr>
+      <tr><td><code>python3 -m store --stats / --report</code></td><td>统计 / 出报告</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
+      <tr><td><code>python3 -m progress seed/claim/…</code></td><td>扫描块调度</td><td>是（scan_blocks）</td><td>否</td><td>否</td><td>原子领取</td></tr>
+      <tr><td><code>.venv/bin/python3 -m geoip.backfill</code></td><td>回填/重刷资产地理列</td><td>是（assets）</td><td>否</td><td>否</td><td>幂等</td></tr>
+      <tr><td><code>python3 -m dashboard</code></td><td>只读看板（127.0.0.1:8787）</td><td>否</td><td>仅监听回环</td><td>否</td><td>只读</td></tr>
+      <tr><td><code>python3 -m scope.cn_ranges</code></td><td>生成中国 CIDR 全集</td><td>否（写 txt）</td><td>是（拉 APNIC）</td><td>否</td><td>整文件覆盖</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>Python 模块命令样例</h4>
+  <pre><code># 发现层：被动 FOFA 种子 + 黑名单过滤，产 candidates.csv（需 FOFA 凭据）
+python3 -m discovery --fofa --out candidates.csv
+
+# FOFA 候选拉取入库 / 看额度 / 按省统计
+python3 -m fofa pull
+python3 -m fofa info
+python3 -m fofa provinces
+
+# ClawSec 每日快照持续运营（前台常驻，Ctrl-C 停）；可调轮询间隔
+python3 -m clawsec pull
+python3 -m clawsec pull --watch-interval 300
+
+# 入库：jsonl → SQLite（用 venv，因 geoip 富化需 geoip2 包）
+.venv/bin/python3 -m store --in results.jsonl --db data/scanner/scan_results.sqlite
+
+# 统计 / 出报告（只读）
+python3 -m store --stats
+python3 -m store --report out.html
+
+# 看板（只监听回环）
+python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
+
+# geoip 回填/重刷已有资产的地理列（幂等）
+.venv/bin/python3 -m geoip.backfill --all</code></pre>
+
+  <h3>Makefile target</h3>
+  <div class="callout danger">
+    <p class="ct">WARNING · make probe / make demo 坏了；make clean 危险</p>
+    <p><code>make probe</code> / <code>make demo</code> 用 <code>ocprobe -f candidates.csv</code>，<code>-f</code> 不存在、实跑报错退出码 2。<code>make clean</code> 执行 <code>rm -rf data/</code>，<strong>会删除全部三个权威库</strong>（scanner/fofa/clawsec，合计 &gt;1GB），不可逆。</p>
+  </div>
+  <p>可用 target：<code>make test</code>（测试）、<code>make prober</code>（构建 ocprobe）、<code>make zgrab</code>（构建 ZGrab2 模块）、<code>make load</code>（store 入库）、<code>make stats</code>、<code>make fofa-info/pull/provinces/export/pv</code>、<code>make clawsec-info/pull/longlived/overlap</code>。<span class="ev">Makefile</span></p>
+</section>
+
+<!-- ========== VALIDATION ========== -->
+<section id="validation">
+  <h2>验证 Validation</h2>
+  <p>本节把关键结论绑定到证据。凡正文出现「已验证 / 支持 / 只读 / 幂等」等词，应能在此找到对应验证方法；无验证者标 <span class="badge unverified">UNVERIFIED</span>。</p>
+
+  <h3>有测试支撑的结论</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>结论</th><th>验证方法 / 证据</th></tr></thead>
+    <tbody>
+      <tr><td>判定白名单 C1/C2/C3 正确，反例不达标</td><td><code>TestEvaluate</code> 覆盖 C1/C2/C3 + 反例（assetHash 单独不达标等），go test 全过 <span class="ev">probe_test.go:91-130</span></td></tr>
+      <tr><td>probeWS 函数级只读不变量（不发利用帧）</td><td><code>TestProbeWS_ReadOnlyAndChallenge</code> 断言写入字节不含 connect/config.apply、以 \r\n\r\n 结尾 <span class="ev">probe_test.go:55-89</span></td></tr>
+      <tr><td>版本反推 implicit-range / direct 正确</td><td>对应测试断言 source 标记 <span class="ev">version_test / probe_test</span></td></tr>
+      <tr><td>discovery / store / progress / fofa 核心逻辑</td><td>各模块 tests/，<code>make test</code> 跑 24 个 python 用例全过</td></tr>
+      <tr><td>主链路对真实数据可跑通入库</td><td>scan_results.sqlite 实有 assets 5762 / observations 5762 / probe_records 28810（已复核 count）</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>缺测试 / 未验证的结论（HTML 标 UNVERIFIED）</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>结论</th><th>为何未验证 / 需要的证据</th></tr></thead>
+    <tbody>
+      <tr><td>zgrab-openclaw 是与 ocprobe 等价的「生产形态」</td><td>二进制 06-11 比 openclaw 包 06-22 旧、未含 C3；zgrab 包不在 go test 范围。需 make zgrab 重建后同靶比对</td></tr>
+      <tr><td>clawsec 502/503/504 无限重试在真实 5xx 下不卡死</td><td>无注入桩测试，仅代码与 commit</td></tr>
+      <tr><td>version_source=='implicit'（唯一命中）分支</td><td>无测试直接断言其 source 标记（测试盲区）</td></tr>
+      <tr><td>整条 runner 调用链只读（非仅 probeWS 函数）</td><td>单测只覆盖函数级写入字节，未对整条 ocprobe 链抓包断言</td></tr>
+      <tr><td>TestProbeIntegration 端到端判定成立</td><td>需本地起 OpenClaw 容器才跑，无 PASS 留痕</td></tr>
+      <tr><td>指纹常量来自 2026.5.17 实测、favicon 跨版本稳定</td><td>无采集语料/探测日志佐证</td></tr>
+      <tr><td>local-build 来源 23 条指纹等同官方分发</td><td>采集脚本自承「未必逐字节等同」，未独立核验</td></tr>
+      <tr><td>masscan/zmap 后端在真实 root 环境可用</td><td>无授权扫描主机实跑（仅合成解析单测）</td></tr>
+      <tr><td>-rate 把单 IP 压到设定值</td><td>实现为 per-worker sleep、非全局限速；无频率断言测试</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ========== TROUBLESHOOTING ========== -->
+<section id="troubleshooting">
+  <h2>失败与排错 Failure Modes and Troubleshooting</h2>
+  <p>按现象列出常见失败，含检查命令、恢复方式、是否影响权威数据、是否可安全重跑。</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>现象</th><th>可能原因</th><th>检查 / 恢复</th><th>影响权威数据</th><th>可安全重跑</th></tr></thead>
+    <tbody>
+      <tr><td><code>No module named xxx</code></td><td>在子目录内运行 python -m</td><td>回项目根运行</td><td>否</td><td>是</td></tr>
+      <tr><td><code>flag provided but not defined: -f</code>（退出码 2）</td><td>用了 make probe/demo 或 ocprobe -f</td><td>改用 ocprobe 位置参数；目标文件每行一个 IP</td><td>否</td><td>是</td></tr>
+      <tr><td>探测大面积超时 / <code>too many open files</code></td><td>并发过高撞 ulimit/conntrack</td><td><code>ulimit -n 65535</code>；降并发；检查目标侧封禁</td><td>否</td><td>是</td></tr>
+      <tr><td>discovery 直接退出</td><td><code>--fofa/--shodan</code> 缺对应环境变量 → <code>sys.exit</code></td><td>设 FOFA_EMAIL/KEY 或 SHODAN_API_KEY <span class="ev">discovery/__main__.py:56-65</span></td><td>否</td><td>是</td></tr>
+      <tr><td>地理列全空 / 全英文</td><td>geoip2 或 GeoLite2 库缺失（软降级）；或 cn_names 映射空</td><td>装 geoip2、放 .mmdb；中文化需填 cn_names.py</td><td>否（不阻断入库）</td><td>是（geoip.backfill 重刷）</td></tr>
+      <tr><td>masscan 报错（需 root）</td><td>masscan/zmap 非 root 或未安装</td><td>sudo 运行；或用 internal 后端（无 root，/16 上限）<span class="ev">active.py:73-75</span></td><td>否</td><td>是</td></tr>
+      <tr><td>clawsec pull 长时间不结束</td><td>平台持续 5xx → 无限退避重试（有意行为）</td><td>查平台状态；Ctrl-C 停。已入库快照不受影响 <span class="ev">client.py:63-66</span></td><td>否（已入快照保留）</td><td>是（断点续）</td></tr>
+      <tr><td>FOFA 拉取中途停</td><td>额度耗尽（优雅停）或 429</td><td>查 <code>make fofa-info</code> 额度；429 自动退避；按 (ip,port) 去重续拉</td><td>否</td><td>是</td></tr>
+      <tr><td>找不到数据库</td><td>store/dashboard 指向不存在的库</td><td>先跑 store 入库；dashboard 库缺仅告警不退出</td><td>否</td><td>是</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ========== SECURITY ========== -->
+<section id="security">
+  <h2>安全与运营边界 Security, Privacy, Operational Boundaries</h2>
+
+  <h3>授权边界</h3>
+  <div class="callout danger">
+    <p class="ct">WARNING · 对公网的主动扫描属运营动作，须授权</p>
+    <p>ocprobe / masscan / zmap 会对目标 IP 发起真实连接。最小路径用本地靶机；大规模扫描须在获授权的主机上、对获授权的目标进行。本项目扫的 OpenClaw 实例多来自 ClawSec / FOFA 已公开列出的暴露实例。</p>
+  </div>
+
+  <h3>默认允许 / 默认禁止行为（落到具体动作）</h3>
+  <ul>
+    <li><strong>允许（探测全程只读）</strong>：HTTP 升级请求、无鉴权 GET（/healthz、/、control-ui-config、/favicon.ico）、读 WS 首帧。</li>
+    <li><strong>禁止（有单测固化于函数级）</strong>：发任何 WS 数据帧、发 <code>connect</code> 帧或 <code>config.apply</code>（CVE 利用面）。<span class="ev">ws.go 只 Write 一次升级请求；probe_test.go 断言不含越界帧</span></li>
+    <li>可达性门槛：先一次 TCP 连接，连不上的目标直接返回、不发 HTTP/WS。<span class="ev">probe.go</span></li>
+  </ul>
+  <div class="callout warn">
+    <p class="ct">WARNING · 「整条链路只读」是函数级证据，非整链抓包</p>
+    <p>只读不变量目前由 <code>probeWS</code> 的函数级单测固化（断言其写入字节）。整条 ocprobe runner 调用链的「只读」未做抓包断言。<span class="badge unverified">UNVERIFIED</span></p>
+  </div>
+
+  <h3>速率与限制</h3>
+  <ul>
+    <li><code>-rate</code>（默认 50）：单 IP 每秒发包上限，但<strong>实现为 per-worker <code>time.Sleep</code>、非跨 goroutine 全局限速</strong>。同一 IP 多端口入队后各 worker 互不协调。HTML 不声称「严格全局单 IP 速率」。<span class="ev">main.go minInterval</span></li>
+    <li>masscan 限速靠 <code>--rate</code>；blocklist 默认排除 16 个 RFC 保留/私有网段，非法 IP 一律排除。<span class="ev">discovery/blocklist.py:6-30</span></li>
+  </ul>
+
+  <h3>凭据 / 敏感数据 / 网络</h3>
+  <ul>
+    <li><strong>凭据存储</strong>：FOFA/MaxMind 走 <code>.ini</code>（已 gitignore、从未进历史）或环境变量。文档不列值。</li>
+    <li><strong>敏感数据</strong>：<code>data/</code>、<code>scan_test/results/</code>、各 .sqlite 含真实暴露主机与原始请求/响应，已 gitignore。probe_records 的响应原文做了二进制摘要清洗、前端 HTML 转义防 XSS。</li>
+    <li><strong>明文传输</strong>：ClawSec 平台走 <code>http://clawsec.tcode.com.cn/api</code>（明文，非 https）。请求/响应明文传输。</li>
+    <li><strong>看板</strong>：仅监听 <code>127.0.0.1</code>，不对公网暴露。</li>
+  </ul>
+
+  <h3>误操作与止损</h3>
+  <ul>
+    <li><code>make clean</code> 执行 <code>rm -rf data/</code>，删除全部三个权威库，<strong>不可逆</strong>。运行前确认。</li>
+    <li><code>ocprobe -o</code> / discovery 输出对同名文件<strong>截断重建</strong>（非追加），覆盖前确认。</li>
+    <li>入库后历史在 observations（append-only），探测可安全重跑。</li>
+  </ul>
+  <div class="callout todo">
+    <p class="ct">TODO：可识别扫描标识未落地</p>
+    <p>规模化扫描的常见合规要求（rDNS、说明页 URL、abuse 联系）当前 UA 不含。config 注释承认待办。须在运营前补 scanner_identity。<span class="badge unverified">UNVERIFIED</span></p>
+  </div>
+</section>
+
+<!-- ========== MAINTENANCE ========== -->
+<section id="maintenance">
+  <h2>维护 Maintenance</h2>
+  <ul>
+    <li><strong>指纹库更新</strong>：OpenClaw 发新版时 <code>fingerprint/collect_corpus.py --repo &lt;仓库&gt; --only &lt;版本&gt;</code>，优先官方镜像静态提取（source=image）。现库 161 条，覆盖正式版 2026.1.5~2026.6.9 与 2026.5.16 起的预发布版；缺口见限制。</li>
+    <li><strong>GeoLite2 库更新</strong>：MaxMind 每周更新，重新下载 .mmdb 后 <code>.venv/bin/python3 -m geoip.backfill --all</code> 重刷已有资产。</li>
+    <li><strong>地名中文化</strong>：填 <code>geoip/cn_names.py</code> 的 CITY_ZH/REGION_ZH，再 backfill --all。</li>
+    <li><strong>schema 变更</strong>：store/load.py 的 <code>_migrate</code> 对旧库 ALTER 补列（幂等）；新增字段在此处加。</li>
+    <li><strong>数据备份/清理</strong>：备份 data/*.sqlite 即可；<code>make clean</code> 危险（删全部库）。</li>
+    <li><strong>凭据轮换</strong>：定期轮换 FOFA/MaxMind 凭据，更新对应 .ini。</li>
+    <li><strong>文档更新触发</strong>：判定规则、指纹库口径、数据 schema、命令参数、安全边界变更时，须同步本文档对应章节。</li>
+  </ul>
+</section>
+
+<!-- ========== AGENT ========== -->
+<section id="agent">
+  <h2>智能体须知 Agent Instructions</h2>
+  <p>本节面向后续修改本项目的代码智能体，作用接近 <code>AGENTS.md</code> / <code>CLAUDE.md</code>（项目根有此二文件，<span class="badge unverified">本节未逐字吸收其内容，TODO</span>）。</p>
+
+  <h3>项目目标（压缩）</h3>
+  <p>授权范围内发现公网 OpenClaw 暴露面，<strong>只读</strong>探测判定（C1/C2/C3 二元白名单）+ 版本测定（direct / implicit），归档到 SQLite，服务漏洞协同披露。判定与版本测定<strong>只在 prober/openclaw</strong>。</p>
+
+  <h3>代码地图（改之前先读）</h3>
+  <ul>
+    <li>改判定规则 → <code>prober/openclaw/signals.go</code>（evaluate）+ 必须同步 <code>probe_test.go</code> 的 TestEvaluate。</li>
+    <li>改版本测定 → <code>version.go</code> / <code>fingerprints.go</code>。</li>
+    <li>改探测采集 → <code>http.go</code> / <code>ws.go</code>（T1–T7 信号）。</li>
+    <li>改入库语义 → <code>store/load.py</code> + <code>store/schema.sql</code>（去重/覆盖/迁移）。</li>
+    <li>改地名 → <code>geoip/lookup.py</code> / <code>cn_names.py</code>。</li>
+  </ul>
+
+  <h3>修改约束</h3>
+  <ul>
+    <li><strong>禁止</strong>：把凭据值写进任何文件或文档；把 <code>data/</code>、真实结果、.ini 提交到版本库；让探测发出 WS 数据帧/利用帧（破坏只读不变量，有单测会失败）。</li>
+    <li><strong>谨慎</strong>：改 evaluate 的白名单（影响所有判定口径，须重跑 TestEvaluate 并保持对称）；改 schema（须配 _migrate 幂等迁移）。</li>
+    <li><strong>测试命令</strong>：<code>make test</code>（Go + Python）。改 Go 探测逻辑后 <code>go -C prober test ./openclaw/</code>。</li>
+    <li><strong>done 标准</strong>：相关单测通过；新增能力配测试；改了判定/版本/schema/命令/安全边界须同步本文档。</li>
+    <li><strong>commit</strong>：按项目 CLAUDE.md 的动作标签规范；不显式声明 AI 参与。</li>
+  </ul>
+</section>
+
+<!-- ========== KNOWN LIMITATIONS ========== -->
+<section id="limitations">
+  <h2>已知限制 / TODO Known Limitations and TODOs</h2>
+  <p>全项目的缺失、未验证、风险、待办集中于此。每项含影响、为何无法确定、需要的证据。</p>
+
+  <h3>已确认的缺陷 / 限制</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>项</th><th>影响</th><th>建议补齐</th></tr></thead>
+    <tbody>
+      <tr><td><code>make probe</code> / <code>make demo</code> 用不存在的 ocprobe <code>-f</code></td><td>两 target 跑不通（退出码 2）</td><td>改 Makefile 用位置参数 + 预处理 candidates.csv 为每行一个 IP</td></tr>
+      <tr><td><code>detectConfidenceFloor=0.90</code> 死常量</td><td>consts.go 声明但全 prober 零引用；evaluate 纯二元不读分值。注释误导</td><td>删常量或删注释</td></tr>
+      <tr><td>地名 region/city 全英文</td><td>看板/资产展示英文（Guangdong 而非广东）</td><td>填 geoip/cn_names.py 映射表 + backfill --all</td></tr>
+      <tr><td>指纹库覆盖缺口</td><td>2026.5.16 前的预发布版、无官方镜像的纯 alpha 版未收录 → 这些实例 implicit 反推为未知</td><td>持续 collect_corpus 增量补录</td></tr>
+      <tr><td>不可区分版本区间</td><td>构建产物相同的版本（如 2026.3.7=2026.3.8）只能给 implicit-range，无法精确到单版</td><td>设计局限，无解（除非引入别的区分信号）</td></tr>
+      <tr><td>scannerUserAgent 不含 abuse 联系信息</td><td>规模化扫描合规性不足</td><td>运营前补 rDNS/info_url/abuse_contact</td></tr>
+      <tr><td>根目录旧库 <code>scan.sqlite</code>（69MB）</td><td>迁移前遗留物，已被 data/{fofa,clawsec,scanner} 取代</td><td>确认无用后删除</td></tr>
+      <tr><td>多处旧注释/旧文档与代码不符</td><td>schema.sql:1「内容指纹去重」、result.go:38 漏 C3、旧 docs「全模块带测试」「指纹库 gitignore」等</td><td>逐处以代码为准修正（本文档已纠正主要几处）</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>未验证项（需补测试 / 运行证据）</h3>
+  <ul>
+    <li>zgrab-openclaw 二进制与当前 Probe 行为等价（二进制旧、未重建比对）。</li>
+    <li>clawsec 5xx 无限退避重试在真实平台下不卡死（无注入桩测试）。</li>
+    <li>version_source=='implicit' 唯一命中分支无测试断言。</li>
+    <li>整条 runner 调用链只读（仅函数级单测）。</li>
+    <li>TestProbeIntegration 端到端判定（需起容器，无留痕）。</li>
+    <li>指纹常量来源、local-build 23 条等同官方分发（未独立核验）。</li>
+    <li>masscan/zmap 真实 root 环境可用（仅合成单测）。</li>
+    <li>-rate 全局限速效果（实现为 per-worker）。</li>
+  </ul>
+
+  <h3>本文档自身的 TODO</h3>
+  <ul>
+    <li><code>TODO: source missing</code> — 未读取项目根 <code>AGENTS.md</code> / <code>CLAUDE.md</code> 全文，Agent 章节的禁改路径清单可能不全。</li>
+    <li>下游能力（版本→CVE 映射、协同披露流程、暴露面板的时间维度）尚未实现，本文档无对应章节。</li>
+  </ul>
+</section>
+
+
+  <footer>
+    <p>本文档按 <code>SELF_CONTAINED_PROJECT_DOCS_PROMPT.md</code> 的信息架构生成，目标是工程接手契约而非展示页。所有结论尽量绑定 <span class="ev">file:line</span> 或测试/运行证据；无证据者标 <span class="badge unverified">UNVERIFIED</span> 或归入「已知限制 / TODO」。文档离线自包含，无外部资源请求。</p>
+  </footer>
+
+</div>
+</main>
+</div>
+<script>
+  // 代码复制
+  document.querySelectorAll('pre').forEach(function(pre){
+    var b=document.createElement('button'); b.className='copy-btn'; b.textContent='复制';
+    b.onclick=function(){
+      var c=pre.querySelector('code'); var t=c?c.innerText:pre.innerText;
+      navigator.clipboard.writeText(t).then(function(){
+        b.textContent='已复制'; b.classList.add('copied');
+        setTimeout(function(){b.textContent='复制'; b.classList.remove('copied');},1400);
+      });
+    };
+    pre.appendChild(b);
+  });
+  // 导航高亮（当前章节）
+  var links=[].slice.call(document.querySelectorAll('nav.side a'));
+  var secs=links.map(function(a){return document.getElementById(a.getAttribute('href').slice(1));}).filter(Boolean);
+  function onScroll(){
+    var y=window.scrollY+90, cur=secs[0];
+    secs.forEach(function(s){ if(s.offsetTop<=y) cur=s; });
+    links.forEach(function(a){ a.classList.toggle('active', cur && a.getAttribute('href')==='#'+cur.id); });
+  }
+  window.addEventListener('scroll', onScroll, {passive:true}); onScroll();
+  // 移动端点导航后收起
+  document.querySelectorAll('nav.side a').forEach(function(a){
+    a.addEventListener('click', function(){ document.body.classList.remove('nav-open'); });
+  });
+</script>
+</body>
+</html>
