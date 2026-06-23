@@ -14,7 +14,7 @@
     --co-bg-strong:#eaedf1; --co-bd-strong:#afb8c1;
     --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Helvetica,Arial,sans-serif;
-    --nav-w:280px; --maxw:920px;
+    --nav-w:280px; --maxw:1180px;
   }
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth; scroll-padding-top:16px;}
@@ -35,14 +35,17 @@
   nav.side .grp{font-size:11px; text-transform:uppercase; letter-spacing:.05em;
     color:var(--fg-faint); padding:16px 10px 4px; font-weight:600;}
 
-  main{flex:1 1 auto; min-width:0; padding:36px 40px 120px; max-width:calc(var(--maxw) + 80px);}
+  main{flex:1 1 auto; min-width:0; padding:40px 56px 120px; max-width:calc(var(--maxw) + 112px);}
   .wrap{max-width:var(--maxw);}
 
-  h1{font-size:30px; font-weight:700; line-height:1.25; margin:0 0 8px; letter-spacing:-.01em;}
-  h2{font-size:22px; font-weight:600; line-height:1.3; margin:48px 0 14px; padding-bottom:7px;
-    border-bottom:1px solid var(--border-soft); scroll-margin-top:16px;}
-  h3{font-size:17px; font-weight:600; margin:28px 0 10px;}
-  h4{font-size:14.5px; font-weight:600; margin:20px 0 8px; color:var(--fg);}
+  h1{font-size:38px; font-weight:700; line-height:1.2; margin:0 0 10px; letter-spacing:-.02em;}
+  h2{font-size:27px; font-weight:700; line-height:1.3; margin:54px 0 16px; padding-bottom:8px;
+    border-bottom:1px solid var(--border-soft); scroll-margin-top:16px; letter-spacing:-.01em;}
+  h3{font-size:19px; font-weight:600; margin:30px 0 11px;}
+  h4{font-size:14px; font-weight:600; margin:20px 0 8px; color:var(--fg-muted); text-transform:none;}
+  /* 一级章节(h2)之后的正文整体左缩进，与标题拉开层次 */
+  section > :not(h2):not(h1){margin-left:18px;}
+  section > h2{margin-left:0;}
   p{margin:0 0 13px;}
   a{color:var(--link); text-decoration:none;} a:hover{text-decoration:underline;}
   ul,ol{margin:0 0 13px; padding-left:24px;} li{margin:3px 0;}
@@ -147,9 +150,11 @@
   <a href="#concepts">核心概念 Core Concepts</a>
   <a href="#workflows">工作流 Workflows</a>
   <a href="#rules">判定与决策规则 Rules</a>
+  <a href="#narrative">研判依据拼接 Narrative</a>
   <a href="#data-model">数据模型 Data Model</a>
   <a href="#configuration">配置 Configuration</a>
   <a href="#commands">命令参考 Commands</a>
+  <a href="#frontend">前端看板 Frontend</a>
   <a href="#validation">验证 Validation</a>
   <a href="#troubleshooting">失败与排错 Troubleshooting</a>
   <a href="#security">安全与运营边界 Security</a>
@@ -689,6 +694,34 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
   </div>
 </section>
 
+<!-- ========== NARRATIVE ========== -->
+<section id="narrative">
+  <h2>研判依据拼接 Narrative</h2>
+  <p>机器判定（<code>is_openclaw</code> / <code>rule</code>）是结论，但报告与看板要把它<strong>解释成人话</strong>——这件事由 <code>store/report.py</code> 独立完成，是「研判结论如何对人解释」的<strong>唯一真相源</strong>。本节是它的权威落点。<strong>判定与话术解耦</strong>：本模块不重新判定，只把已有的 observation + probe_records 拼成分析文字。<span class="ev">store/report.py:1-4</span></p>
+
+  <div class="callout invariant">
+    <p class="ct">INVARIANT · 同一套拼装逻辑被两处复用</p>
+    <p>这套 narrative 拼装<strong>同时</strong>支撑：<a href="#commands">命令参考</a>的 <code>store --report</code>（出 txt/html/json/csv 报告）与<a href="#frontend">前端看板</a>的 <code>/api/report</code>（双击资产行展开的逐主机报告）。两处看到的研判文字一字不差，因为都来自此处。改话术只改这一处。</p>
+  </div>
+
+  <h3>拼装流程（observation + probes → 分析文字）</h3>
+  <p>对一台主机的最近一次观测：<span class="ev">store/report.py:109-305</span></p>
+  <ul>
+    <li><strong>逐探针分析</strong>（<code>analysis_by_probe</code>）：对每个测试项按其实际命中态，套 <code>report_templates.toml</code> 的话术，拼出「该探针做了什么、命中了什么关键特征」。命中时给出 highlights（同时出现在响应里的关键特征词）。<span class="ev">report.py:173</span></li>
+    <li><strong>研判小结</strong>（<code>verdict_summary</code>）：收口达标逻辑，每例讲一次——按 <code>rule</code> 分 C1 / C2 / 判假(false) / 探不到(down) 四种话术；C2 还按 <code>version_source</code> 把版本子句（direct / implicit / implicit-range / 无版本）嵌进去。<span class="ev">report.py:279-305</span></li>
+    <li><strong>版本说明</strong>（<code>version_note</code>）：解释这台的版本是直读还是反推、是否落在不可区分区间。</li>
+    <li><strong>测试项含义</strong>（<code>TEST_MEANINGS</code>）：T1–T7 / C1 / C2 每项的研判标准与含义文案——同一份文案也供<a href="#frontend">前端</a>横幅悬停提示。测试项的定义本身见 <a href="#concepts">核心概念</a>。<span class="ev">report.py:265-277</span></li>
+  </ul>
+
+  <h3>话术模板与兜底</h3>
+  <ul>
+    <li>话术文案集中在 <code>prober/report_templates.toml</code>（与 <code>config.toml</code> 平级），<code>load_templates</code> 进程启动时加载一次。<span class="ev">report.py:20-24</span></li>
+    <li>找不到模板文件时有<strong>内置兜底话术</strong>，保证报告仍能出，不因缺模板而崩。<span class="ev">report.py:27</span></li>
+    <li>请求/响应原文落库后，报告呈现时对二进制响应体折算 MD5 摘要（避免乱码/超长），见 <a href="#data-model">probe_records</a>。</li>
+  </ul>
+  <p class="note">报告输出格式、命令用法见 <a href="#commands">命令参考</a> 的 <code>store --report</code>；看板里的逐主机报告见 <a href="#frontend">前端看板</a> 的 <code>/api/report</code>。本节只讲「文字怎么拼出来」。</p>
+</section>
+
 <!-- ========== DATA MODEL ========== -->
 <section id="data-model">
   <h2>数据模型 Data Model</h2>
@@ -708,6 +741,15 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
       <tr><td><code>results.jsonl</code></td><td>指定路径</td><td>不去重</td><td><code>os.Create</code> 截断重建</td><td><span class="tag">临时</span><span class="tag">敏感</span></td><td>否</td></tr>
     </tbody>
   </table></div>
+
+  <h4><code>scan_blocks</code> 状态机（多机协同断点续扫）</h4>
+  <p><code>progress</code> 模块用 scan_blocks 表把大范围切成 CIDR 块、在多 worker 间分发，是这张表的权威落点。状态流转：<span class="ev">progress/blocks.py:39-118</span></p>
+  <ul>
+    <li><strong>seed</strong>：按 /prefix 切块，<code>INSERT OR IGNORE</code> 登记为 <code>pending</code>（重复登记幂等）。</li>
+    <li><strong>claim</strong>：worker 用 <code>BEGIN IMMEDIATE</code> 串行化，原子领取一个 pending 块、置 <code>claimed</code> 并记 worker 与领取时间——保证两个 worker 不会领到同一块。</li>
+    <li><strong>mark_done</strong>：worker 扫完该块，置 <code>done</code>。</li>
+    <li><strong>reset_stale</strong>：把领取超过 3600s 仍未完成的块退回 <code>pending</code>（回收僵死 worker 占用的块），供他人重领。这是运维定期动作，见 <a href="#maintenance">维护</a>。</li>
+  </ul>
 
   <div class="callout danger">
     <p class="ct">WARNING · 文档纠错：指纹库是被 git 跟踪的，不是被忽略</p>
@@ -824,14 +866,24 @@ prober/bin/ocprobe -port 18789 -l 203.0.113.10</code></pre>
   <div class="tbl-wrap"><table>
     <thead><tr><th>命令</th><th>用途</th><th>写库</th><th>网络</th><th>凭据</th><th>幂等/重跑</th></tr></thead>
     <tbody>
-      <tr><td><code>python3 -m discovery</code></td><td>发现层产 candidates.csv</td><td>否（写 csv）</td><td>是（扫描/查 API）</td><td>FOFA/Shodan 时需</td><td>csv 整文件覆盖</td></tr>
-      <tr><td><code>python3 -m fofa pull/export/…</code></td><td>FOFA 候选归档/导出/统计</td><td>是（fofa.sqlite）</td><td>是</td><td>需 FOFA</td><td>upsert，可续</td></tr>
-      <tr><td><code>python3 -m clawsec pull</code></td><td>ClawSec 每日快照<strong>持续运营</strong></td><td>是（clawsec.sqlite）</td><td>是（明文 http）</td><td>免</td><td>可续；持续 5xx 可能<strong>永不退出</strong></td></tr>
-      <tr><td><code>.venv/bin/python3 -m store --in …</code></td><td>jsonl 入库</td><td>是（scan_results）</td><td>否</td><td>否</td><td>observations 追加、assets 合并</td></tr>
-      <tr><td><code>python3 -m store --stats / --report</code></td><td>统计 / 出报告</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
-      <tr><td><code>python3 -m progress seed/claim/…</code></td><td>扫描块调度</td><td>是（scan_blocks）</td><td>否</td><td>否</td><td>原子领取</td></tr>
-      <tr><td><code>.venv/bin/python3 -m geoip.backfill</code></td><td>回填/重刷资产地理列</td><td>是（assets）</td><td>否</td><td>否</td><td>幂等</td></tr>
-      <tr><td><code>python3 -m dashboard</code></td><td>只读看板（127.0.0.1:8787）</td><td>否</td><td>仅监听回环</td><td>否</td><td>只读</td></tr>
+      <tr><td><code>python3 -m discovery</code></td><td>发现层产 candidates.csv（主动扫描+被动种子）</td><td>否（写 csv）</td><td>是（扫描/查 API）</td><td>FOFA/Shodan 时需</td><td>csv 整文件覆盖</td></tr>
+      <tr><td><code>python3 -m fofa pull</code></td><td>FOFA 候选拉取入库（时间窗/自定义查询/限条/断点续）</td><td>是（fofa.sqlite）</td><td>是</td><td>需 FOFA</td><td>upsert，可续</td></tr>
+      <tr><td><code>python3 -m fofa export</code></td><td>库内候选导出为 candidates.csv（可限条）</td><td>否（写 csv）</td><td>否</td><td>否</td><td>整文件覆盖</td></tr>
+      <tr><td><code>python3 -m fofa provinces</code></td><td>按省统计 FOFA 候选数</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
+      <tr><td><code>python3 -m fofa province-versions</code></td><td>ATTACH 扫描库，按 省×版本 统计已探测资产</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
+      <tr><td><code>python3 -m fofa info</code></td><td>查 FOFA 账号 VIP / 剩余额度</td><td>否</td><td>是</td><td>需 FOFA</td><td>只读</td></tr>
+      <tr><td><code>python3 -m clawsec pull</code></td><td>ClawSec 每日快照<strong>持续运营</strong>（详见 <a href="#workflows">WF-3</a>）</td><td>是（clawsec.sqlite）</td><td>是（明文 http）</td><td>免</td><td>可续；持续 5xx 可能<strong>永不退出</strong></td></tr>
+      <tr><td><code>python3 -m clawsec longlived</code></td><td>跨快照分析长期有效实例（<code>--min-days</code>/<code>--all-scope</code>/<code>--limit</code>）</td><td>否</td><td>否</td><td>免</td><td>只读</td></tr>
+      <tr><td><code>python3 -m clawsec overlap</code></td><td>最新快照 × fofa_candidates 的隐位重叠数</td><td>否</td><td>否</td><td>免</td><td>只读</td></tr>
+      <tr><td><code>python3 -m clawsec versions / info</code></td><td>最新快照版本分布 / 平台汇总计数</td><td>否</td><td>versions 否、info 是</td><td>免</td><td>只读</td></tr>
+      <tr><td><code>.venv/bin/python3 -m store --in …</code></td><td>jsonl 入库（缺省读 stdin）</td><td>是（scan_results）</td><td>否</td><td>否</td><td>observations 追加、assets 合并</td></tr>
+      <tr><td><code>python3 -m store --stats</code></td><td>统计摘要 + 版本分布</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
+      <tr><td><code>python3 -m store --report out.{html\|json\|csv\|txt}</code></td><td>出报告，<strong>按后缀自动定格式</strong>；narrative 见 <a href="#narrative">研判依据拼接</a></td><td>否（写报告文件）</td><td>否</td><td>否</td><td>整文件覆盖</td></tr>
+      <tr><td><code>python3 -m progress seed</code></td><td>按 /prefix 切 CIDR 块、登记 campaign 待扫块</td><td>是（scan_blocks）</td><td>否</td><td>否</td><td>INSERT OR IGNORE</td></tr>
+      <tr><td><code>python3 -m progress claim</code></td><td>为 worker 原子领一个待扫块（多机协同）</td><td>是（scan_blocks）</td><td>否</td><td>否</td><td>BEGIN IMMEDIATE 串行</td></tr>
+      <tr><td><code>python3 -m progress status</code></td><td>查某 campaign 块完成进度</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
+      <tr><td><code>.venv/bin/python3 -m geoip.backfill [--all]</code></td><td>回填/重刷资产地理列（<code>--all</code> 全量重刷）</td><td>是（assets）</td><td>否</td><td>否</td><td>幂等</td></tr>
+      <tr><td><code>python3 -m dashboard</code></td><td>只读看板（127.0.0.1:8787，详见 <a href="#frontend">前端看板</a>）</td><td>否</td><td>仅监听回环</td><td>否</td><td>只读</td></tr>
       <tr><td><code>python3 -m scope.cn_ranges</code></td><td>生成中国 CIDR 全集</td><td>否（写 txt）</td><td>是（拉 APNIC）</td><td>否</td><td>整文件覆盖</td></tr>
     </tbody>
   </table></div>
@@ -868,6 +920,50 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
     <p><code>make probe</code> / <code>make demo</code> 用 <code>ocprobe -f candidates.csv</code>，<code>-f</code> 不存在、实跑报错退出码 2。<code>make clean</code> 执行 <code>rm -rf data/</code>，<strong>会删除全部三个权威库</strong>（scanner/fofa/clawsec，合计 &gt;1GB），不可逆。</p>
   </div>
   <p>可用 target：<code>make test</code>（测试）、<code>make prober</code>（构建 ocprobe）、<code>make zgrab</code>（构建 ZGrab2 模块）、<code>make load</code>（store 入库）、<code>make stats</code>、<code>make fofa-info/pull/provinces/export/pv</code>、<code>make clawsec-info/pull/longlived/overlap</code>。<span class="ev">Makefile</span></p>
+</section>
+
+<!-- ========== FRONTEND ========== -->
+<section id="frontend">
+  <h2>前端看板 Frontend &amp; Dashboard</h2>
+  <p>这是看板所有<strong>对人可见产物</strong>的权威章节——想了解看板展示什么、怎么交互、数据从哪来，看这一节即可。看板是辅助链路 <span class="badge partial">partial</span>（无单测），由 <code>dashboard/</code> 提供：纯标准库 <code>http.server</code> 后端 + 单页前端 <code>dashboard/index.html</code>（594 行），只读查 <code>scan_results.sqlite</code>，<strong>不写任何库</strong>。起服务见 <a href="#workflows">WF-4 结果查看工作流</a>，进程入口见 <a href="#commands">命令参考</a>。<span class="ev">dashboard/server.py, index.html</span></p>
+
+  <h3>可见产物（页面区块）</h3>
+  <p>单页自上而下的区块，每块的数据来自下方某个 API。<span class="ev">dashboard/index.html:235-301</span></p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>区块</th><th>展示什么</th><th>交互</th><th>数据源</th></tr></thead>
+    <tbody>
+      <tr><td>标题栏 / 品牌</td><td>「OpenClaw 实例收集」标题 + logo</td><td>—</td><td>静态</td></tr>
+      <tr><td>数字卡（4 张）</td><td>实例总数 / 明确 OpenClaw / 疑似 / 观测次数等概览计数</td><td>—</td><td><code>/api/overview</code></td></tr>
+      <tr><td>版本分布条</td><td>明确 OpenClaw 实例按版本号的数量条形</td><td>—</td><td><code>/api/overview</code></td></tr>
+      <tr><td>可信级别分桶（堆叠条）</td><td>confirmed / confirmed_no_version / suspect 三档堆叠 + 图例</td><td>—</td><td><code>/api/overview</code></td></tr>
+      <tr><td>版本来源条</td><td>direct / implicit / implicit-range 占比，标签可悬停看解释</td><td>悬停 tooltip</td><td><code>/api/overview</code></td></tr>
+      <tr><td>地理分布地图</td><td>echarts 2D 散点：点大小=该地实例数；注脚显示定位率；含加载失败态</td><td><strong>中国 / 世界切换</strong>按钮</td><td><code>/api/geo?scope=</code></td></tr>
+      <tr><td>资产列表（7 列表格）</td><td>IP / 端口 / 类别 / 版本 / 来源 / 省市 / 最近见，逐行</td><td>类别筛选下拉、IP/版本搜索框（防抖）、分页器、<strong>双击行展开逐主机研判报告</strong></td><td><code>/api/assets</code>、展开时 <code>/api/report</code></td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout invariant">
+    <p class="ct">INVARIANT · 研判标记的悬停含义来自单一文案源</p>
+    <p>资产表/报告里的 <code>T1</code>/<code>T3</code>/<code>C1</code> 等研判标记，悬停弹出的「含义」文案不是前端硬编码，而是来自 <code>store/report.py</code> 的 <code>TEST_MEANINGS</code><span class="ev">report.py:265-277</span>——同一份文案被前端横幅悬停与 <code>store --report</code> 报告共用。测试项本身的定义见 <a href="#concepts">核心概念 T1–T7</a>，文案如何拼成报告见 <a href="#narrative">研判依据拼接</a>。</p>
+  </div>
+
+  <h3>JSON API 契约</h3>
+  <p>后端四个只读 API，前端各区块据此渲染。全部 GET、无鉴权、仅监听 <code>127.0.0.1</code>。<span class="ev">dashboard/server.py:53-235,269-282</span></p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>端点</th><th>查询参数</th><th>返回</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>/api/overview</code></td><td>—</td><td>概览对象：分桶计数、版本分布、来源分布、观测/探针总数</td><td>数字卡 + 三个分布条的数据</td></tr>
+      <tr><td><code>/api/geo</code></td><td><code>scope=china|world</code></td><td><code>{points:[{name,lng,lat,count,openclaw}], located, total}</code></td><td>china 仅取落在中国经纬度框内的；按坐标聚合；located/total 即定位率</td></tr>
+      <tr><td><code>/api/assets</code></td><td><code>category, q, limit, offset</code></td><td><code>{total, rows}</code></td><td>分页 + 类别过滤 + IP/版本搜索；rows 富化省/市与披露日期</td></tr>
+      <tr><td><code>/api/report</code></td><td><code>ip, port</code></td><td>逐主机研判报告对象</td><td>narrative 由 <a href="#narrative">研判依据拼接</a>（<code>store/report.py</code>）生成；含全部探针命中态、研判小结、版本说明、请求/响应（二进制体折 MD5）</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>静态路由与防护</h3>
+  <ul>
+    <li><code>GET /</code> 与 <code>/index.html</code> → 单页前端；<code>/assets/*</code> → 静态资源（logo/字体/js/json），按扩展名定 content-type。</li>
+    <li>防目录穿越：<code>/assets/*</code> 取 <code>basename</code>，越界路径或缺失文件返回 404。<span class="ev">dashboard/server.py:251-268</span></li>
+    <li>库不存在时仅告警、服务照起（返回空数据）。</li>
+  </ul>
 </section>
 
 <!-- ========== VALIDATION ========== -->
