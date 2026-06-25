@@ -36,7 +36,7 @@ _FALLBACK = {
     "T5": {"hit": "favicon 命中。", "miss": "favicon 未命中。"},
     "T6": {"openclaw": "title=OpenClaw Control。", "variant": "title={title}（变体）。", "none": "无 title。"},
     "T7": {"hit": "命中响应头三件套。", "miss": "未命中响应头三件套。"},
-    "verdict": {"true_c1": "满足 C1 → True。", "true_c2": "满足 C2 → True。",
+    "verdict": {"true_c1": "满足 C1 → True。", "true_c2": "满足 C2 → True。", "true_c3": "满足 C3 → True。",
                 "false": "命中 {matched}，不满足白名单 → False。", "down": "探不到（{error_type}）→ False。"},
 }
 
@@ -149,6 +149,8 @@ def render_analysis(tpl, obs, probes):
         verdict_line = _t(tpl, "verdict", "true_c1")
     elif rule == "C2":
         verdict_line = _t(tpl, "verdict", "true_c2")
+    elif rule == "C3":
+        verdict_line = _t(tpl, "verdict", "true_c3")
     else:
         verdict_line = _t(tpl, "verdict", "false").format(matched="+".join(sorted(matched)) or "无")
 
@@ -173,7 +175,7 @@ def version_note(tpl, obs):
 def analysis_by_probe(tpl, obs, probes):
     """生成每个探针的「观测」：返回 {探针test_id: {"desc":观测文本, "highlights":[特征词]}}。
 
-    desc 只陈述该探针自身的观测事实，不提证据级别/C1/C2/跨探针引用——达标逻辑由
+    desc 只陈述该探针自身的观测事实，不提证据级别/C1/C2/C3/跨探针引用——达标逻辑由
     verdict_summary() 收口。highlights 是命中时该探针的「关键特征词」：这些子串同时出现在
     观测文案和该探针的请求/响应原文里，前端在三处统一染色，使读者一眼对应。
     占位符 {status}/{version}/{title} 由该探针真实响应提取后填入。
@@ -262,7 +264,7 @@ def analysis_by_probe(tpl, obs, probes):
     return out
 
 
-# 每个测试项的研判标准与含义（前端横幅 T1..T7 / C1 / C2 悬停提示）。
+# 每个测试项的研判标准与含义（前端横幅 T1..T7 / C1 / C2 / C3 悬停提示）。
 TEST_MEANINGS = {
     "T1": "control-ui-config 端点返回 200 且自报 serverVersion。确证级：该响应由 OpenClaw 运行时实际实现并自报版本，为其独有，单条即可定论。",
     "T2": "WebSocket 升级后服务端首帧下发 connect.challenge 协议事件。强证据（WS 协议面）：此协议交互为 OpenClaw 运行时所特有。",
@@ -273,11 +275,12 @@ TEST_MEANINGS = {
     "T7": "响应同时带三项安全响应头。弱证据：安全响应头为通用配置、多类服务皆可呈现，非运行时独有，须与强证据合证以避免误判。",
     "C1": "白名单条件 C1：命中 T1 即判真——确证级特征为 OpenClaw 运行时独有，单条达标。",
     "C2": "白名单条件 C2：T2 且（T3 或 T4）——WebSocket 协议面叠加 HTTP 路由面，两类运行时独有特征跨表面互证。",
+    "C3": "白名单条件 C3：T2 且首页资产指纹精确命中指纹库——WebSocket 协议面叠加 HTTP 静态构建产物面，跨表面互证。专为补救 control-ui 返 200 却无 serverVersion、又非 401、/healthz 未中的实例，这类真实例曾因仅靠 C1/C2 而被漏判。",
 }
 
 
 def verdict_summary(tpl, obs):
-    """研判小结：收口达标逻辑（证据级别、C1/C2、版本来源），每例讲一次。
+    """研判小结：收口达标逻辑（证据级别、C1/C2/C3、版本来源），每例讲一次。
 
     基于观测的全局结果（rule/matched/version_source/error_type）渲染，与单条探针无关。
     """
@@ -289,20 +292,27 @@ def verdict_summary(tpl, obs):
         return _t(tpl, "verdict_summary", "c1")
     if rule == "C2":
         # 版本子句按来源拼接，嵌入 c2_t3 / c2_t4
-        ver = obs["version"] or ""
-        src = obs["version_source"] or ""
-        if not ver:
-            vc = _t(tpl, "verdict_summary_version", "none")
-        elif src == "implicit-range":
-            vc = _t(tpl, "verdict_summary_version", "implicit_range").format(version=ver)
-        elif src == "implicit":
-            vc = _t(tpl, "verdict_summary_version", "implicit").format(version=ver)
-        else:
-            vc = _t(tpl, "verdict_summary_version", "direct")
         key = "c2_t3" if "T3" in matched else "c2_t4"
-        return _t(tpl, "verdict_summary", key).format(version_clause=vc)
+        return _t(tpl, "verdict_summary", key).format(version_clause=_version_clause(tpl, obs))
+    if rule == "C3":
+        # C3：T2（WS 协议面）× 资产指纹精确命中（HTTP 静态构建产物面）跨表面双强。
+        # 版本同样由资产指纹反推带出，复用同一版本子句逻辑。
+        return _t(tpl, "verdict_summary", "c3").format(version_clause=_version_clause(tpl, obs))
     # 判假
     return _t(tpl, "verdict_summary", "false").format(matched="、".join(matched) or "无")
+
+
+def _version_clause(tpl, obs):
+    """按版本来源拼出版本子句，供 C2 / C3 研判小结复用。"""
+    ver = obs["version"] or ""
+    src = obs["version_source"] or ""
+    if not ver:
+        return _t(tpl, "verdict_summary_version", "none")
+    if src == "implicit-range":
+        return _t(tpl, "verdict_summary_version", "implicit_range").format(version=ver)
+    if src == "implicit":
+        return _t(tpl, "verdict_summary_version", "implicit").format(version=ver)
+    return _t(tpl, "verdict_summary_version", "direct")
 
 
 def _fetch(db_path):
@@ -427,7 +437,7 @@ def _gen_html(tpl, records):
     out = [_HTML_HEAD]
     out.append("<h1>OpenClaw 扫描报告</h1>")
     out.append(f'<p class="sub">共 {len(records)} 个目标，其中研判为 OpenClaw（True）{n_true} 个。'
-               f'结论由白名单 C1/C2 机判，分析话术仅作解释。完整请求/响应可展开复查。</p>')
+               f'结论由白名单 C1/C2/C3 机判，分析话术仅作解释。完整请求/响应可展开复查。</p>')
     for o, probes in records:
         analysis, verdict_line = render_analysis(tpl, o, probes)
         cls = "t" if o["is_openclaw"] else "f"

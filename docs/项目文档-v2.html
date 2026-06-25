@@ -708,7 +708,7 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
   <p>对一台主机的最近一次观测：<span class="ev">store/report.py:109-305</span></p>
   <ul>
     <li><strong>逐探针分析</strong>（<code>analysis_by_probe</code>）：对每个测试项按其实际命中态，套 <code>report_templates.toml</code> 的话术，拼出「该探针做了什么、命中了什么关键特征」。命中时给出 highlights（同时出现在响应里的关键特征词）。<span class="ev">report.py:173</span></li>
-    <li><strong>研判小结</strong>（<code>verdict_summary</code>）：收口达标逻辑，每例讲一次——按 <code>rule</code> 分 C1 / C2 / 判假(false) / 探不到(down) 四种话术；C2 还按 <code>version_source</code> 把版本子句（direct / implicit / implicit-range / 无版本）嵌进去。<span class="ev">report.py:279-305</span></li>
+    <li><strong>研判小结</strong>（<code>verdict_summary</code>）：收口达标逻辑，每例讲一次——按 <code>rule</code> 分 <strong>C1 / C2 / C3</strong> / 判假(false) / 探不到(down) 五种话术；C2 与 C3 都按 <code>version_source</code> 把版本子句（direct / implicit / implicit-range / 无版本）嵌进去。<span class="ev">report.py:279-321</span></li>
     <li><strong>版本说明</strong>（<code>version_note</code>）：解释这台的版本是直读还是反推、是否落在不可区分区间。</li>
     <li><strong>测试项含义</strong>（<code>TEST_MEANINGS</code>）：T1–T7 / C1 / C2 每项的研判标准与含义文案——同一份文案也供<a href="#frontend">前端</a>横幅悬停提示。测试项的定义本身见 <a href="#concepts">核心概念</a>。<span class="ev">report.py:265-277</span></li>
   </ul>

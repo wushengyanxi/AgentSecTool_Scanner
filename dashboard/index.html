@@ -471,7 +471,7 @@ async function loadReport(box, ip, port){
       </div>
     </div>`;}).join('');
   const verNote = d.version_note ? `<div class="ver-note">${esc(d.version_note)}</div>` : '';
-  // 研判小结：达标逻辑（C1/C2、证据级别）收口在探针之后讲一次
+  // 研判小结：达标逻辑（C1/C2/C3、证据级别）收口在探针之后讲一次
   const summary = d.summary ? `<div class="summary-line"><h5>研判小结</h5><p>${esc(d.summary)}</p></div>` : '';
   box.innerHTML = meta + verNote
     + `<p class="report-title">探针 · 逐项观测（点击展开）</p>`

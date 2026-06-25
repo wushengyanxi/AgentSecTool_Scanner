@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS assets (
 );
 
 -- 时序观测：每次扫描一行，append-only。
--- 二元研判：is_openclaw + rule（触发的白名单条件 C1/C2，False 时空）+ matched（命中的测试项 JSON 数组）。
+-- 二元研判：is_openclaw + rule（触发的白名单条件 C1/C2/C3，False 时空）+ matched（命中的测试项 JSON 数组）。
 -- error_type：探不到时的失败原因（timeout/connection_refused/unreachable/down）。
 CREATE TABLE IF NOT EXISTS observations (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,

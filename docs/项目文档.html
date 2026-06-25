@@ -318,7 +318,7 @@
       <div><span class="f">openclaw/http.go</span> · <span class="fn">probeHTTP()</span> —— 四个 GET（复用进程级共享连接池），抽取标题 / favicon / healthz / CSP / 响应头</div>
       <div><span class="f">openclaw/signals.go</span> · <span class="fn">evaluate()</span> —— 证据组合白名单二元研判</div>
     </div>
-    <p class="note"><span class="st ok">已验证</span> 对本地靶机与真实公网实例，C1 / C2 判定与单元测试一致。完整的判别力与证据分级论证见 <code>docs/扫描器优化与研判机制.html</code>。</p>
+    <p class="note"><span class="st ok">已验证</span> 对本地靶机与真实公网实例，C1 / C2 / C3 判定与单元测试一致。完整的判别力与证据分级论证见 <code>docs/扫描器优化与研判机制.html</code>。</p>
   </section>
 
   <!-- 04 版本测定 -->
@@ -464,7 +464,7 @@
     <p class="prose">地理分布用 echarts 的 2D 地图（<code>geo</code> + <code>effectScatter</code> 涟漪散点）呈现，右上角可在<strong>中国 / 世界</strong>视图间切换。底图 GeoJSON（<code>china.json</code> 含港澳台与南海、<code>world.json</code>）首次切到该视图时异步加载并 <code>registerMap</code> 注册、之后复用。散点数据来自 <code>/api/geo</code>：每个点是一处地点的经纬度，点的大小按该地节点数对数缩放（避免节点最多的城市把小点压没），悬停显示地名、节点数与明确实例数。坐标来自入库时写入 <code>assets</code> 的 <code>lat</code> / <code>lng</code> 列，因此后端只需读库聚合、不必在查询时调用 GeoIP。</p>
 
     <h3>探测报告展开</h3>
-    <p class="prose">资产列表里双击一行，会在其下展开该主机的探测报告（调 <code>/api/report</code>）：顶部是研判结论、版本与命中标记（<code>T1</code>/<code>C1</code> 等带悬停含义），其下逐项列出探针——每项可再展开看观测描述、原始请求与响应，三处用统一的特征词高亮相互对应；末尾是研判小结，把达标逻辑（C1/C2、证据级别）收口讲一次。一次只展开一台，列表更清爽。</p>
+    <p class="prose">资产列表里双击一行，会在其下展开该主机的探测报告（调 <code>/api/report</code>）：顶部是研判结论、版本与命中标记（<code>T1</code>/<code>C1</code> 等带悬停含义），其下逐项列出探针——每项可再展开看观测描述、原始请求与响应，三处用统一的特征词高亮相互对应；末尾是研判小结，把达标逻辑（C1/C2/C3、证据级别）收口讲一次。一次只展开一台，列表更清爽。</p>
 
     <div class="coderef">
       <div class="cr">实现位置</div>
