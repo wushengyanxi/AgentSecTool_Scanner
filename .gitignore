@@ -42,8 +42,9 @@ fingerprint/collect_corpus_report.json
 # 拆库后的数据（真实暴露主机，绝不入库）
 data/
 
-# 测试/调试样本（含真实暴露主机清单与探测结果，绝不入库）
-scan_test/
+# scan_test：派生脚本（.py）入库；其产出的目标清单、扫描结果含真实暴露主机，绝不入库
+scan_test/*
+!scan_test/*.py
 
 # 前端模板（仅本地使用，不入库）
 front_end_template/
