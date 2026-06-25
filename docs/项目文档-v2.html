@@ -952,7 +952,7 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
     <thead><tr><th>端点</th><th>查询参数</th><th>返回</th><th>说明</th></tr></thead>
     <tbody>
       <tr><td><code>/api/overview</code></td><td>—</td><td>概览对象：分桶计数、版本分布、来源分布、观测/探针总数</td><td>数字卡 + 三个分布条的数据</td></tr>
-      <tr><td><code>/api/geo</code></td><td><code>scope=china|world</code></td><td><code>{points:[{name,lng,lat,count,openclaw}], located, total}</code></td><td>china 仅取落在中国经纬度框内的；按坐标聚合；located/total 即定位率</td></tr>
+      <tr><td><code>/api/geo</code></td><td><code>scope=china|world</code></td><td><code>{points:[{name,lng,lat,count,openclaw}], located, total}</code></td><td>china 以 country 字段为准（中国/香港/澳门/台湾；country 为空时退回经纬度框），<strong>排除落在框内的境外邻国</strong>（印度/中亚等）；按坐标聚合；located/total 即定位率</td></tr>
       <tr><td><code>/api/assets</code></td><td><code>category, q, limit, offset</code></td><td><code>{total, rows}</code></td><td>分页 + 类别过滤 + IP/版本搜索；rows 富化省/市与披露日期</td></tr>
       <tr><td><code>/api/report</code></td><td><code>ip, port</code></td><td>逐主机研判报告对象</td><td>narrative 由 <a href="#narrative">研判依据拼接</a>（<code>store/report.py</code>）生成；含全部探针命中态、研判小结、版本说明、请求/响应（二进制体折 MD5）</td></tr>
     </tbody>

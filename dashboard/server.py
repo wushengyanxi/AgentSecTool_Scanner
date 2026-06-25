@@ -124,10 +124,15 @@ def api_geo(scope="china"):
     """
     conn = _conn()
     try:
-        # 中国大致经纬度范围（含港澳台与南海诸岛）
+        # 中国大致经纬度范围（含港澳台与南海诸岛）。仅用经纬度矩形框无法把中国与邻国分开
+        # ——矩形的西南角会框进印度北部 / 中亚（如新德里 77.22E,28.63N 落在框内）。故 china
+        # 口径以 country 字段为准：属中国领土（中国/香港/澳门/台湾）才算；country 为空时退回
+        # 经纬度框（保留无地理数据但坐标在境内的点，宁可多显示也不漏中国的）；境外国家一律排除。
         cn_box = "lat BETWEEN 3 AND 54 AND lng BETWEEN 73 AND 136"
+        cn_countries = "('中国','香港','澳门','台湾')"
         if scope == "china":
-            where = f"WHERE lat IS NOT NULL AND ({cn_box})"
+            where = (f"WHERE lat IS NOT NULL AND ("
+                     f"country IN {cn_countries} OR (country IS NULL AND {cn_box}))")
             name_col = "COALESCE(city, region, country, '未知')"
         else:
             where = "WHERE lat IS NOT NULL"
