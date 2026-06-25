@@ -40,21 +40,54 @@ def _unwrap(r: dict):
 
 def _connect(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
+    # 先迁移已存在的旧表（含快照化重建），再跑 schema 建缺失的表/索引——顺序很重要：
+    # schema.sql 的 idx_assets_date 引用 snapshot_date，若旧表尚未迁移会建索引失败。
+    _migrate(conn)
     with open(SCHEMA_PATH) as f:
         conn.executescript(f.read())
-    _migrate(conn)
     return conn
 
 
 def _migrate(conn: sqlite3.Connection):
-    """对已存在的旧库补齐新列（CREATE TABLE IF NOT EXISTS 不会改已有表）。幂等。"""
+    """对已存在的旧库补齐新列（CREATE TABLE IF NOT EXISTS 不会改已有表）。幂等。
+
+    在 _connect 中先于 schema 执行。全新库此时 assets 表尚不存在（cols 为空），直接返回，
+    由随后的 schema.sql 建表；只有已存在的旧表才需要在此补列 / 快照化重建。"""
     cols = {r[1] for r in conn.execute("PRAGMA table_info(assets)")}
+    if not cols:
+        return  # 全新库，无旧表可迁移
     for col in ("country", "region", "city"):
         if col not in cols:
             conn.execute(f"ALTER TABLE assets ADD COLUMN {col} TEXT")
     for col in ("lat", "lng"):
         if col not in cols:
             conn.execute(f"ALTER TABLE assets ADD COLUMN {col} REAL")
+    # 快照化迁移：旧库 assets 主键是 asset_id（无 snapshot_date）。改为 (snapshot_date, asset_id)。
+    # SQLite 不能直接改主键，需重建表并把旧数据按其 last_seen 的日期归为一个快照。
+    if "snapshot_date" not in cols and cols:
+        _migrate_to_snapshots(conn)
+
+
+def _migrate_to_snapshots(conn: sqlite3.Connection):
+    """把旧的当前态 assets 表迁成按快照分行：现有每行的 snapshot_date 取其 last_seen 的日期。"""
+    conn.execute("ALTER TABLE assets RENAME TO assets_old")
+    with open(SCHEMA_PATH) as f:
+        conn.executescript(f.read())  # 建新 assets（含 snapshot_date 主键）
+    # 旧行的 snapshot_date = last_seen 的 YYYY-MM-DD；同 (date, asset_id) 理论上唯一
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO assets
+          (snapshot_date, asset_id, identity_key, ip, port, is_openclaw, category,
+           latest_version, version_source, first_seen, last_seen, observations,
+           country, region, city, lat, lng)
+        SELECT substr(last_seen,1,10), asset_id, identity_key, ip, port, is_openclaw, category,
+               latest_version, version_source, first_seen, last_seen, observations,
+               country, region, city, lat, lng
+        FROM assets_old
+        """
+    )
+    conn.execute("DROP TABLE assets_old")
+    conn.commit()
 
 
 # category 的可信级别排序（资产取历次观测中最强的一档）
@@ -78,12 +111,39 @@ def classify(r: dict):
     return None  # error_type=timeout/down/... 或纯无命中 → 不收录
 
 
+def _snapshot_date(jsonl_path) -> str:
+    """第一遍扫描：取整个 jsonl 内所有记录 ts 的日期众数，作为本次快照的基准日期。
+
+    跨天扫描时以出现最多的日期为准；整个 jsonl 的所有记录统一归到这个 snapshot_date。
+    stdin 输入无法二次扫描，故 stdin 路径下由调用方在主循环里现算（见 load）。"""
+    from collections import Counter
+    c = Counter()
+    with open(jsonl_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            r = _unwrap(r) or r
+            ts = (r.get("ts") or "")[:10]  # YYYY-MM-DD
+            if ts:
+                c[ts] += 1
+    return c.most_common(1)[0][0] if c else ""
+
+
 def load(db_path: str, jsonl_path) -> int:
-    """读 JSONL，按可信级别分桶收录（探不到的跳过）：upsert 资产、追加观测、落库完整请求/响应。
+    """读 JSONL，按快照收录：snapshot_date 取该 jsonl 内 ts 日期众数；同一快照内同 ip:port
+    以最新结果为准（REPLACE）；upsert 资产、追加观测、落库完整请求/响应。
 
     返回收录条数（不含被跳过的超时/探不到目标）。"""
     conn = _connect(db_path)
-    src = sys.stdin if jsonl_path in (None, "-") else open(jsonl_path)
+    is_stdin = jsonl_path in (None, "-")
+    # 基准日期：文件输入先扫一遍取众数；stdin 不能二次读，逐条用各自 ts 的日期兜底。
+    snap_date = "" if is_stdin else _snapshot_date(jsonl_path)
+    src = sys.stdin if is_stdin else open(jsonl_path)
     # IP→城市富化（软依赖：库缺失时 geo.ok=False，lookup 返回空，不阻断入库）
     from geoip.lookup import GeoResolver
     geo = GeoResolver()
@@ -102,38 +162,36 @@ def load(db_path: str, jsonl_path) -> int:
             key = identity_key(r)
             aid = asset_id(key)
             ts = r.get("ts")
+            sdate = snap_date or (ts or "")[:10]  # 文件用众数；stdin 用本条 ts 日期兜底
             isoc = 1 if r.get("is_openclaw") else 0
             ver = r.get("version") or None
             vsrc = r.get("version_source") or None
-            rank = _CATEGORY_RANK[category]
             # 物理位置：每次入库都按 IP 重新解析（库更新后能跟上变化）
             country, region, city, lat, lng = geo.lookup(r.get("ip"))
-            # 资产的 category 取历次观测中最强的一档（rank 高者胜）
+            # 同一快照内同 (snapshot_date, ip:port) 以【最新结果】为准：研判/版本/分类直接用本条
+            # 覆盖（excluded.*），不再跨观测取最强档——快照存的是该版当时的判定，不是历史聚合。
+            # first_seen 取该版内最早 ts，last_seen 取最近 ts，observations 累加（本版扫到几次）。
             conn.execute(
                 """
                 INSERT INTO assets
-                  (asset_id, identity_key, ip, port, is_openclaw, category, latest_version, version_source, first_seen, last_seen, observations, country, region, city, lat, lng)
-                VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?)
-                ON CONFLICT(asset_id) DO UPDATE SET
-                  last_seen      = excluded.last_seen,
+                  (snapshot_date, asset_id, identity_key, ip, port, is_openclaw, category, latest_version, version_source, first_seen, last_seen, observations, country, region, city, lat, lng)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?)
+                ON CONFLICT(snapshot_date, asset_id) DO UPDATE SET
+                  last_seen      = MAX(assets.last_seen, excluded.last_seen),
+                  first_seen     = MIN(assets.first_seen, excluded.first_seen),
                   observations   = assets.observations + 1,
-                  is_openclaw    = MAX(assets.is_openclaw, excluded.is_openclaw),
-                  latest_version = COALESCE(excluded.latest_version, assets.latest_version),
-                  version_source = COALESCE(excluded.version_source, assets.version_source),
-                  -- 复扫每次重新解析：有新值则覆盖，解析不到（NULL）时保留旧值
+                  is_openclaw    = excluded.is_openclaw,
+                  latest_version = excluded.latest_version,
+                  version_source = excluded.version_source,
+                  category       = excluded.category,
                   country        = COALESCE(excluded.country, assets.country),
                   region         = COALESCE(excluded.region, assets.region),
                   city           = COALESCE(excluded.city, assets.city),
                   lat            = COALESCE(excluded.lat, assets.lat),
-                  lng            = COALESCE(excluded.lng, assets.lng),
-                  category       = CASE
-                    WHEN ? > (CASE assets.category
-                                WHEN 'confirmed' THEN 3 WHEN 'confirmed_no_version' THEN 2
-                                WHEN 'suspect' THEN 1 ELSE 0 END)
-                    THEN excluded.category ELSE assets.category END
+                  lng            = COALESCE(excluded.lng, assets.lng)
                 """,
-                (aid, key, r.get("ip"), int(r.get("port")), isoc, category, ver, vsrc, ts, ts,
-                 country, region, city, lat, lng, rank),
+                (sdate, aid, key, r.get("ip"), int(r.get("port")), isoc, category, ver, vsrc, ts, ts,
+                 country, region, city, lat, lng),
             )
             cur = conn.execute(
                 """

@@ -1,11 +1,14 @@
--- 资产登记：按身份去重（内容指纹或 ip:port）。作为"实例收集平台"按可信级别分桶收录。
--- category（资产级，取历次观测中最强的一档）：
+-- 资产登记：按【快照日期 × ip:port】分行。一个 jsonl = 一个快照（snapshot_date = jsonl
+-- 内所有记录 ts 的日期众数）。同一快照内同 ip:port 只保留最新扫描结果（入库 REPLACE）；
+-- 不同快照各存各的，旧快照作为镜像留存。前端按时间窗口加载，窗口内同 ip:port 取最新快照那条。
+-- category（本快照的研判分档）：
 --   confirmed            明确 OpenClaw 实例（二元白名单判 True），取到版本
 --   confirmed_no_version 明确 OpenClaw 实例，版本未取到（如未采集的新版本）
 --   suspect              中了部分特征但未达白名单——不呈现为 OpenClaw，但有复扫/优化价值，保留
 -- 探不到（timeout/down/refused/unreachable）的目标不收录（无价值，由 load 跳过）。
 CREATE TABLE IF NOT EXISTS assets (
-  asset_id       TEXT PRIMARY KEY,
+  snapshot_date  TEXT NOT NULL,    -- 快照日期 YYYY-MM-DD（= 该 jsonl 内 ts 日期众数）
+  asset_id       TEXT NOT NULL,
   identity_key   TEXT NOT NULL,
   ip             TEXT NOT NULL,
   port           INTEGER NOT NULL,
@@ -13,16 +16,18 @@ CREATE TABLE IF NOT EXISTS assets (
   category       TEXT,            -- confirmed | confirmed_no_version | suspect
   latest_version TEXT,
   version_source TEXT,
-  first_seen     TEXT NOT NULL,
-  last_seen      TEXT NOT NULL,
+  first_seen     TEXT NOT NULL,   -- 该 ip:port 在本快照内最早 ts
+  last_seen      TEXT NOT NULL,   -- 该 ip:port 在本快照内最近 ts
   observations   INTEGER NOT NULL DEFAULT 0,
   -- 物理位置（GeoLite2 离线库按 IP 解析，入库时富化；解析不到留空）
   country        TEXT,
   region         TEXT,            -- 省/区域
   city           TEXT,
   lat            REAL,            -- 纬度（城市级近似坐标，供地图打点）
-  lng            REAL             -- 经度
+  lng            REAL,            -- 经度
+  PRIMARY KEY (snapshot_date, asset_id)
 );
+CREATE INDEX IF NOT EXISTS idx_assets_date ON assets(snapshot_date);
 
 -- 时序观测：每次扫描一行，append-only。
 -- 二元研判：is_openclaw + rule（触发的白名单条件 C1/C2/C3，False 时空）+ matched（命中的测试项 JSON 数组）。

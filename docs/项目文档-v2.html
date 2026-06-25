@@ -730,7 +730,7 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
   <div class="tbl-wrap"><table>
     <thead><tr><th>数据对象</th><th>库</th><th>身份键</th><th>写入语义</th><th>分类</th><th>可提交</th></tr></thead>
     <tbody>
-      <tr><td><code>assets</code></td><td>data/scanner/</td><td><code>sha1("ipport:{ip}:{port}")</code></td><td>当前态 upsert（合并更新）</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否（data/ gitignore）</td></tr>
+      <tr><td><code>assets</code></td><td>data/scanner/</td><td><code>(snapshot_date, asset_id)</code></td><td>按快照分行；同快照内同 ip:port REPLACE 取最新</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否（data/ gitignore）</td></tr>
       <tr><td><code>observations</code></td><td>data/scanner/</td><td>自增 id（不去重）</td><td>append-only 时序</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
       <tr><td><code>probe_records</code></td><td>data/scanner/</td><td>自增 id</td><td>append-only，完整请求/响应原文</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
       <tr><td><code>fofa_candidates</code></td><td>data/fofa/</td><td><code>(ip, port)</code></td><td>当前态 upsert</td><td><span class="tag">外部</span><span class="tag">敏感</span></td><td>否</td></tr>
@@ -760,18 +760,19 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
   <div class="tbl-wrap"><table>
     <thead><tr><th>字段</th><th>语义</th></tr></thead>
     <tbody>
+      <tr><td><code>snapshot_date</code></td><td>快照日期 YYYY-MM-DD = 该 jsonl 内所有记录 ts 的<strong>日期众数</strong>；与 asset_id 共同构成主键</td></tr>
       <tr><td><code>asset_id</code> / <code>identity_key</code></td><td>身份键 sha1("ipport:{ip}:{port}")，按 IP:端口去重，<strong>不</strong>按内容指纹合并</td></tr>
-      <tr><td><code>category</code></td><td>三值枚举，取历次最强档（只升不降）</td></tr>
-      <tr><td><code>latest_version</code> / <code>version_source</code></td><td>版本与来源，COALESCE 保留旧值</td></tr>
-      <tr><td><code>first_seen</code> / <code>last_seen</code></td><td>首见仅首次写、永不改；最近见每次刷新</td></tr>
-      <tr><td><code>observations</code></td><td>该资产被观测次数，每次 +1</td></tr>
-      <tr><td><code>country</code> / <code>region</code> / <code>city</code> / <code>lat</code> / <code>lng</code></td><td>geoip 富化（COALESCE）。<strong>现状 region/city 为英文</strong>（cn_names 映射空），见下方说明</td></tr>
+      <tr><td><code>category</code></td><td>三值枚举，<strong>该快照的研判分档</strong>（同快照内重复观测以最新结果覆盖，非跨观测取最强档）</td></tr>
+      <tr><td><code>latest_version</code> / <code>version_source</code></td><td>该快照的版本与来源（同快照重复观测覆盖为最新）</td></tr>
+      <tr><td><code>first_seen</code> / <code>last_seen</code></td><td>该 ip:port 在<strong>本快照内</strong>的最早 / 最近 ts</td></tr>
+      <tr><td><code>observations</code></td><td>该资产在本快照内被观测次数，每次 +1</td></tr>
+      <tr><td><code>country</code> / <code>region</code> / <code>city</code> / <code>lat</code> / <code>lng</code></td><td>geoip 富化（COALESCE）。region/city 经 cn_names 本地映射转中文（省 31 + 城市 458 条）</td></tr>
     </tbody>
   </table></div>
 
-  <div class="callout warn">
-    <p class="ct">WARNING · 地名现状是英文，中文化为待办</p>
-    <p>geoip 取库的英文名后查本地映射表 <code>geoip/cn_names.py</code> 的 <code>CITY_ZH</code> / <code>REGION_ZH</code> 转中文。但这两个 dict <strong>当前为空</strong>，未命中即原样保留英文。已复核：<code>assets.region</code> 实际全英文（Guangdong / Jiangsu / Sichuan…），lat 填充率 100%、region 88%。中文化是<strong>待办</strong>，非现状。<span class="ev">geoip/cn_names.py:22-27, lookup.py:82-83</span></p>
+  <div class="callout invariant">
+    <p class="ct">INVARIANT · 快照模型与时间窗口去重</p>
+    <p>一个 jsonl = 一个快照，<code>snapshot_date</code> 取该 jsonl 内 ts 的日期众数（跨天扫描以最多的日期为准，整个 jsonl 统一归此版）。同资产每个快照日期一行——旧快照<strong>不被覆盖</strong>，作镜像留存。<code>store --in</code> 入库时同一快照内同 ip:port 以最新结果 <code>REPLACE</code>。前端按<a href="#frontend">时间窗口</a>加载：窗口内同 ip:port 取<strong>最新 snapshot_date 那条</strong>（<code>ROW_NUMBER() OVER (PARTITION BY ip,port ORDER BY snapshot_date DESC)=1</code>）。这同时解决两个问题：窗口内取并集 → 部分重扫不会让未扫目标假消失；太久没扫到的点落在窗口外 → 自动淘汰，不再永久残留。<span class="ev">store/schema.sql; store/load.py:_snapshot_date; dashboard/server.py:_windowed_assets</span></p>
   </div>
 
   <h4>外部数据 vs 项目确认</h4>
@@ -933,6 +934,7 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
     <thead><tr><th>区块</th><th>展示什么</th><th>交互</th><th>数据源</th></tr></thead>
     <tbody>
       <tr><td>标题栏 / 品牌</td><td>「OpenClaw 实例收集」标题 + logo</td><td>—</td><td>静态</td></tr>
+      <tr><td><strong>时间窗口选择器</strong></td><td>两个原生日期输入（起 → 止），点击弹浏览器日历选日期；<strong>控制全看板加载的快照区间</strong>，改窗口后所有视图刷新。位于原顶部「总览/资产列表」标签处——「资产列表」标签原无实际作用（列表本就整页常显），已被此选择器替换</td><td>选日期</td><td><code>/api/snapshots</code> 初始化范围；窗口参数 <code>start/end</code> 注入其余各 API</td></tr>
       <tr><td>数字卡（4 张）</td><td>实例总数 / 明确 OpenClaw / 疑似 / 观测次数等概览计数</td><td>—</td><td><code>/api/overview</code></td></tr>
       <tr><td>版本分布条</td><td>明确 OpenClaw 实例按版本号的数量条形</td><td>—</td><td><code>/api/overview</code></td></tr>
       <tr><td>可信级别分桶（堆叠条）</td><td>confirmed / confirmed_no_version / suspect 三档堆叠 + 图例</td><td>—</td><td><code>/api/overview</code></td></tr>
@@ -951,9 +953,10 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
   <div class="tbl-wrap"><table>
     <thead><tr><th>端点</th><th>查询参数</th><th>返回</th><th>说明</th></tr></thead>
     <tbody>
-      <tr><td><code>/api/overview</code></td><td>—</td><td>概览对象：分桶计数、版本分布、来源分布、观测/探针总数</td><td>数字卡 + 三个分布条的数据</td></tr>
-      <tr><td><code>/api/geo</code></td><td><code>scope=china|world</code></td><td><code>{points:[{name,lng,lat,count,openclaw}], located, total}</code></td><td>china 以 country 字段为准（中国/香港/澳门/台湾；country 为空时退回经纬度框），<strong>排除落在框内的境外邻国</strong>（印度/中亚等）；按坐标聚合；located/total 即定位率</td></tr>
-      <tr><td><code>/api/assets</code></td><td><code>category, q, limit, offset</code></td><td><code>{total, rows}</code></td><td>分页 + 类别过滤 + IP/版本搜索；rows 富化省/市与披露日期</td></tr>
+      <tr><td><code>/api/snapshots</code></td><td>—</td><td><code>{snapshots:[{date,count}], earliest, latest}</code></td><td>列出库中所有快照日期及各自资产数，供时间窗口选择器初始化范围与默认窗口</td></tr>
+      <tr><td><code>/api/overview</code></td><td><code>start, end</code></td><td>概览对象：分桶计数、版本分布、来源分布、观测/探针总数</td><td>数字卡 + 三个分布条的数据；统计基于时间窗口内同 ip:port 取最新快照的结果集</td></tr>
+      <tr><td><code>/api/geo</code></td><td><code>scope=china|world, start, end</code></td><td><code>{points:[{name,lng,lat,count,openclaw}], located, total}</code></td><td>china 以 country 字段为准（中国/香港/澳门/台湾；country 为空时退回经纬度框），<strong>排除落在框内的境外邻国</strong>（印度/中亚等）；按坐标聚合；窗口内取最新快照</td></tr>
+      <tr><td><code>/api/assets</code></td><td><code>category, q, limit, offset, start, end</code></td><td><code>{total, rows}</code></td><td>分页 + 类别过滤 + IP/版本搜索；窗口内同 ip:port 取最新快照；rows 富化省/市与披露日期</td></tr>
       <tr><td><code>/api/report</code></td><td><code>ip, port</code></td><td>逐主机研判报告对象</td><td>narrative 由 <a href="#narrative">研判依据拼接</a>（<code>store/report.py</code>）生成；含全部探针命中态、研判小结、版本说明、请求/响应（二进制体折 MD5）</td></tr>
     </tbody>
   </table></div>

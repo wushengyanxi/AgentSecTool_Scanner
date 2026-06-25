@@ -50,25 +50,43 @@ def _conn():
     return conn
 
 
-def api_overview():
-    """顶部数字卡 + 分桶 + 版本/来源分布。"""
+# 快照时间窗口去重子查询（单一真相源，4 个 API 共用）：
+#   在 [start, end] 日期窗口内，同一 (ip,port) 只取最新 snapshot_date 那条。
+# start/end 为 YYYY-MM-DD（含端点），任一为 None 则该端不设限。返回 (sql 片段, 参数列表)，
+# 调用方以 "FROM (子查询) ..." 取代原 "FROM assets ..."。
+def _windowed_assets(start=None, end=None):
+    cond, args = ["snapshot_date IS NOT NULL"], []
+    if start:
+        cond.append("snapshot_date >= ?"); args.append(start)
+    if end:
+        cond.append("snapshot_date <= ?"); args.append(end)
+    where = " AND ".join(cond)
+    sub = (f"(SELECT * FROM (SELECT *, ROW_NUMBER() OVER "
+           f"(PARTITION BY ip,port ORDER BY snapshot_date DESC) AS _rn "
+           f"FROM assets WHERE {where}) WHERE _rn=1)")
+    return sub, args
+
+
+def api_overview(start=None, end=None):
+    """顶部数字卡 + 分桶 + 版本/来源分布。基于时间窗口内、同 ip:port 取最新快照的结果集。"""
     conn = _conn()
+    A, aargs = _windowed_assets(start, end)
     try:
         def one(sql, args=()):
             r = conn.execute(sql, args).fetchone()
             return r[0] if r else 0
 
-        cats = {c: one("SELECT COUNT(*) FROM assets WHERE category=?", (c,))
+        cats = {c: one(f"SELECT COUNT(*) FROM {A} WHERE category=?", (*aargs, c))
                 for c in CATEGORY_LABELS}
         versions = [{"version": r["v"] or "(未取到)", "count": r["n"]} for r in conn.execute(
-            "SELECT latest_version v, COUNT(*) n FROM assets "
+            f"SELECT latest_version v, COUNT(*) n FROM {A} "
             "WHERE category IN ('confirmed','confirmed_no_version') "
-            "GROUP BY v ORDER BY n DESC")]
+            "GROUP BY v ORDER BY n DESC", aargs)]
         sources = [{"source": r["s"] or "(无)", "count": r["n"]} for r in conn.execute(
-            "SELECT version_source s, COUNT(*) n FROM assets "
-            "WHERE category IN ('confirmed','confirmed_no_version') GROUP BY s ORDER BY n DESC")]
+            f"SELECT version_source s, COUNT(*) n FROM {A} "
+            "WHERE category IN ('confirmed','confirmed_no_version') GROUP BY s ORDER BY n DESC", aargs)]
         return {
-            "assets_total": one("SELECT COUNT(*) FROM assets"),
+            "assets_total": one(f"SELECT COUNT(*) FROM {A}", aargs),
             "openclaw_total": cats["confirmed"] + cats["confirmed_no_version"],
             "categories": [
                 {"key": k, "label": v, "count": cats[k]} for k, v in CATEGORY_LABELS.items()
@@ -82,22 +100,23 @@ def api_overview():
         conn.close()
 
 
-def api_assets(category=None, q=None, limit=200, offset=0):
-    """资产列表（分页、可按 category 过滤、可按 IP/版本搜）。"""
+def api_assets(category=None, q=None, limit=200, offset=0, start=None, end=None):
+    """资产列表（分页、可按 category 过滤、可按 IP/版本搜）。窗口内同 ip:port 取最新快照。"""
     conn = _conn()
+    A, aargs = _windowed_assets(start, end)
     try:
-        where, args = [], []
+        where, args = [], list(aargs)
         if category and category in CATEGORY_LABELS:
             where.append("category=?"); args.append(category)
         if q:
             where.append("(ip LIKE ? OR latest_version LIKE ?)")
             args += [f"%{q}%", f"%{q}%"]
         wc = ("WHERE " + " AND ".join(where)) if where else ""
-        total = conn.execute(f"SELECT COUNT(*) FROM assets {wc}", args).fetchone()[0]
+        total = conn.execute(f"SELECT COUNT(*) FROM {A} {wc}", args).fetchone()[0]
         rows = conn.execute(
             f"""SELECT ip, port, category, latest_version, version_source, last_seen,
                        region, city
-                FROM assets {wc}
+                FROM {A} {wc}
                 ORDER BY (category='confirmed') DESC, last_seen DESC
                 LIMIT ? OFFSET ?""",
             (*args, int(limit), int(offset)),
@@ -115,14 +134,31 @@ def api_assets(category=None, q=None, limit=200, offset=0):
         conn.close()
 
 
-def api_geo(scope="china"):
-    """地理分布散点：按坐标聚合实例数，供地图打点。
+def api_snapshots():
+    """列出库中所有快照日期及各自资产数，供前端时间窗口选择器（日历可标注哪天有数据、定默认窗口）。"""
+    conn = _conn()
+    try:
+        rows = conn.execute(
+            "SELECT snapshot_date d, COUNT(*) n FROM assets "
+            "WHERE snapshot_date IS NOT NULL GROUP BY d ORDER BY d"
+        ).fetchall()
+        dates = [{"date": r["d"], "count": r["n"]} for r in rows]
+        return {"snapshots": dates,
+                "earliest": dates[0]["date"] if dates else None,
+                "latest": dates[-1]["date"] if dates else None}
+    finally:
+        conn.close()
+
+
+def api_geo(scope="china", start=None, end=None):
+    """地理分布散点：按坐标聚合实例数，供地图打点。窗口内同 ip:port 取最新快照。
 
     scope=china：只取落在中国大致经纬度范围内的点（含港澳台、南海），按城市/坐标聚合；
     scope=world：全部点，按国家/坐标聚合。
     每个点返回 name（地名）+ lng/lat（坐标）+ count（节点数）+ openclaw（其中明确实例数）。
     """
     conn = _conn()
+    A, aargs = _windowed_assets(start, end)
     try:
         # 中国大致经纬度范围（含港澳台与南海诸岛）。仅用经纬度矩形框无法把中国与邻国分开
         # ——矩形的西南角会框进印度北部 / 中亚（如新德里 77.22E,28.63N 落在框内）。故 china
@@ -142,14 +178,15 @@ def api_geo(scope="china"):
                        COUNT(*) AS n,
                        SUM(CASE WHEN category IN ('confirmed','confirmed_no_version')
                                 THEN 1 ELSE 0 END) AS openclaw
-                FROM assets {where}
+                FROM {A} {where}
                 GROUP BY lat, lng
                 ORDER BY n DESC""",
+            aargs,
         ).fetchall()
         located = conn.execute(
-            "SELECT COUNT(*) FROM assets WHERE lat IS NOT NULL"
+            f"SELECT COUNT(*) FROM {A} WHERE lat IS NOT NULL", aargs
         ).fetchone()[0]
-        total = conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
+        total = conn.execute(f"SELECT COUNT(*) FROM {A}", aargs).fetchone()[0]
         return {
             "points": [{"name": r["name"], "lng": r["lng"], "lat": r["lat"],
                         "count": r["n"], "openclaw": r["openclaw"]} for r in rows],
@@ -271,16 +308,22 @@ class Handler(BaseHTTPRequestHandler):
                         self._send(f.read(), ctype=ctype)
                 else:
                     self._send({"error": "not found"}, 404)
+            elif u.path == "/api/snapshots":
+                self._send(api_snapshots())
             elif u.path == "/api/overview":
-                self._send(api_overview())
+                self._send(api_overview(
+                    start=qs.get("start", [None])[0], end=qs.get("end", [None])[0]))
             elif u.path == "/api/geo":
-                self._send(api_geo(scope=qs.get("scope", ["china"])[0]))
+                self._send(api_geo(
+                    scope=qs.get("scope", ["china"])[0],
+                    start=qs.get("start", [None])[0], end=qs.get("end", [None])[0]))
             elif u.path == "/api/assets":
                 self._send(api_assets(
                     category=qs.get("category", [None])[0],
                     q=qs.get("q", [None])[0],
                     limit=qs.get("limit", ["200"])[0],
-                    offset=qs.get("offset", ["0"])[0]))
+                    offset=qs.get("offset", ["0"])[0],
+                    start=qs.get("start", [None])[0], end=qs.get("end", [None])[0]))
             elif u.path == "/api/report":
                 self._send(api_report(
                     ip=qs.get("ip", [None])[0],

@@ -63,9 +63,21 @@
   .subtitle{margin-top:4px;font-size:12px;color:var(--ink-strong);text-shadow:var(--glow);
     text-align:center;font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-style:italic;font-weight:700;letter-spacing:.01em;}
   .info-dot{width:15px;height:15px;border-radius:50%;border:1.5px solid var(--indigo);color:var(--indigo);font-size:10px;display:inline-flex;align-items:center;justify-content:center;font-weight:600;}
-  .tabs{display:flex;gap:26px;border-bottom:1px solid var(--line);margin-bottom:22px;}
-  .tab{padding:9px 1px;color:var(--muted);font-size:14px;cursor:default;border-bottom:2px solid transparent;margin-bottom:-1px;letter-spacing:.04em;}
-  .tab.active{color:var(--ink-strong);border-bottom-color:var(--indigo);font-weight:600;text-shadow:0 0 12px rgba(159,158,242,.6);}
+  .tabs{display:flex;gap:22px;align-items:center;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .tab{padding:9px 1px;color:var(--ink-strong);font-size:14px;font-weight:600;cursor:default;letter-spacing:.04em;}
+  /* 时间窗口选择器：与「总览」同一基线、统一字号梯度，整组对齐不参差 */
+  .winpick{display:flex;align-items:center;gap:10px;height:34px;}
+  .winpick > *{display:flex;align-items:center;height:100%;}
+  .winlabel{color:var(--ink-strong);font-size:14px;font-weight:600;letter-spacing:.04em;}
+  .winpick input[type=date]{box-sizing:border-box;height:30px;background:rgba(159,158,242,.08);
+    border:1px solid var(--line);border-radius:6px;color:var(--ink);font-family:var(--mono);
+    font-size:12.5px;line-height:30px;padding:0 9px;color-scheme:dark;cursor:pointer;
+    vertical-align:middle;-webkit-appearance:none;appearance:none;}
+  .winpick input[type=date]::-webkit-datetime-edit{padding:0;line-height:normal;}
+  .winpick input[type=date]:hover{border-color:var(--indigo);}
+  .winpick input[type=date]:focus{outline:none;border-color:var(--indigo);box-shadow:0 0 0 2px rgba(159,158,242,.2);}
+  .windash{color:var(--faint);font-size:13px;}
+  .winhint{color:var(--faint);font-size:13px;letter-spacing:.03em;}
   /* 右上角 BLUE-LOTUS 品牌标识（纯展示，浏览器自带刷新即可） */
   /* 绝对定位脱离文档流：怎么挪都不影响左侧标题；top 控制下移量，让花瓣顶点落到标题上半边高度 */
   .logo{height:78px;width:auto;display:block;position:absolute;right:0;top:6px;}
@@ -240,7 +252,13 @@
 
   <div class="tabs">
     <div class="tab active">总览</div>
-    <div class="tab">资产列表</div>
+    <div class="winpick">
+      <span class="winlabel">时间窗口</span>
+      <input type="date" id="winStart" onchange="applyWindow()">
+      <span class="windash">→</span>
+      <input type="date" id="winEnd" onchange="applyWindow()">
+      <span class="winhint" id="winHint"></span>
+    </div>
   </div>
 
   <!-- 数字卡 -->
@@ -319,12 +337,22 @@ const SRC_TIPS = {
 };
 let PAGE = 0, LIMIT = 50, ASSET_TOTAL = 0;
 
+// 时间窗口：全看板按 [start,end] 加载快照；窗口内同 ip:port 取最新快照那条（后端去重）。
+let WIN = { start: '', end: '' };
+// 把当前窗口拼成 query 串（带前导分隔符）；空端不传，由后端视作不设限。
+function winQ(sep){
+  const p = [];
+  if (WIN.start) p.push('start=' + WIN.start);
+  if (WIN.end)   p.push('end=' + WIN.end);
+  return p.length ? sep + p.join('&') : '';
+}
+
 async function getJSON(u){ const r = await fetch(u); return r.json(); }
 
 function fmt(n){ return (n||0).toLocaleString(); }
 
 async function loadOverview(){
-  const d = await getJSON('/api/overview');
+  const d = await getJSON('/api/overview' + winQ('?'));
   if(d.error){ document.getElementById('cards').innerHTML = '<div class="card"><div class="k">错误</div><div class="v" style="font-size:15px">'+d.error+'</div></div>'; return; }
   const cats = Object.fromEntries(d.categories.map(c=>[c.key,c.count]));
   // 数字卡：统一墨色数字 + 右下角极淡线描图标，不用多色
@@ -372,7 +400,7 @@ async function loadAssets(page){
   const cat = document.getElementById('fCat').value;
   const q = document.getElementById('fQ').value.trim();
   const u = `/api/assets?limit=${LIMIT}&offset=${page*LIMIT}` +
-            (cat?`&category=${cat}`:'') + (q?`&q=${encodeURIComponent(q)}`:'');
+            (cat?`&category=${cat}`:'') + (q?`&q=${encodeURIComponent(q)}`:'') + winQ('&');
   const d = await getJSON(u);
   ASSET_TOTAL = d.total;
   document.getElementById('assetTotal').textContent = `共 ${fmt(d.total)} 台`;
@@ -563,7 +591,7 @@ async function loadGeo(scope){
     maskColor: 'rgba(11,16,32,.4)', color: '#4BDFFF' });
   try{
     await ensureMap(scope);
-    const d = await getJSON('/api/geo?scope=' + scope);
+    const d = await getJSON('/api/geo?scope=' + scope + winQ('&'));
     GEO_CHART.hideLoading();
     if(d.error){ document.getElementById('geoMeta').textContent = d.error; return; }
     const pct = d.total ? (d.located/d.total*100).toFixed(0) : 0;
@@ -587,8 +615,31 @@ function switchGeo(scope){
 // 容器随窗口变化自适应
 window.addEventListener('resize', () => { if(GEO_CHART) GEO_CHART.resize(); });
 
-function loadAll(){ loadOverview(); loadGeo('china'); loadAssets(0); }
-loadAll();
+function loadAll(){ loadOverview(); loadGeo(GEO_SCOPE); loadAssets(0); }
+
+// 窗口变更：读两个日期输入 → 刷新全看板
+function applyWindow(){
+  WIN.start = document.getElementById('winStart').value || '';
+  WIN.end   = document.getElementById('winEnd').value || '';
+  loadAll();
+}
+
+// 初始化：先取快照日期范围，默认窗口设为 [最早, 最新]（即全部），填入两个日期框
+async function init(){
+  try{
+    const s = await getJSON('/api/snapshots');
+    const si = document.getElementById('winStart'), ei = document.getElementById('winEnd');
+    if(s.earliest && s.latest){
+      si.min = ei.min = s.earliest; si.max = ei.max = s.latest;
+      si.value = WIN.start = s.earliest;
+      ei.value = WIN.end   = s.latest;
+      const n = (s.snapshots||[]).length;
+      document.getElementById('winHint').textContent = `共 ${n} 个快照日期`;
+    }
+  }catch(e){}
+  loadAll();
+}
+init();
 </script>
 </body>
 </html>
