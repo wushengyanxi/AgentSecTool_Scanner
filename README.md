@@ -1,143 +1,130 @@
-# AgentSecTool Scanner — OpenClaw 公网暴露扫描器
+# AgentSecTool Scanner — 资产测绘平台
 
-在公网范围发现暴露的 OpenClaw 网关、可靠判定并尽力取版本。本轮（Round 1）实现**扫描核心**：
-发现（全网能力）→ 只读判定 → 取版本 → 落地 SQLite。扫描器如何做出有置信度的研判、
-以及下一步的优化方案，见 `docs/扫描器优化与研判机制.html`。
+AgentSecTool Scanner 是可扩展的资产测绘平台：发现候选目标，按资产类型调用探测器，只读验证目标实例，提取版本与证据，并归档到 SQLite 供看板和报告使用。OpenClaw 是当前内置探测器，对应 `asset_type=openclaw`。
 
 ## 组成
 
-- `prober/`（Go）— openclaw 探测核心 + `cmd/ocprobe` runner：WS `connect.challenge` + HTTP 簇的只读探测、跨表面置信判定、取版本（疏防直读 `serverVersion` / 已防隐式反推）。
-- `discovery/`（Python）— 主动 masscan/ZMap（任意 CIDR，直至全网）+ FOFA 被动种子 + 合并去重 + 黑名单。
-- `fofa/` / `clawsec/`（Python）— 两个被动测绘源，各自独立库：`fofa/` 拉 FOFA（需凭据、按额度）入 `data/fofa/fofa.sqlite`；`clawsec/` 拉 ClawSec 高校暴露面平台（免凭据、每日全量快照、带平台自己的版本判定）入 `data/clawsec/clawsec.sqlite`。两源跨库 ATTACH 可交叉。
-- `fingerprints/` + `fingerprint/` — 版本指纹库与采集 fingerprint（逐版本起容器记签名）。
-- `store/`（Python）— `results.jsonl` → `data/scanner/scan_results.sqlite`（`assets` 资产登记 + `observations` 时序观测 + `probe_records` 完整请求/响应）。
+- `prober/detectors/`：Go 探测器接口与注册表；子目录放具体资产类型 detector。
+- `prober/detectors/openclaw/`：OpenClaw detector 适配层，复用既有 `prober/openclaw` 探测与版本判定逻辑。
+- `prober/cmd/assetprobe/`：平台级 runner，按 `--type` 调用对应探测器，输出 JSONL。
+- `prober/cmd/ocprobe/`：OpenClaw 兼容 runner，保留旧工作流入口。
+- `discovery/`：主动扫描与被动测绘源候选合并。
+- `fofa/` / `clawsec/`：第三方测绘源数据拉取与本地库。
+- `store/`：JSONL 入库，核心表为 `assets / observations / probe_records`，以 `asset_type:ip:port` 去重。
+- `dashboard/`：本地资产测绘看板，支持时间窗口与资产类型过滤。
 
-数据库按来源分库：`data/fofa/`、`data/clawsec/`、`data/scanner/` 各放各的（`data/` 已 gitignore）。从旧 `scan.sqlite` 迁移：`python3 fingerprint/migrate_dbs.py`。
+数据库按来源分库：`data/fofa/`、`data/clawsec/`、`data/scanner/` 各放各的，`data/` 已 gitignore。FOFA 等凭据只放环境变量或已 gitignore 的配置文件，不能硬编码。
 
 ## 依赖
 
-Go 1.24+、Python 3.11+、Docker（仅本地验证靶机）。全网主动扫描需 masscan 或 ZMap（root）。
-扫描器整条流水线 + SQLite 文件都跑在**本地宿主机**；唯一的容器是被扫的 OpenClaw 靶机。
+Go 1.24+、Python 3.11+。Docker 只用于本地验证靶机。主动大规模扫描需 masscan 或 ZMap，并应在获授权的专用扫描主机上执行。
 
-## 快速验证（本地，不向公网发包）
+## 快速验证
 
-1）起靶机（被扫的 OpenClaw）：
+本地测试不向公网发包：
 
-```
-docker run -d --name oc-fp -p 18789:18789 \
-  -e OPENCLAW_GATEWAY_TOKEN=$(openssl rand -hex 32) \
-  openclaw:local node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured
+```bash
+make test
+make demo
 ```
 
-2）一键测试 + 全链：
+`make demo` 会执行：
 
+```text
+discovery(localhost) -> assetprobe --type openclaw -> store -> stats
 ```
-make test     # go 测试（含只读不变量）+ python 单测
-make demo     # 发现(localhost) → 探测 → 落地 → 统计
+
+如需手动跑最小链路：
+
+```bash
+python3 -m discovery --cidr 127.0.0.0/30 --ports 18789 --backend internal --allow-reserved --out candidates.csv
+prober/bin/assetprobe --type openclaw --fingerprints fingerprints/fingerprints.json -o results.jsonl candidates.csv
+python3 -m store --db data/scanner/scan_results.sqlite --in results.jsonl --stats
+python3 -m dashboard --db data/scanner/scan_results.sqlite
 ```
 
-## 两种探测器
+看板默认地址：`http://127.0.0.1:8787/`。
 
-- **ocprobe**（轻量，多端口原生）：`prober/bin/ocprobe -f candidates.csv ...`，输入每行 `IP[,port]`。
-- **zgrab-openclaw**（ZGrab2 自定义模块，生产形态）：复用 ZGrab2 框架的并发、超时、限速、结构化输出与监控。输入每行 **IP**，端口走 `--port`（多端口需按端口分别跑）；首次构建会拉 zgrab2 依赖。
+## 探测入口
 
+推荐入口是 `assetprobe`：
+
+```bash
+go -C prober build -o bin/assetprobe ./cmd/assetprobe
+prober/bin/assetprobe --list-types
+prober/bin/assetprobe --type openclaw --fingerprints fingerprints/fingerprints.json -o results.jsonl candidates.csv
 ```
-make zgrab                                   # 构建 ZGrab2 二进制
+
+目标可为精确 IPv4、CIDR、通配 IPv4、文件路径或 `-` 标准输入。`candidates.csv` 会按第一列取 IP，兼容 discovery/FOFA 导出的候选文件。
+
+兼容入口 `ocprobe` 仍可使用：
+
+```bash
+go -C prober build -o bin/ocprobe ./cmd/ocprobe
+prober/bin/ocprobe --fingerprints fingerprints/fingerprints.json -o results.jsonl candidates.csv
+```
+
+ZGrab2 OpenClaw 模块仍保留，用于需要复用 ZGrab2 并发、超时、限速和结构化输出的场景：
+
+```bash
+make zgrab
 echo "1.2.3.4" | prober/bin/zgrab-openclaw openclaw --port 18789 \
   --blocklist-file=config/blocklist.txt --fingerprints fingerprints/fingerprints.json
 ```
 
-两者输出都能直接喂 `store`（store 同时认 ocprobe 扁平格式与 ZGrab2 信封格式）。
+## 扩展新资产类型
 
-## 真实公网扫描
+新增资产类型时只需要走四个落点：
 
-### 被动发现（非侵入，推荐先做）
+1. 在 `prober/detectors/<type>/` 实现 detector，并通过 `detectors.Register()` 注册。
+2. 输出结果至少实现平台字段：`asset_type`、`detector`、`ip`、`port`、`is_match`、`category`、`matched`、`error_type`、`ts`。
+3. 如有版本或专用证据，继续写入 detector 自己的 JSON 字段；`store` 会保留通用字段，`probe_records` 可保存逐项请求/响应。
+4. 如需人读报告，为该资产类型补充报告渲染逻辑；当前 OpenClaw 报告仍使用原有 C1/C2/C3 话术。
 
-只查第三方测绘库，不向任何目标发包。凭据走环境变量，绝不硬编码。
+`category` 统一含义：
 
+- `confirmed`：确认目标资产，且拿到版本或版本候选。
+- `confirmed_no_version`：确认目标资产，但版本未知。
+- `suspect`：命中特征但未达确认白名单，保留复扫或优化。
+
+## 被动测绘源
+
+FOFA 只给候选，项目自己的探测器负责最终确认与版本测定：
+
+```bash
+FOFA_EMAIL=... FOFA_KEY=... python3 -m fofa info
+python3 -m fofa pull --db data/fofa/fofa.sqlite --full --before 2026-05-30
+python3 -m fofa export --db data/fofa/fofa.sqlite --out candidates.csv --limit 500
+prober/bin/assetprobe --type openclaw --fingerprints fingerprints/fingerprints.json -o results.jsonl candidates.csv
+make load
 ```
-# FOFA（境内覆盖最佳）/ Shodan（全球）；二者择一或并用
-FOFA_EMAIL=... FOFA_KEY=... SHODAN_API_KEY=... \
-  python3 -m discovery --backend none --fofa --shodan --out candidates.csv
-# 探测（只读）+ 落地
-prober/bin/ocprobe -f candidates.csv --fingerprints fingerprints/fingerprints.json -o results.jsonl
-python3 -m store --in results.jsonl --stats   # 默认入 data/scanner/scan_results.sqlite
+
+ClawSec 是 OpenClaw 暴露面被动源，免凭据，按每日快照入库：
+
+```bash
+python3 -m clawsec info
+python3 -m clawsec pull --db data/clawsec/clawsec.sqlite
+python3 -m clawsec longlived --db data/clawsec/clawsec.sqlite --min-days 3
+python3 -m clawsec overlap --db data/clawsec/clawsec.sqlite --fofa-db data/fofa/fofa.sqlite
 ```
 
-Censys / Quake / ZoomEye 留待按同样的可插拔结构扩展。
+第三方平台的版本标注只作为外部参考；本项目认可的确认结果以 `assetprobe` 实时探测结果为准。
 
-### 主动全网扫描（专用 Linux 扫描主机，需授权）
+## 主动扫描边界
 
-需 sudo + 黑名单 + 限速 + 可识别扫描源（rDNS、说明页、abuse 联系人）。
-不应从开发笔记本对任意公网地址段直接发 SYN。
+主动扫描会对目标 IP 发起真实连接。大规模扫描必须具备授权、黑名单、限速、可识别出口和 abuse 联系方式，不应从开发笔记本直接扫任意公网地址段。
 
-```
-cp config/blocklist.example.txt config/blocklist.txt   # 全网必须排除保留网段
+```bash
+cp config/blocklist.example.txt config/blocklist.txt
 sudo python3 -m discovery --cidr 0.0.0.0/0 --backend masscan --rate 20000 \
-     --excludefile config/blocklist.txt --fofa --shodan --out candidates.csv
-prober/bin/ocprobe -f candidates.csv --fingerprints fingerprints/fingerprints.json -o results.jsonl
-python3 -m store --in results.jsonl --stats   # 默认入 data/scanner/scan_results.sqlite
+  --excludefile config/blocklist.txt --out candidates.csv
+prober/bin/assetprobe --type openclaw --fingerprints fingerprints/fingerprints.json -o results.jsonl candidates.csv
+python3 -m store --in results.jsonl --stats
 ```
 
-## FOFA 中国大陆普查工作流（额度受限）
+## 安全约束
 
-FOFA 只给候选、不给版本——版本由本项目探测器自取。默认候选查询（实测 `country="CN"`）：
-`(title="OpenClaw" || icon_hash="-805544463")`——title 用宽匹配（FOFA 的 `=` 即"包含"）多召回改名/汉化实例，
-误报交给逐台探测过滤；可叠加 `app="OpenClaw"`（FOFA 产品指纹）。查询不写死，`--query` 可传完整 FOFA 语句覆盖。
-
-额度策略（绑定约束 = 10 万条数据/月，查询次数不紧张）：
-
-- 额度由 FOFA 服务端强制（超了直接拒绝）：本地不记账，只用 `info/my` 看剩余、`--max-records` 给单次封顶；额度耗尽时优雅停并续拉；FOFA 限速自动退避。
-- **普查切分用时间窗**：`--before/--after`（FOFA 操作符，过滤 lastupdatetime）切出确定性、可重复的块——先拉新鲜窗（`after`，更可能在线）。`fofa_state` 的 Search After 游标只管**一次运行内**的断点续（重启可续、按查询语句校验）；跨月/跨设备靠"重跑同一窗口查询 + 按 `(ip,port)` 去重累积"，不依赖游标长期有效。
-- 版本新鲜度靠自有探测器复扫候选（不耗 FOFA 额度）。
-
-凭据先 `cp fofa/fofa.example.ini fofa/fofa.ini` 填入（已 gitignore），或用环境变量 `FOFA_EMAIL` / `FOFA_KEY`。
-**命令在项目根目录跑**（不是 `fofa/` 内，否则 `No module named fofa`）：
-
-```
-make fofa-info                                   # 账号 / 剩余额度 + 默认查询
-python3 -m fofa pull --full --before 2026-05-30   # 时间窗全量（带进度、可续）
-make fofa-provinces                              # 按省候选数量
-make fofa-export LIMIT=500                       # 导出候选 → candidates.csv
-prober/bin/ocprobe -f candidates.csv --fingerprints fingerprints/fingerprints.json -o results.jsonl
-make load                                        # 入库（assets / observations）
-make fofa-pv                                     # 按省 × 版本（资产规划）
-```
-
-绝不硬编码凭据。全量普查 + 批量探测属运营动作，在授权扫描主机上限速、可识别地跑。
-
-## ClawSec 测绘平台拉取（与 FOFA 平级的被动源）
-
-ClawSec（`clawsec.tcode.com.cn`）是高校做的 OpenClaw 公网暴露面测绘平台，公开、频繁更新。
-免凭据；IP 隐藏一位（`masked_ip`，补全/枚举留给下游探测）；携带平台自己的版本判定（`their_version`）
-与历史漏洞标注。**每日全量快照**入 `data/clawsec/clawsec.sqlite` 的 `clawsec_snapshots` 表——以平台
-`lastScanTime` 为 `snapshot_date`，同实例每天一行，从而可跨快照分析"哪些实例长期有效"（连续 Active），
-优先枚举这些更可能仍在线的实例找真实 IP。拉取中每 20 页复查平台日期，一旦平台从 6-15 更新到 6-16，
-自动停掉 6-15（标 incomplete）、改拉 6-16 全量；断点续传、429 自动退避。
-
-```
-python3 -m clawsec info                          # 平台汇总计数（含 lastScanTime）
-python3 -m clawsec pull                          # 拉当日全量快照（拉完为止、可续、日期变更自动切）
-python3 -m clawsec longlived --min-days 3        # 跨快照分析长期有效实例（优先枚举对象）
-python3 -m clawsec overlap                       # 最新快照 × fofa 的隐位重叠（跨库 ATTACH）
-python3 -m clawsec versions                      # 最新快照按平台版本统计
-```
-
-命令在项目根目录跑。平台数据非实时（带 `lastScanTime`），版本字段可能滞后；以本项目探测器实时探测为准。
-
-## 安全与合规（内建）
-
-- **只读、良性**：探测只做 WS 升级 + 无鉴权 GET，绝不发 `connect` / `config.apply` 或任何改状态帧（单测固化）。
-- **礼貌**：每 IP 限速，远低于服务端 `MAX_PREAUTH_CONNECTIONS_PER_IP=32`；默认排除保留/私有网段；黑名单与 opt-out 走 `config/blocklist.txt`。
-- **凭据**：FOFA 等凭据走环境变量/配置，绝不硬编码，已 `gitignore`。
-- 全网执行属运营动作，需授权、专用出口 IP 与合规前置。
-
-## 扩充版本指纹库
-
-```
-python3 fingerprint/build_corpus.py --image <openclaw 镜像> --version <版本号>
-```
-
-## 本轮未做（后续）
-
-ZGrab2 模块封装（生产形态，本轮以功能等价的 `ocprobe` 交付）、版本→CVE 映射、暴露面板、ClickHouse/PostgreSQL、Geo/ASN 与省市富化、IPv6 hitlist、协同披露。
+- 探测器默认只读，不发送改状态请求或配置写入请求。
+- 凭据必须走环境变量或 gitignore 中的本地配置。
+- `results.jsonl` 与 SQLite 可能包含目标响应原文，按敏感运行数据处理。
+- 全网执行属于运营动作，必须有授权范围与合规前置。

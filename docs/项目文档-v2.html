@@ -143,8 +143,9 @@
 <button class="nav-toggle" onclick="document.body.classList.toggle('nav-open')">☰ 目录</button>
 <div class="layout">
 <nav class="side" id="sidenav">
-  <div class="brand">AgentSecTool Scanner<small>OpenClaw 公网暴露面扫描器 · 项目文档</small></div>
+  <div class="brand">AgentSecTool Scanner<small>资产测绘平台 · 项目文档</small></div>
   <a href="#overview">概览 Overview</a>
+  <a href="#asset-detectors">资产类型与探测器 Asset Detectors</a>
   <a href="#quickstart">快速开始 Quickstart</a>
   <a href="#architecture">架构 Architecture</a>
   <a href="#concepts">核心概念 Core Concepts</a>
@@ -168,22 +169,23 @@
 <!-- ========== OVERVIEW ========== -->
 <section id="overview">
   <h1>AgentSecTool Scanner — 项目文档</h1>
-  <p class="lead">在授权范围内发现公网暴露的 OpenClaw 网关，只读地判定其是否为 OpenClaw、测定版本并归档，服务于后续的漏洞协同披露。本文档是工程接手契约：让接手者无需询问原作者即可理解目标、跑通最小闭环、定位模块、解释规则、执行测试、判断边界、排查失败。</p>
+  <p class="lead">AgentSecTool Scanner 在授权范围内发现公网暴露资产，按资产类型调用探测器，只读地判定目标实例、测定版本并归档，服务于后续的资产测绘与漏洞协同披露。本文档面向维护者和审阅者，说明平台目标、最小闭环、资产类型扩展方式、模块边界、判定规则、测试方法、运行边界与排错路径。</p>
 
   <div class="keyval">
-    <div class="kv"><div class="k">一句话定义</div><div class="v">OpenClaw 公网暴露面扫描器：发现 → 只读探测判定 → 版本测定 → SQLite 归档</div></div>
-    <div class="kv"><div class="k">当前状态</div><div class="v">主链路已对真实数据跑通（assets 5762 / observations 5762 / probe_records 28810），核心研判有 Go 单测固化</div></div>
-    <div class="kv"><div class="k">技术栈</div><div class="v">Go 1.24（探测引擎 ocprobe）+ Python 标准库（发现 / 测绘 / 落地 / 看板）+ SQLite + echarts（看板地图）</div></div>
+    <div class="kv"><div class="k">一句话定义</div><div class="v">综合资产测绘平台：发现 → 按资产类型探测 → 版本测定 → SQLite 归档 → 看板展示</div></div>
+    <div class="kv"><div class="k">平台形态</div><div class="v">平台级入口按资产类型调度 detector；OpenClaw 是首个内置 detector，既有 OpenClaw 数据与报告逻辑保留兼容</div></div>
+    <div class="kv"><div class="k">技术栈</div><div class="v">Go 1.24（detector 注册表 + assetprobe runner）+ Python 标准库（发现 / 测绘 / 落地 / 看板）+ SQLite + echarts（看板地图）</div></div>
     <div class="kv"><div class="k">权威数据位置</div><div class="v"><code>data/scanner/scan_results.sqlite</code>（扫描结果，101MB，已 gitignore）</div></div>
   </div>
 
   <h3>核心能力</h3>
   <ul>
-    <li><strong>只读探测判定</strong>：对单个 IP:端口 做 WebSocket + HTTP 只读探测，按证据组合白名单（C1/C2/C3）二元研判是否为 OpenClaw。<span class="ev">prober/openclaw/probe.go:22-74, signals.go:26-56</span></li>
-    <li><strong>版本测定</strong>：优先直读 <code>serverVersion</code>（<code>direct</code>），否则用首页构建产物的资产哈希集合精确匹配指纹库反推（<code>implicit</code> / <code>implicit-range</code>）。<span class="ev">version.go:13-23, fingerprints.go:41-56</span></li>
+    <li><strong>平台级探测调度</strong>：<code>assetprobe --type &lt;asset_type&gt;</code> 从注册表选择 detector；当前注册 <code>openclaw</code>。<span class="ev">prober/detectors/, prober/cmd/assetprobe/</span></li>
+    <li><strong>只读探测判定</strong>：每个 detector 对单个 IP:端口执行只读探测，输出统一的 <code>asset_type / is_match / category</code> 平台字段；OpenClaw 分支按 C1/C2/C3 二元研判。<span class="ev">prober/openclaw/probe.go, signals.go</span></li>
+    <li><strong>版本测定</strong>：OpenClaw 分支优先直读 <code>serverVersion</code>（<code>direct</code>），否则用首页构建产物的资产哈希集合精确匹配指纹库反推（<code>implicit</code> / <code>implicit-range</code>）。<span class="ev">version.go, fingerprints.go</span></li>
     <li><strong>发现层</strong>：主动扫描（masscan / zmap / 内置 async connect）+ 被动种子（FOFA / Shodan），合并去重产出 <code>candidates.csv</code>。<span class="ev">discovery/</span></li>
-    <li><strong>落地归档</strong>：<code>results.jsonl</code> → SQLite，入库时按 IP 富化地理位置。<span class="ev">store/load.py</span></li>
-    <li><strong>看板</strong>：纯标准库只读看板，含可切换世界/中国的 2D 散点地图。<span class="ev">dashboard/</span></li>
+    <li><strong>落地归档</strong>：<code>results.jsonl</code> → SQLite，按 <code>asset_type:ip:port</code> 去重，入库时按 IP 富化地理位置。<span class="ev">store/load.py</span></li>
+    <li><strong>看板</strong>：纯标准库只读看板，支持时间窗口和资产类型过滤，含可切换世界/中国的 2D 散点地图。<span class="ev">dashboard/</span></li>
   </ul>
 
   <h3>核心约束</h3>
@@ -197,14 +199,47 @@
   <ul>
     <li><strong>不</strong>做漏洞利用——只读探测，绝不发 <code>connect</code> 帧或 <code>config.apply</code>（后者是 CVE 利用面）。</li>
     <li><strong>不</strong>把 FOFA / ClawSec 的平台标注当作项目确认事实——它们是外部测绘数据源、只提供候选与平台自己的版本标注。</li>
+    <li><strong>不</strong>在平台层硬编码 OpenClaw 规则——OpenClaw 规则只属于 <code>asset_type=openclaw</code> 的 detector 分支。</li>
     <li><strong>不</strong>处理 IPv6（ocprobe 通配枚举只对 IPv4 第三位有意义）。</li>
     <li>下游的「版本→CVE 映射、协同披露流程」尚未实现，见 <a href="#limitations">已知限制</a>。</li>
   </ul>
 
   <div class="callout info">
-    <p class="ct">NOTE · 从哪开始读</p>
-    <p>第一次接手：<a href="#quickstart">快速开始</a>（跑通本地最小闭环）→ <a href="#architecture">架构</a>（模块与数据流）→ <a href="#rules">判定规则</a>（C1/C2/C3 与 T1–T7）。要改代码的智能体直接看 <a href="#agent">智能体须知</a>。要排错看 <a href="#troubleshooting">失败与排错</a>。</p>
+    <p class="ct">NOTE · 阅读路径</p>
+    <p>维护者可从 <a href="#quickstart">快速开始</a> 跑通本地最小闭环，再读 <a href="#asset-detectors">资产类型与探测器</a> 理解扩展边界，随后进入 <a href="#architecture">架构</a>、<a href="#rules">OpenClaw 判定规则</a> 和 <a href="#troubleshooting">失败与排错</a>。自动化代理相关约束集中在 <a href="#agent">智能体须知</a>。</p>
   </div>
+</section>
+
+<!-- ========== ASSET DETECTORS ========== -->
+<section id="asset-detectors">
+  <h2>资产类型与探测器 Asset Detectors</h2>
+  <p>平台层负责候选输入、detector 调度、统一结果字段、入库、查询和展示；具体资产类型的探测规则、证据采集、版本测定和报告话术由各自 detector 分支实现。OpenClaw 是当前内置的首个资产类型分支。</p>
+
+  <h3>模块职责边界</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>层级</th><th>职责</th><th>当前落点</th></tr></thead>
+    <tbody>
+      <tr><td>平台入口</td><td>按 <code>--type</code> 选择资产类型，展开目标、并发、限速、输出 JSONL</td><td><code>prober/cmd/assetprobe</code></td></tr>
+      <tr><td>探测器体系根包</td><td>管理接口、asset_type → detector factory 注册表、通用摘要字段</td><td><code>prober/detectors</code></td></tr>
+      <tr><td>资产类型分支</td><td>实现只读探测、证据采集、版本测定、detector 专属 JSON</td><td><code>prober/detectors/openclaw</code> + <code>prober/openclaw</code></td></tr>
+      <tr><td>落库与看板</td><td>按 <code>asset_type:ip:port</code> 去重；按时间窗口和资产类型查询</td><td><code>store/</code>、<code>dashboard/</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>资产类型接入契约</h3>
+  <ul>
+    <li>在 <code>prober/detectors/&lt;type&gt;/</code> 实现 detector，并通过 <code>detectors.Register()</code> 注册唯一 <code>asset_type</code>。</li>
+    <li>结果至少暴露平台字段：<code>asset_type</code>、<code>detector</code>、<code>ip</code>、<code>port</code>、<code>is_match</code>、<code>category</code>、<code>matched</code>、<code>error_type</code>、<code>ts</code>。</li>
+    <li><code>category</code> 统一使用 <code>confirmed</code>、<code>confirmed_no_version</code>、<code>suspect</code>；探不到且无命中的记录不入库。</li>
+    <li>OpenClaw 的 <code>is_openclaw</code>、<code>rule</code>、C1/C2/C3、T1–T7 是兼容字段和专属规则，不应泄漏成平台通用规则。</li>
+  </ul>
+
+  <pre><code># 平台级入口
+prober/bin/assetprobe --list-types
+prober/bin/assetprobe --type openclaw --fingerprints fingerprints/fingerprints.json -o results.jsonl candidates.csv
+
+# 入库后可按资产类型过滤
+python3 -m dashboard --db data/scanner/scan_results.sqlite</code></pre>
 </section>
 
 <!-- ========== QUICKSTART ========== -->
@@ -212,9 +247,9 @@
   <h2>快速开始 Quickstart</h2>
   <p>最小可复现闭环。所有命令<strong>在项目根目录</strong>（<code>AgentSecTool_Scanner/</code>）运行——Python 模块以 <code>python3 -m</code> 调用，Makefile 已设 <code>PYTHONPATH</code>；在子目录内运行会报 <code>No module named …</code>。</p>
 
-  <div class="callout warn">
-    <p class="ct">WARNING · 不要用 make demo / make probe 作为最小路径</p>
-    <p>这两个 Makefile target 内部用 <code>ocprobe -f candidates.csv</code>，但 <code>ocprobe</code> <strong>没有 <code>-f</code> 参数</strong>，实跑报 <code>flag provided but not defined: -f</code> 并以退出码 2 失败。<span class="ev">Makefile probe/demo target，已复核</span> 正确的探测用法见下方第 3 步与 <a href="#commands">命令参考</a>。此问题列入 <a href="#limitations">已知限制</a>。</p>
+  <div class="callout info">
+    <p class="ct">NOTE · 平台入口</p>
+    <p>平台级探测入口为 <code>assetprobe --type &lt;asset_type&gt; candidates.csv</code>。<code>ocprobe</code> 保留为 OpenClaw 专用 runner；跨资产类型扫描、Makefile 默认探测目标和新资产类型接入均使用 <code>assetprobe</code>。</p>
   </div>
 
   <h3>1 · 运行测试（无需任何外部依赖 / 凭据 / 网络）</h3>
@@ -227,18 +262,21 @@
   </ul>
 
   <h3>2 · 构建探测器</h3>
-  <pre><code>go -C prober build -o bin/ocprobe ./cmd/ocprobe</code></pre>
+  <pre><code>make prober</code></pre>
+  <pre><code># 等价手动构建
+go -C prober build -o bin/assetprobe ./cmd/assetprobe
+go -C prober build -o bin/ocprobe ./cmd/ocprobe</code></pre>
   <ul>
-    <li><strong>产物</strong>：<code>prober/bin/ocprobe</code>（gitignore）｜ <strong>网络/凭据</strong>：否（首次会拉 Go 依赖）｜ <strong>幂等</strong>：是</li>
+    <li><strong>产物</strong>：<code>prober/bin/assetprobe</code>、<code>prober/bin/ocprobe</code>（gitignore）｜ <strong>网络/凭据</strong>：否（首次会拉 Go 依赖）｜ <strong>幂等</strong>：是</li>
   </ul>
 
   <h3>3 · 探测一个目标（只读，安全）</h3>
   <p>目标作为<strong>位置参数</strong>给出（精确 IP / CIDR / 通配 IP / 每行一个目标的文件路径）：</p>
   <pre><code># 探测单个 IP，逐行打印结论
-prober/bin/ocprobe -port 18789 203.0.113.10
+prober/bin/assetprobe --type openclaw -port 18789 203.0.113.10
 
 # 带指纹库做版本反推、结果落盘供入库
-prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o results.jsonl targets.txt</code></pre>
+prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fingerprints.json -o results.jsonl targets.txt</code></pre>
   <ul>
     <li><strong>运行目录</strong>：项目根 ｜ <strong>写文件</strong>：仅在给 <code>-o</code> 时写该 JSONL（<code>os.Create</code> 截断重建）｜ <strong>写库</strong>：否 ｜ <strong>网络</strong>：<strong>是，对目标 IP 发起 TCP/HTTP/WS 连接</strong> ｜ <strong>凭据</strong>：否 ｜ <strong>幂等</strong>：是（同名 <code>-o</code> 文件会被覆盖）</li>
     <li><strong>成功标志</strong>：终端逐行打印 <code>IP:端口 OpenClaw version=…</code> 或 <code>not-openclaw …</code>。</li>
@@ -267,65 +305,112 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
 <!-- ========== ARCHITECTURE ========== -->
 <section id="architecture">
   <h2>架构 Architecture</h2>
-  <p>系统分两条链路。<strong>正式主链路</strong>：发现 → 探测 → 落地 → 看板。<strong>供料与辅助链路</strong>：FOFA / ClawSec（被动测绘数据源）、geoip（富化）、指纹库、progress / scope（调度）；fingerprint / scan_test 是一次性历史工具。判定与版本测定<strong>只发生在 ocprobe</strong>。</p>
+  <p>系统分两条链路。<strong>正式主链路</strong>：发现 → 平台调度 → detector 探测 → 落地 → 看板。<strong>供料与辅助链路</strong>：FOFA / ClawSec（被动测绘数据源）、geoip（富化）、指纹库、progress / scope（调度）；fingerprint / scan_test 是一次性历史工具。平台层不承载具体资产判定规则；判定与版本测定发生在对应 detector 分支，OpenClaw 分支使用 C1/C2/C3 规则。</p>
 
   <div class="diagram">
-    <svg viewBox="0 0 760 410" role="img" aria-label="模块与数据流">
+    <svg viewBox="0 0 1120 540" role="img" aria-label="AgentSecTool Scanner 系统架构图">
       <defs>
-        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9" fill="none" stroke="#6e7781" stroke-width="1.6"/></marker>
+        <marker id="arch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,1 L9,5 L0,9" fill="none" stroke="#111" stroke-width="1.4"/>
+        </marker>
       </defs>
-      <!-- 行1：发现 → candidates → ocprobe -->
-      <text x="24" y="24" font-family="ui-monospace,monospace" font-size="11" fill="#6e7781">正式主链路</text>
-      <rect x="24" y="36" width="150" height="52" rx="7" fill="#fff" stroke="#afb8c1" stroke-width="1.2"/>
-      <text x="40" y="60" font-size="12.5" fill="#1f2328" font-family="-apple-system,sans-serif">发现 discovery</text>
-      <text x="40" y="77" font-size="10" fill="#6e7781" font-family="ui-monospace,monospace">主动+被动种子</text>
-      <path d="M174,62 L208,62" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#ah)"/>
-      <rect x="208" y="36" width="140" height="52" rx="7" fill="#f0f2f4" stroke="#afb8c1" stroke-width="1.2"/>
-      <text x="224" y="60" font-size="12" fill="#1f2328" font-family="-apple-system,sans-serif">candidates.csv</text>
-      <text x="224" y="77" font-size="10" fill="#6e7781" font-family="ui-monospace,monospace">ip,port 清单</text>
-      <path d="M348,62 L382,62" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#ah)"/>
-      <!-- ocprobe：强调用粗灰边 + 浅灰底，不用纯黑 -->
-      <rect x="382" y="30" width="266" height="64" rx="7" fill="#e9ecf0" stroke="#57606a" stroke-width="2.4"/>
-      <text x="400" y="52" font-size="13" font-weight="600" fill="#1f2328" font-family="-apple-system,sans-serif">探测引擎 ocprobe（扫描器本体）</text>
-      <text x="400" y="70" font-size="10" fill="#57606a" font-family="ui-monospace,monospace">只读探测 · 判定 C1/C2/C3 · 版本测定</text>
-      <text x="400" y="84" font-size="9.5" fill="#8c959f" font-family="ui-monospace,monospace">prober/openclaw/</text>
-      <!-- ocprobe → results.jsonl（竖直向下，居中对齐 515）-->
-      <path d="M515,94 L515,128" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#ah)"/>
-      <rect x="425" y="128" width="180" height="48" rx="7" fill="#f0f2f4" stroke="#afb8c1" stroke-width="1.2"/>
-      <text x="441" y="150" font-size="12" fill="#1f2328" font-family="-apple-system,sans-serif">results.jsonl</text>
-      <text x="441" y="166" font-size="10" fill="#6e7781" font-family="ui-monospace,monospace">逐目标研判+版本</text>
-      <!-- results → store（竖直向下，居中 515）-->
-      <path d="M515,176 L515,206" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#ah)"/>
-      <rect x="402" y="206" width="226" height="56" rx="7" fill="#fff" stroke="#afb8c1" stroke-width="1.2"/>
-      <text x="418" y="230" font-size="12.5" fill="#1f2328" font-family="-apple-system,sans-serif">落地 store → SQLite</text>
-      <text x="418" y="248" font-size="9" fill="#6e7781" font-family="ui-monospace,monospace">assets · observations · probe_records（+geoip）</text>
-      <!-- store → dashboard（向左，水平线在框下方 234，不压字）-->
-      <path d="M402,234 L320,234" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#ah)"/>
-      <rect x="150" y="208" width="150" height="52" rx="7" fill="#fff" stroke="#afb8c1" stroke-width="1.2"/>
-      <text x="166" y="232" font-size="12" fill="#1f2328" font-family="-apple-system,sans-serif">看板 dashboard</text>
-      <text x="166" y="249" font-size="10" fill="#6e7781" font-family="ui-monospace,monospace">只读可视化</text>
-      <!-- 供料链路（底部一行）-->
-      <text x="24" y="312" font-family="ui-monospace,monospace" font-size="11" fill="#6e7781">供料 / 辅助链路（不参与判定）</text>
-      <rect x="24" y="324" width="180" height="52" rx="7" fill="#fff" stroke="#afb8c1" stroke-width="1.2" stroke-dasharray="5 3"/>
-      <text x="40" y="348" font-size="12" fill="#1f2328" font-family="-apple-system,sans-serif">FOFA / ClawSec 测绘</text>
-      <text x="40" y="365" font-size="9.5" fill="#6e7781" font-family="ui-monospace,monospace">候选归档·平台版本标注</text>
-      <rect x="224" y="324" width="170" height="52" rx="7" fill="#fff" stroke="#afb8c1" stroke-width="1.2" stroke-dasharray="5 3"/>
-      <text x="240" y="348" font-size="12" fill="#1f2328" font-family="-apple-system,sans-serif">指纹库 / geoip</text>
-      <text x="240" y="365" font-size="9.5" fill="#6e7781" font-family="ui-monospace,monospace">版本反推·地理富化</text>
-      <!-- 供料 → ocprobe：虚线从供料区右侧上行到 ocprobe 底部中点，正交、绕开所有框 -->
-      <path d="M394,350 L678,350 L678,94" fill="none" stroke="#8c959f" stroke-width="1.3" stroke-dasharray="4 4" marker-end="url(#ah)"/>
-      <text x="408" y="343" font-size="9.5" fill="#8c959f" font-family="ui-monospace,monospace">可选喂入：export 候选 / 指纹反推</text>
+      <style>
+        .arch-title{font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;fill:#111}
+        .arch-label{font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;fill:#111;text-anchor:middle}
+        .arch-section{font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;fill:#111}
+        .arch-code{font:10.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#333;text-anchor:middle}
+        .arch-small{font:10px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;fill:#444;text-anchor:middle}
+        .arch-box{fill:#fff;stroke:#111;stroke-width:1.1}
+        .arch-soft{fill:#f7f7f7;stroke:#111;stroke-width:1.1}
+        .arch-boundary{fill:none;stroke:#777;stroke-width:1.1;stroke-dasharray:6 4}
+        .arch-arrow{fill:none;stroke:#111;stroke-width:1.3;marker-end:url(#arch-arrow)}
+      </style>
+
+      <rect x="20" y="20" width="1080" height="500" class="arch-box"/>
+      <text x="44" y="52" class="arch-title">AgentSecTool Scanner：资产测绘平台架构</text>
+
+      <rect x="44" y="90" width="190" height="326" rx="3" class="arch-boundary"/>
+      <text x="64" y="116" class="arch-section">候选来源</text>
+      <rect x="72" y="140" width="135" height="58" rx="3" class="arch-soft"/>
+      <text x="139.5" y="165" class="arch-label">主动发现</text>
+      <text x="139.5" y="184" class="arch-code">masscan / zmap</text>
+      <rect x="72" y="235" width="135" height="72" rx="3" class="arch-soft"/>
+      <text x="139.5" y="260" class="arch-label">外部测绘</text>
+      <text x="139.5" y="279" class="arch-code">FOFA / Shodan</text>
+      <text x="139.5" y="298" class="arch-code">ClawSec seed</text>
+      <text x="139.5" y="374" class="arch-small">外部标注只作候选</text>
+      <text x="139.5" y="392" class="arch-small">不作为确认事实</text>
+
+      <rect x="265" y="90" width="610" height="326" rx="3" class="arch-boundary"/>
+      <text x="285" y="116" class="arch-section">平台边界</text>
+      <rect x="300" y="202" width="150" height="76" rx="3" class="arch-box"/>
+      <text x="375" y="230" class="arch-label">候选集合</text>
+      <text x="375" y="251" class="arch-code">candidates.csv</text>
+      <text x="375" y="270" class="arch-code">ip, port</text>
+
+      <rect x="490" y="180" width="160" height="120" rx="3" class="arch-soft"/>
+      <text x="570" y="210" class="arch-label">assetprobe</text>
+      <text x="570" y="235" class="arch-code">--type asset_type</text>
+      <text x="570" y="256" class="arch-code">target expand</text>
+      <text x="570" y="277" class="arch-code">concurrency / rate</text>
+      <rect x="490" y="334" width="160" height="56" rx="3" class="arch-box"/>
+      <text x="570" y="358" class="arch-label">detector 注册表</text>
+      <text x="570" y="377" class="arch-code">asset_type → factory</text>
+
+      <rect x="695" y="130" width="150" height="220" rx="3" class="arch-box"/>
+      <text x="770" y="156" class="arch-label">Detector 分支</text>
+      <rect x="715" y="174" width="110" height="42" rx="3" class="arch-soft"/>
+      <text x="770" y="192" class="arch-label">OpenClaw</text>
+      <text x="770" y="210" class="arch-code">C1 / C2 / C3</text>
+      <rect x="715" y="236" width="110" height="42" rx="3" class="arch-soft"/>
+      <text x="770" y="254" class="arch-label">资产类型 A</text>
+      <text x="770" y="272" class="arch-code">专属规则</text>
+      <rect x="715" y="298" width="110" height="42" rx="3" class="arch-soft"/>
+      <text x="770" y="316" class="arch-label">资产类型 B</text>
+      <text x="770" y="334" class="arch-code">版本测定</text>
+
+      <rect x="925" y="210" width="150" height="70" rx="3" class="arch-box"/>
+      <text x="1000" y="238" class="arch-label">JSONL</text>
+      <text x="1000" y="259" class="arch-code">统一结果字段</text>
+      <rect x="925" y="315" width="150" height="76" rx="3" class="arch-soft"/>
+      <text x="1000" y="341" class="arch-label">SQLite Store</text>
+      <text x="1000" y="361" class="arch-code">assets</text>
+      <text x="1000" y="378" class="arch-code">observations</text>
+      <rect x="925" y="426" width="150" height="58" rx="3" class="arch-box"/>
+      <text x="1000" y="450" class="arch-label">Dashboard</text>
+      <text x="1000" y="469" class="arch-code">Report / APIs</text>
+
+      <rect x="300" y="452" width="150" height="52" rx="3" class="arch-soft"/>
+      <text x="375" y="475" class="arch-label">范围与进度</text>
+      <text x="375" y="494" class="arch-code">progress / scope</text>
+      <rect x="695" y="452" width="150" height="52" rx="3" class="arch-soft"/>
+      <text x="770" y="475" class="arch-label">指纹库</text>
+      <text x="770" y="494" class="arch-code">fingerprints.json</text>
+      <rect x="925" y="104" width="150" height="52" rx="3" class="arch-soft"/>
+      <text x="1000" y="127" class="arch-label">地理富化</text>
+      <text x="1000" y="146" class="arch-code">GeoLite2</text>
+
+      <path d="M207,169 L300,225" class="arch-arrow"/>
+      <path d="M207,271 L300,255" class="arch-arrow"/>
+      <path d="M450,240 L490,240" class="arch-arrow"/>
+      <path d="M650,240 L695,240" class="arch-arrow"/>
+      <path d="M845,245 L925,245" class="arch-arrow"/>
+      <path d="M1000,280 L1000,315" class="arch-arrow"/>
+      <path d="M1000,391 L1000,426" class="arch-arrow"/>
     </svg>
   </div>
-  <p class="caption">全灰度。实线＝正式主链路数据流；虚线框与虚线箭头＝供料 / 辅助链路（可选喂入）。粗边框的 ocprobe 是唯一做判定与版本测定的组件——强调靠边框粗细而非填充色。FOFA / ClawSec 只提供候选与平台标注，需经 ocprobe 才成为项目确认事实。箭头方向＝数据流向。</p>
+  <p class="caption">图 1：AgentSecTool Scanner 系统架构。箭头统一表示候选或结果进入下一处理环节；虚线框表示候选来源与平台边界。注册表、范围与进度、指纹库和地理富化是运行依赖，不进入主数据流。外部测绘平台只提供候选或外部标注，项目确认事实必须经过平台入口与对应 detector 的只读探测。</p>
 
   <h3>模块清单</h3>
   <p>状态标签口径：<span class="badge stable">stable</span> 正式主链路且有单测；<span class="badge partial">partial</span> 接入运营但无单测；<span class="badge experimental">experimental</span> 一次性 / 验证性工具。</p>
   <div class="tbl-wrap"><table>
     <thead><tr><th>模块</th><th>状态</th><th>链路</th><th>职责</th><th>入口</th><th>单测</th></tr></thead>
     <tbody>
+      <tr><td><code>prober/detectors</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>探测器接口、注册表、平台通用摘要；子目录放具体资产类型实现</td><td><code>detectors.New()</code></td><td>随 Go 全量测试编译覆盖</td></tr>
+      <tr><td><code>prober/cmd/assetprobe</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>平台 runner：按 <code>--type</code> 调用 detector</td><td><code>assetprobe</code></td><td>随 Go 全量测试编译覆盖</td></tr>
+      <tr><td><code>prober/detectors/openclaw</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>OpenClaw detector 适配层</td><td><code>detectors.Register("openclaw")</code></td><td>复用 openclaw 单测</td></tr>
       <tr><td><code>prober/openclaw</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>只读探测核心：判定 + 版本测定</td><td><code>openclaw.Probe()</code></td><td>有（Go 3 包）</td></tr>
-      <tr><td><code>prober/cmd/ocprobe</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>探测 runner：目标展开 + 并发 + 落 JSONL</td><td><code>ocprobe</code></td><td>有</td></tr>
+      <tr><td><code>prober/cmd/ocprobe</code></td><td><span class="badge stable">stable</span></td><td>专用入口</td><td>OpenClaw runner：目标展开 + 并发 + 落 JSONL</td><td><code>ocprobe</code></td><td>有</td></tr>
       <tr><td><code>prober/zgrab</code></td><td><span class="badge experimental">experimental</span></td><td>主链路(备)</td><td>ZGrab2 自定义模块，薄封装 Probe</td><td><code>zgrab-openclaw openclaw</code></td><td>无（独立 go.mod，不在 go test ./... 范围）</td></tr>
       <tr><td><code>discovery</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>发现层：主动扫描+被动种子→candidates.csv</td><td><code>python3 -m discovery</code></td><td>有</td></tr>
       <tr><td><code>store</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>落地：jsonl→SQLite，入库时 geoip 富化</td><td><code>python3 -m store</code></td><td>有</td></tr>
@@ -342,8 +427,8 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
   <p class="caption">「链路」列：主链路＝产品路径；供料＝向扫描器提供探测目标/外部标注；辅助＝调度/富化/可视化；工具/验证＝一次性。详见各模块在 <a href="#commands">命令参考</a> 与 <a href="#data-model">数据模型</a> 的展开。</p>
 
   <div class="callout invariant">
-    <p class="ct">INVARIANT · 不变量：判定只在 ocprobe</p>
-    <p>FOFA / ClawSec / scan_test 都<strong>不</strong>做 OpenClaw 判定或版本测定。它们提供候选或平台自报的版本标注；是否真为 OpenClaw、本项目认可的版本是多少，一律由 ocprobe 的只读探测得出。这是区分「项目确认事实」与「外部平台标注」的根本边界。</p>
+    <p class="ct">INVARIANT · 判定来源</p>
+    <p>FOFA / ClawSec / scan_test 都<strong>不</strong>做 OpenClaw 判定或版本测定。它们提供候选或平台自报的版本标注；是否真为 OpenClaw、项目认可的版本是多少，由 <code>assetprobe --type openclaw</code> 或 <code>ocprobe</code> 的只读探测得出。这是区分「项目确认事实」与「外部平台标注」的根本边界。</p>
   </div>
 </section>
 
@@ -435,13 +520,13 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
   <div class="tbl-wrap"><table>
     <thead><tr><th>枚举值</th><th>含义</th><th>判定条件</th></tr></thead>
     <tbody>
-      <tr><td><code>confirmed</code></td><td>明确 OpenClaw 且取到版本</td><td><code>is_openclaw</code> 且有 version / version_candidates</td></tr>
-      <tr><td><code>confirmed_no_version</code></td><td>明确 OpenClaw 但版本未取到</td><td><code>is_openclaw</code> 但无版本</td></tr>
-      <tr><td><code>suspect</code></td><td>命中部分特征、未达白名单</td><td>非 openclaw 但 matched 非空</td></tr>
+      <tr><td><code>confirmed</code></td><td>确认目标资产且取到版本</td><td><code>is_match</code> 且有 version / version_candidates</td></tr>
+      <tr><td><code>confirmed_no_version</code></td><td>确认目标资产但版本未取到</td><td><code>is_match</code> 但无版本</td></tr>
+      <tr><td><code>suspect</code></td><td>命中部分特征、未达白名单</td><td>未确认但 matched 非空</td></tr>
       <tr><td>（不收录）</td><td>探不到 / 纯无命中</td><td>classify 返回 None，跳过</td></tr>
     </tbody>
   </table></div>
-  <p>资产的 category 取该资产历次观测中<strong>最强的一档</strong>（rank：suspect &lt; confirmed_no_version &lt; confirmed），只升不降。<span class="ev">store/load.py:48-49,116-128</span></p>
+  <p>资产的 category 是该快照内最新观测的研判分档；同一快照内重复观测会覆盖为最新结果，不跨快照做历史最强聚合。<span class="ev">store/load.py</span></p>
 
   <h3>版本来源 version_source</h3>
   <ul>
@@ -451,11 +536,11 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
   </ul>
 
   <h3>隐位 IP（masked_ip，ClawSec 专有）</h3>
-  <p>ClawSec 平台公开列表把 IP 的<strong>第三位</strong>隐藏成 <code>*</code>（如 <code>1.14.*.22</code>）。补全靠 ocprobe 对该通配段枚举第三位 0–255。这是 ClawSec 数据特有，与本项目权威数据无关。</p>
+  <p>ClawSec 平台公开列表把 IP 的<strong>第三位</strong>隐藏成 <code>*</code>（如 <code>1.14.*.22</code>）。补全依赖目标展开逻辑对该通配段枚举第三位 0–255。这是 ClawSec 数据特有，与本项目权威数据无关。</p>
 
   <div class="callout invariant">
-    <p class="ct">INVARIANT · 术语口径校正（与旧注释/旧文档不一致处）</p>
-    <p>① <code>consts.go:26</code> 把判定口径概括为「WS 挑战 或 ≥2 跨表面信号」，<strong>不精确</strong>——T1 单独（确证级、非 WS）也达标，且「≥2」必须跨表面（同表面 T3+T4 不达标）。以 <a href="#rules">规则白名单</a> 为准。② <code>schema.sql:1</code> 注释称资产「按内容指纹或 ip:port 去重」，<strong>实际只按 ip:port</strong>（<code>identity_key = "ipport:{ip}:{port}"</code>），不按内容指纹合并。<span class="ev">store/load.py:12-18</span></p>
+    <p class="ct">INVARIANT · 术语口径</p>
+    <p>① OpenClaw 判定口径以 <a href="#rules">规则白名单</a> 为准：T1 单独（确证级、非 WS）即可达标；「≥2」必须跨表面，同表面 T3+T4 不达标。② 资产身份键为 <code>{asset_type}:ipport:{ip}:{port}</code>，不按内容指纹跨 IP 合并，同一 IP:端口可承载多个资产类型。<span class="ev">store/load.py</span></p>
   </div>
 </section>
 
@@ -475,8 +560,8 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
 
   <h3>WF-2 · 正式扫描工作流（发现 → 探测 → 落地）</h3>
   <ul>
-    <li><strong>前置</strong>：构建 ocprobe；准备目标（candidates.csv 或目标文件）；如走 FOFA 种子需配置凭据。</li>
-    <li><strong>步骤</strong>：① <code>python3 -m discovery …</code> 产 candidates.csv → ② <code>ocprobe -port … -fingerprints … -o results.jsonl &lt;目标&gt;</code> → ③ <code>.venv/bin/python3 -m store --in results.jsonl</code>。</li>
+    <li><strong>前置</strong>：构建 <code>assetprobe</code>；准备目标（candidates.csv 或目标文件）；如走 FOFA 种子需配置凭据。</li>
+    <li><strong>步骤</strong>：① <code>python3 -m discovery …</code> 产 candidates.csv → ② <code>assetprobe --type openclaw -port … -fingerprints … -o results.jsonl &lt;目标&gt;</code> → ③ <code>.venv/bin/python3 -m store --in results.jsonl</code>。</li>
     <li><strong>注意</strong>：candidates.csv 是 <code>ip,port</code> 两列，<strong>不能</strong>直接作为 ocprobe 的目标文件（ocprobe 目标文件要求每行一个 IP，端口走 <code>-port</code>）。需自行抽列或按 IP 生成目标文件。</li>
     <li><strong>产物</strong>：candidates.csv（临时）、results.jsonl（临时）、scan_results.sqlite（权威）。</li>
     <li><strong>验证</strong>：<code>python3 -m store --stats</code> 看分桶计数；看板查看。</li>
@@ -697,7 +782,7 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
 <!-- ========== NARRATIVE ========== -->
 <section id="narrative">
   <h2>研判依据拼接 Narrative</h2>
-  <p>机器判定（<code>is_openclaw</code> / <code>rule</code>）是结论，但报告与看板要把它<strong>解释成人话</strong>——这件事由 <code>store/report.py</code> 独立完成，是「研判结论如何对人解释」的<strong>唯一真相源</strong>。本节是它的权威落点。<strong>判定与话术解耦</strong>：本模块不重新判定，只把已有的 observation + probe_records 拼成分析文字。<span class="ev">store/report.py:1-4</span></p>
+  <p>机器判定（<code>is_openclaw</code> / <code>rule</code>）是结论，报告与看板负责生成面向读者的研判说明。该逻辑由 <code>store/report.py</code> 独立完成，是「研判结论如何对人解释」的统一来源。<strong>判定与话术解耦</strong>：本模块不重新判定，只把已有的 observation + probe_records 拼成分析文字。<span class="ev">store/report.py:1-4</span></p>
 
   <div class="callout invariant">
     <p class="ct">INVARIANT · 同一套拼装逻辑被两处复用</p>
@@ -730,7 +815,7 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
   <div class="tbl-wrap"><table>
     <thead><tr><th>数据对象</th><th>库</th><th>身份键</th><th>写入语义</th><th>分类</th><th>可提交</th></tr></thead>
     <tbody>
-      <tr><td><code>assets</code></td><td>data/scanner/</td><td><code>(snapshot_date, asset_id)</code></td><td>按快照分行；同快照内同 ip:port REPLACE 取最新</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否（data/ gitignore）</td></tr>
+      <tr><td><code>assets</code></td><td>data/scanner/</td><td><code>(snapshot_date, asset_id)</code></td><td>按快照分行；同快照内同 asset_type:ip:port REPLACE 取最新</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否（data/ gitignore）</td></tr>
       <tr><td><code>observations</code></td><td>data/scanner/</td><td>自增 id（不去重）</td><td>append-only 时序</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
       <tr><td><code>probe_records</code></td><td>data/scanner/</td><td>自增 id</td><td>append-only，完整请求/响应原文</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
       <tr><td><code>fofa_candidates</code></td><td>data/fofa/</td><td><code>(ip, port)</code></td><td>当前态 upsert</td><td><span class="tag">外部</span><span class="tag">敏感</span></td><td>否</td></tr>
@@ -752,8 +837,8 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
   </ul>
 
   <div class="callout danger">
-    <p class="ct">WARNING · 文档纠错：指纹库是被 git 跟踪的，不是被忽略</p>
-    <p>旧文档（<code>docs/项目文档.html</code>）称「指纹库文件均已纳入 .gitignore」，<strong>与事实不符</strong>。<code>fingerprints/fingerprints.json</code> 实为 git 跟踪、未被忽略（<code>.gitignore</code> 只忽略 <code>fingerprints/*.local.json</code>）。<span class="ev">git check-ignore 退出码 1，已复核</span> 指纹库是需要随仓库走的权威数据，被跟踪是正确的。</p>
+    <p class="ct">WARNING · 指纹库维护口径</p>
+    <p><code>fingerprints/fingerprints.json</code> 是 git 跟踪的权威数据文件，不属于本地临时数据；<code>.gitignore</code> 只忽略 <code>fingerprints/*.local.json</code>。<span class="ev">git check-ignore 退出码 1，已复核</span> 指纹库需要随仓库版本管理，新增或修正官方指纹时应提交该文件。</p>
   </div>
 
   <h4><code>assets</code> 字段级（store/schema.sql:7-23）</h4>
@@ -761,7 +846,9 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
     <thead><tr><th>字段</th><th>语义</th></tr></thead>
     <tbody>
       <tr><td><code>snapshot_date</code></td><td>快照日期 YYYY-MM-DD = 该 jsonl 内所有记录 ts 的<strong>日期众数</strong>；与 asset_id 共同构成主键</td></tr>
-      <tr><td><code>asset_id</code> / <code>identity_key</code></td><td>身份键 sha1("ipport:{ip}:{port}")，按 IP:端口去重，<strong>不</strong>按内容指纹合并</td></tr>
+      <tr><td><code>asset_id</code> / <code>identity_key</code></td><td>身份键 sha1("{asset_type}:ipport:{ip}:{port}")，按资产类型 + IP:端口去重，<strong>不</strong>按内容指纹合并</td></tr>
+      <tr><td><code>asset_type</code> / <code>detector</code></td><td>平台资产类型与探测器标识；缺省 OpenClaw JSONL 自动补为 <code>openclaw</code></td></tr>
+      <tr><td><code>is_match</code> / <code>is_openclaw</code></td><td><code>is_match</code> 是平台通用确认口径；<code>is_openclaw</code> 是 OpenClaw 兼容字段</td></tr>
       <tr><td><code>category</code></td><td>三值枚举，<strong>该快照的研判分档</strong>（同快照内重复观测以最新结果覆盖，非跨观测取最强档）</td></tr>
       <tr><td><code>latest_version</code> / <code>version_source</code></td><td>该快照的版本与来源（同快照重复观测覆盖为最新）</td></tr>
       <tr><td><code>first_seen</code> / <code>last_seen</code></td><td>该 ip:port 在<strong>本快照内</strong>的最早 / 最近 ts</td></tr>
@@ -772,13 +859,13 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
 
   <div class="callout invariant">
     <p class="ct">INVARIANT · 快照模型与时间窗口去重</p>
-    <p>一个 jsonl = 一个快照，<code>snapshot_date</code> 取该 jsonl 内 ts 的日期众数（跨天扫描以最多的日期为准，整个 jsonl 统一归此版）。同资产每个快照日期一行——旧快照<strong>不被覆盖</strong>，作镜像留存。<code>store --in</code> 入库时同一快照内同 ip:port 以最新结果 <code>REPLACE</code>。前端按<a href="#frontend">时间窗口</a>加载：窗口内同 ip:port 取<strong>最新 snapshot_date 那条</strong>（<code>ROW_NUMBER() OVER (PARTITION BY ip,port ORDER BY snapshot_date DESC)=1</code>）。这同时解决两个问题：窗口内取并集 → 部分重扫不会让未扫目标假消失；太久没扫到的点落在窗口外 → 自动淘汰，不再永久残留。<span class="ev">store/schema.sql; store/load.py:_snapshot_date; dashboard/server.py:_windowed_assets</span></p>
+    <p>一个 jsonl = 一个快照，<code>snapshot_date</code> 取该 jsonl 内 ts 的日期众数（跨天扫描以最多的日期为准，整个 jsonl 统一归此版）。同资产每个快照日期一行——既有快照<strong>不被覆盖</strong>，作镜像留存。<code>store --in</code> 入库时同一快照内同 <code>asset_type:ip:port</code> 以最新结果 <code>REPLACE</code>。前端按<a href="#frontend">时间窗口</a>加载：窗口内同 <code>asset_type:ip:port</code> 取<strong>最新 snapshot_date 那条</strong>（<code>ROW_NUMBER() OVER (PARTITION BY asset_type,ip,port ORDER BY snapshot_date DESC)=1</code>）。这同时解决两个问题：窗口内取并集 → 部分重扫不会让未扫目标假消失；太久没扫到的点落在窗口外 → 自动淘汰，不会永久残留。<span class="ev">store/schema.sql; store/load.py:_snapshot_date; dashboard/server.py:_windowed_assets</span></p>
   </div>
 
   <h4>外部数据 vs 项目确认</h4>
   <div class="callout invariant">
     <p class="ct">INVARIANT · fofa_candidates / clawsec_snapshots 是外部标注，不是项目确认事实</p>
-    <p>这两张表的版本字段是 FOFA / ClawSec 平台<strong>自己</strong>的标注（如 clawsec 的 <code>their_version</code>），不代表本项目通过探测确认的结论。只有经 ocprobe 探测、入 <code>assets/observations</code> 的版本才是项目确认事实。双源版本对比时这一区分是前提。</p>
+    <p>这两张表的版本字段是 FOFA / ClawSec 平台<strong>自己</strong>的标注（如 clawsec 的 <code>their_version</code>），不代表本项目通过探测确认的结论。只有经 <code>assetprobe</code> 对应 detector 探测、入 <code>assets/observations</code> 的版本才是项目确认事实。双源版本对比时这一区分是前提。</p>
   </div>
 </section>
 
@@ -819,8 +906,31 @@ prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o r
   <h2>命令参考 Commands and Reference</h2>
   <p>完整命令索引（Quickstart 是最小路径，这里是全集）。每条标注副作用。所有命令<strong>在项目根运行</strong>。</p>
 
-  <h3><code>ocprobe</code>（探测引擎）</h3>
-  <p>目标为<strong>位置参数</strong>：精确 IP / CIDR / 通配 IP（<code>1.14.*.22</code>）/ 每行一个 IP 的文件。<strong>无 <code>-f</code> 参数。</strong></p>
+  <h3><code>assetprobe</code>（平台级探测入口）</h3>
+  <p>目标为<strong>位置参数</strong>：精确 IP / CIDR / 通配 IP（<code>1.14.*.22</code>）/ 每行一个目标的文件 / <code>-</code> 标准输入。CSV 候选文件会取第一列作为目标。平台级扫描使用此入口。</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>flag</th><th>默认</th><th>作用</th></tr></thead>
+    <tbody>
+      <tr><td><code>--type</code></td><td>openclaw</td><td>资产类型；从 detector 注册表选择探测器</td></tr>
+      <tr><td><code>--list-types</code></td><td>关</td><td>列出已注册资产类型并退出</td></tr>
+      <tr><td><code>-port</code></td><td>detector 默认端口 / config</td><td>端口，逗号分隔多个</td></tr>
+      <tr><td><code>-concurrency</code></td><td>16</td><td>全局并发 worker 数</td></tr>
+      <tr><td><code>-timeout</code></td><td>8s</td><td>单目标探测超时</td></tr>
+      <tr><td><code>-rate</code></td><td>50</td><td>单 IP 每秒发包上限（per-worker）</td></tr>
+      <tr><td><code>-deadline</code></td><td>0</td><td>任务总时长上限</td></tr>
+      <tr><td><code>-fingerprints</code></td><td>（空）</td><td>指纹库路径；由 detector 决定是否使用</td></tr>
+      <tr><td><code>-o</code></td><td>（不落盘）</td><td>JSONL 输出文件（os.Create 截断重建）</td></tr>
+      <tr><td><code>-l</code></td><td>关</td><td>详细日志：打印 detector 原始结果 JSON</td></tr>
+      <tr><td><code>-tls</code></td><td>关</td><td>强制 TLS（443/8443/9443 自动）</td></tr>
+      <tr><td><code>--progress</code></td><td>关</td><td>单行刷新进度（替代逐行输出），写 stderr</td></tr>
+      <tr><td><code>--skip-unreachable</code></td><td>关</td><td>不落盘探不到的目标</td></tr>
+    </tbody>
+  </table></div>
+  <pre><code>prober/bin/assetprobe --list-types
+prober/bin/assetprobe --type openclaw --fingerprints fingerprints/fingerprints.json -o results.jsonl candidates.csv</code></pre>
+
+  <h3><code>ocprobe</code>（OpenClaw 专用入口）</h3>
+  <p>目标为<strong>位置参数</strong>：精确 IP / CIDR / 通配 IP（<code>1.14.*.22</code>）/ 每行一个 IP 的文件。<strong>无 <code>-f</code> 参数。</strong> 跨资产类型扫描入口为 <code>assetprobe</code>；OpenClaw 可用 <code>assetprobe --type openclaw</code> 或本入口。</p>
   <div class="tbl-wrap"><table>
     <thead><tr><th>flag</th><th>默认</th><th>作用</th></tr></thead>
     <tbody>
@@ -917,10 +1027,10 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
 
   <h3>Makefile target</h3>
   <div class="callout danger">
-    <p class="ct">WARNING · make probe / make demo 坏了；make clean 危险</p>
-    <p><code>make probe</code> / <code>make demo</code> 用 <code>ocprobe -f candidates.csv</code>，<code>-f</code> 不存在、实跑报错退出码 2。<code>make clean</code> 执行 <code>rm -rf data/</code>，<strong>会删除全部三个权威库</strong>（scanner/fofa/clawsec，合计 &gt;1GB），不可逆。</p>
+    <p class="ct">WARNING · make clean 危险</p>
+    <p><code>make clean</code> 执行 <code>rm -rf data/</code>，<strong>会删除全部三个权威库</strong>（scanner/fofa/clawsec），不可逆。<code>make probe</code> / <code>make demo</code> 使用 <code>assetprobe --type openclaw</code>。</p>
   </div>
-  <p>可用 target：<code>make test</code>（测试）、<code>make prober</code>（构建 ocprobe）、<code>make zgrab</code>（构建 ZGrab2 模块）、<code>make load</code>（store 入库）、<code>make stats</code>、<code>make fofa-info/pull/provinces/export/pv</code>、<code>make clawsec-info/pull/longlived/overlap</code>。<span class="ev">Makefile</span></p>
+  <p>可用 target：<code>make test</code>（测试）、<code>make prober</code>（构建 assetprobe + ocprobe）、<code>make assetprobe</code>、<code>make ocprobe</code>、<code>make zgrab</code>（构建 ZGrab2 模块）、<code>make probe</code>、<code>make demo</code>、<code>make load</code>（store 入库）、<code>make stats</code>、<code>make fofa-info/pull/provinces/export/pv</code>、<code>make clawsec-info/pull/longlived/overlap</code>。<span class="ev">Makefile</span></p>
 </section>
 
 <!-- ========== FRONTEND ========== -->
@@ -934,7 +1044,7 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
     <thead><tr><th>区块</th><th>展示什么</th><th>交互</th><th>数据源</th></tr></thead>
     <tbody>
       <tr><td>标题栏 / 品牌</td><td>「OpenClaw 实例收集」标题 + logo</td><td>—</td><td>静态</td></tr>
-      <tr><td><strong>时间窗口选择器</strong></td><td>两个原生日期输入（起 → 止），点击弹浏览器日历选日期；<strong>控制全看板加载的快照区间</strong>，改窗口后所有视图刷新。位于原顶部「总览/资产列表」标签处——「资产列表」标签原无实际作用（列表本就整页常显），已被此选择器替换</td><td>选日期</td><td><code>/api/snapshots</code> 初始化范围；窗口参数 <code>start/end</code> 注入其余各 API</td></tr>
+      <tr><td><strong>时间窗口选择器</strong></td><td>两个原生日期输入（起 → 止），点击弹浏览器日历选日期；<strong>控制全看板加载的快照区间</strong>，改窗口后所有视图刷新。资产列表为页面常驻区块，时间窗口负责驱动全局数据范围</td><td>选日期</td><td><code>/api/snapshots</code> 初始化范围；窗口参数 <code>start/end</code> 注入其余各 API</td></tr>
       <tr><td>数字卡（4 张）</td><td>实例总数 / 明确 OpenClaw / 疑似 / 观测次数等概览计数</td><td>—</td><td><code>/api/overview</code></td></tr>
       <tr><td>版本分布条</td><td>明确 OpenClaw 实例按版本号的数量条形</td><td>—</td><td><code>/api/overview</code></td></tr>
       <tr><td>可信级别分桶（堆叠条）</td><td>confirmed / confirmed_no_version / suspect 三档堆叠 + 图例</td><td>—</td><td><code>/api/overview</code></td></tr>
@@ -990,7 +1100,7 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
   <div class="tbl-wrap"><table>
     <thead><tr><th>结论</th><th>为何未验证 / 需要的证据</th></tr></thead>
     <tbody>
-      <tr><td>zgrab-openclaw 是与 ocprobe 等价的「生产形态」</td><td>二进制 06-11 比 openclaw 包 06-22 旧、未含 C3；zgrab 包不在 go test 范围。需 make zgrab 重建后同靶比对</td></tr>
+      <tr><td>zgrab-openclaw 是与 ocprobe 等价的「生产形态」</td><td>二进制日期 06-11 早于 openclaw 包 06-22，未含 C3；zgrab 包不在 go test 范围。需 make zgrab 重建后同靶比对</td></tr>
       <tr><td>clawsec 502/503/504 无限重试在真实 5xx 下不卡死</td><td>无注入桩测试，仅代码与 commit</td></tr>
       <tr><td>version_source=='implicit'（唯一命中）分支</td><td>无测试直接断言其 source 标记（测试盲区）</td></tr>
       <tr><td>整条 runner 调用链只读（非仅 probeWS 函数）</td><td>单测只覆盖函数级写入字节，未对整条 ocprobe 链抓包断言</td></tr>
@@ -1011,7 +1121,7 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
     <thead><tr><th>现象</th><th>可能原因</th><th>检查 / 恢复</th><th>影响权威数据</th><th>可安全重跑</th></tr></thead>
     <tbody>
       <tr><td><code>No module named xxx</code></td><td>在子目录内运行 python -m</td><td>回项目根运行</td><td>否</td><td>是</td></tr>
-      <tr><td><code>flag provided but not defined: -f</code>（退出码 2）</td><td>用了 make probe/demo 或 ocprobe -f</td><td>改用 ocprobe 位置参数；目标文件每行一个 IP</td><td>否</td><td>是</td></tr>
+      <tr><td><code>flag provided but not defined: -f</code>（退出码 2）</td><td>手动使用了无效的 <code>ocprobe -f</code></td><td>改用 <code>assetprobe --type openclaw candidates.csv</code>，或用 ocprobe 位置参数</td><td>否</td><td>是</td></tr>
       <tr><td>探测大面积超时 / <code>too many open files</code></td><td>并发过高撞 ulimit/conntrack</td><td><code>ulimit -n 65535</code>；降并发；检查目标侧封禁</td><td>否</td><td>是</td></tr>
       <tr><td>discovery 直接退出</td><td><code>--fofa/--shodan</code> 缺对应环境变量 → <code>sys.exit</code></td><td>设 FOFA_EMAIL/KEY 或 SHODAN_API_KEY <span class="ev">discovery/__main__.py:56-65</span></td><td>否</td><td>是</td></tr>
       <tr><td>地理列全空 / 全英文</td><td>geoip2 或 GeoLite2 库缺失（软降级）；或 cn_names 映射空</td><td>装 geoip2、放 .mmdb；中文化需填 cn_names.py</td><td>否（不阻断入库）</td><td>是（geoip.backfill 重刷）</td></tr>
@@ -1041,7 +1151,7 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
   </ul>
   <div class="callout warn">
     <p class="ct">WARNING · 「整条链路只读」是函数级证据，非整链抓包</p>
-    <p>只读不变量目前由 <code>probeWS</code> 的函数级单测固化（断言其写入字节）。整条 ocprobe runner 调用链的「只读」未做抓包断言。<span class="badge unverified">UNVERIFIED</span></p>
+    <p>只读不变量由 <code>probeWS</code> 的函数级单测固化（断言其写入字节）。整条 runner 调用链的「只读」未做抓包断言。<span class="badge unverified">UNVERIFIED</span></p>
   </div>
 
   <h3>速率与限制</h3>
@@ -1077,7 +1187,7 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
     <li><strong>指纹库更新</strong>：OpenClaw 发新版时 <code>fingerprint/collect_corpus.py --repo &lt;仓库&gt; --only &lt;版本&gt;</code>，优先官方镜像静态提取（source=image）。现库 161 条，覆盖正式版 2026.1.5~2026.6.9 与 2026.5.16 起的预发布版；缺口见限制。</li>
     <li><strong>GeoLite2 库更新</strong>：MaxMind 每周更新，重新下载 .mmdb 后 <code>.venv/bin/python3 -m geoip.backfill --all</code> 重刷已有资产。</li>
     <li><strong>地名中文化</strong>：填 <code>geoip/cn_names.py</code> 的 CITY_ZH/REGION_ZH，再 backfill --all。</li>
-    <li><strong>schema 变更</strong>：store/load.py 的 <code>_migrate</code> 对旧库 ALTER 补列（幂等）；新增字段在此处加。</li>
+    <li><strong>schema 变更</strong>：store/load.py 的 <code>_migrate</code> 对既有库 ALTER 补列（幂等）；新增字段在此处加。</li>
     <li><strong>数据备份/清理</strong>：备份 data/*.sqlite 即可；<code>make clean</code> 危险（删全部库）。</li>
     <li><strong>凭据轮换</strong>：定期轮换 FOFA/MaxMind 凭据，更新对应 .ini。</li>
     <li><strong>文档更新触发</strong>：判定规则、指纹库口径、数据 schema、命令参数、安全边界变更时，须同步本文档对应章节。</li>
@@ -1120,14 +1230,14 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
   <div class="tbl-wrap"><table>
     <thead><tr><th>项</th><th>影响</th><th>建议补齐</th></tr></thead>
     <tbody>
-      <tr><td><code>make probe</code> / <code>make demo</code> 用不存在的 ocprobe <code>-f</code></td><td>两 target 跑不通（退出码 2）</td><td>改 Makefile 用位置参数 + 预处理 candidates.csv 为每行一个 IP</td></tr>
+      <tr><td><code>ocprobe</code> 不支持 <code>-f</code> 文件参数</td><td>按文件参数习惯调用会失败（退出码 2）</td><td>目标文件作为位置参数传入；平台级扫描使用 <code>assetprobe</code></td></tr>
       <tr><td><code>detectConfidenceFloor=0.90</code> 死常量</td><td>consts.go 声明但全 prober 零引用；evaluate 纯二元不读分值。注释误导</td><td>删常量或删注释</td></tr>
       <tr><td>地名 region/city 全英文</td><td>看板/资产展示英文（Guangdong 而非广东）</td><td>填 geoip/cn_names.py 映射表 + backfill --all</td></tr>
       <tr><td>指纹库覆盖缺口</td><td>2026.5.16 前的预发布版、无官方镜像的纯 alpha 版未收录 → 这些实例 implicit 反推为未知</td><td>持续 collect_corpus 增量补录</td></tr>
       <tr><td>不可区分版本区间</td><td>构建产物相同的版本（如 2026.3.7=2026.3.8）只能给 implicit-range，无法精确到单版</td><td>设计局限，无解（除非引入别的区分信号）</td></tr>
       <tr><td>scannerUserAgent 不含 abuse 联系信息</td><td>规模化扫描合规性不足</td><td>运营前补 rDNS/info_url/abuse_contact</td></tr>
-      <tr><td>根目录旧库 <code>scan.sqlite</code>（69MB）</td><td>迁移前遗留物，已被 data/{fofa,clawsec,scanner} 取代</td><td>确认无用后删除</td></tr>
-      <tr><td>多处旧注释/旧文档与代码不符</td><td>schema.sql:1「内容指纹去重」、result.go:38 漏 C3、旧 docs「全模块带测试」「指纹库 gitignore」等</td><td>逐处以代码为准修正（本文档已纠正主要几处）</td></tr>
+      <tr><td>根目录历史库 <code>scan.sqlite</code>（69MB）</td><td>已被 data/{fofa,clawsec,scanner} 分库存储取代</td><td>确认无用后删除</td></tr>
+      <tr><td>部分历史资料与代码口径不一致</td><td>schema.sql:1「内容指纹去重」、result.go:38 漏 C3、测试覆盖范围等表述需继续校准</td><td>逐处以代码、测试与运行证据为准修正</td></tr>
     </tbody>
   </table></div>
 
@@ -1145,14 +1255,13 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
 
   <h3>本文档自身的 TODO</h3>
   <ul>
-    <li><code>TODO: source missing</code> — 未读取项目根 <code>AGENTS.md</code> / <code>CLAUDE.md</code> 全文，Agent 章节的禁改路径清单可能不全。</li>
     <li>下游能力（版本→CVE 映射、协同披露流程、暴露面板的时间维度）尚未实现，本文档无对应章节。</li>
   </ul>
 </section>
 
 
   <footer>
-    <p>本文档按 <code>SELF_CONTAINED_PROJECT_DOCS_PROMPT.md</code> 的信息架构生成，目标是工程接手契约而非展示页。所有结论尽量绑定 <span class="ev">file:line</span> 或测试/运行证据；无证据者标 <span class="badge unverified">UNVERIFIED</span> 或归入「已知限制 / TODO」。文档离线自包含，无外部资源请求。</p>
+    <p>本文档是离线自包含的项目说明，面向维护者与审阅者。事实性结论应绑定 <span class="ev">file:line</span> 或测试/运行证据；证据不足处标 <span class="badge unverified">UNVERIFIED</span> 或归入「已知限制 / TODO」。文档不请求外部资源。</p>
   </footer>
 
 </div>
