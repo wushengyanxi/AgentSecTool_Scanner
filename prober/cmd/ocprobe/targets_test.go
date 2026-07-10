@@ -161,6 +161,28 @@ func TestExpandFilePriorityOverIP(t *testing.T) {
 	}
 }
 
+func TestExpandCandidatesCSVUsesFirstColumn(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "candidates.csv")
+	content := "" +
+		"1.1.1.1,18789\n" +
+		"203.0.113.0/31,18789\n" +
+		"  8.8.8.8  , 443\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	got := collect(t, path)
+	want := []string{"1.1.1.1", "203.0.113.0", "203.0.113.1", "8.8.8.8"}
+	if len(got) != len(want) {
+		t.Fatalf("csv expansion count: want %d, got %d (%v)", len(want), len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("csv expansion at %d: want %s, got %s", i, want[i], got[i])
+		}
+	}
+}
+
 func TestExpandErrors(t *testing.T) {
 	cases := []string{
 		"",              // 空表达式

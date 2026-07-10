@@ -36,6 +36,7 @@ func Probe(ctx context.Context, host string, port uint16, opts Options) Result {
 	// 4 个 HTTP GET + WS 各自的超时（串行累加可达数十秒），把 worker 长期钉死、有效并发塌方。
 	if reach, ok := dialReachable(ctx, dial, host, port, opts.Timeout); !ok {
 		return Result{
+			AssetType: AssetType, Detector: Detector,
 			IP: host, Port: port, TLS: opts.TLS, ErrorType: reach,
 			TS: time.Now().UTC().Format(time.RFC3339),
 		}
@@ -54,8 +55,11 @@ func Probe(ctx context.Context, host string, port uint16, opts Options) Result {
 	ver, vsrc, vcand := determineVersion(ev, hits)
 
 	res := Result{
+		AssetType:         AssetType,
+		Detector:          Detector,
 		IP:                host,
 		Port:              port,
+		IsMatch:           verdict,
 		IsOpenClaw:        verdict,
 		Matched:           matched,
 		Rule:              rule,
@@ -66,6 +70,7 @@ func Probe(ctx context.Context, host string, port uint16, opts Options) Result {
 		Evidence:          ev,
 		TS:                time.Now().UTC().Format(time.RFC3339),
 	}
+	res.Category = categoryFor(verdict, ver, vcand, matched)
 	// 端口可达但探不出 OpenClaw（连得上、非目标服务）：标 down，供默认终端输出。
 	if !verdict && len(matched) == 0 && ev.ControlUIStatus == 0 {
 		res.ErrorType = ErrDown

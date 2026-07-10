@@ -14,10 +14,10 @@ const (
 
 // ErrorType 区分探测失败的原因（默认终端输出与诊断用）。
 const (
-	ErrTimeout    = "timeout"            // 单 IP 探测超时
-	ErrRefused    = "connection_refused" // 端口关闭
-	ErrUnreach    = "unreachable"        // 不可达 / 被墙
-	ErrDown       = "down"               // 其它「探不到」
+	ErrTimeout = "timeout"            // 单 IP 探测超时
+	ErrRefused = "connection_refused" // 端口关闭
+	ErrUnreach = "unreachable"        // 不可达 / 被墙
+	ErrDown    = "down"               // 其它「探不到」
 )
 
 // ProbeRecord 是单个测试项的完整请求/响应原文记录（入库用，供报告复查）。
@@ -30,9 +30,13 @@ type ProbeRecord struct {
 
 // Result 是单个目标的探测结果，序列化为 JSONL 一行。
 type Result struct {
+	AssetType  string `json:"asset_type,omitempty"`
+	Detector   string `json:"detector,omitempty"`
 	IP         string `json:"ip"`
 	Port       uint16 `json:"port"`
+	IsMatch    bool   `json:"is_match"`    // platform-neutral verdict
 	IsOpenClaw bool   `json:"is_openclaw"` // 二元研判 verdict（True/False）
+	Category   string `json:"category,omitempty"`
 	// Matched 列出命中的测试项（如 ["T1","T2","T4"]）。
 	Matched []string `json:"matched,omitempty"`
 	// Rule 是触发的白名单条件（"C1" / "C2"），False 时为空。

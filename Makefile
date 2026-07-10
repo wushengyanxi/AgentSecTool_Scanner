@@ -1,5 +1,6 @@
 ROOT    := $(shell pwd)
 PROBER  := $(ROOT)/prober
+ASSETPROBE := $(PROBER)/bin/assetprobe
 OCPROBE := $(PROBER)/bin/ocprobe
 FP      := $(ROOT)/fingerprints/fingerprints.json
 FOFA_DB    := $(ROOT)/data/fofa/fofa.sqlite
@@ -13,11 +14,16 @@ CIDR    ?= 127.0.0.0/30
 PORTS   ?= 18789
 BACKEND ?= internal
 
-.PHONY: prober zgrab test discover probe probe-zgrab load stats demo \
+.PHONY: prober assetprobe ocprobe zgrab test discover probe probe-zgrab load stats demo \
         fofa-info fofa-pull fofa-provinces fofa-export fofa-pv \
         clawsec-info clawsec-pull clawsec-longlived clawsec-overlap clean
 
-prober:
+prober: assetprobe ocprobe
+
+assetprobe:
+	go -C $(PROBER) build -o bin/assetprobe ./cmd/assetprobe
+
+ocprobe:
 	go -C $(PROBER) build -o bin/ocprobe ./cmd/ocprobe
 
 test: prober
@@ -27,8 +33,8 @@ test: prober
 discover:
 	python3 -m discovery --cidr $(CIDR) --ports $(PORTS) --backend $(BACKEND) --out candidates.csv
 
-probe: prober
-	$(OCPROBE) -f candidates.csv --fingerprints $(FP) -o results.jsonl
+probe: assetprobe
+	$(ASSETPROBE) --type openclaw --fingerprints $(FP) -o results.jsonl candidates.csv
 
 # 生产形态：ZGrab2 自定义模块（首次构建较慢，会拉 zgrab2 依赖）
 zgrab:
@@ -45,9 +51,9 @@ stats:
 	python3 -m store --db $(SCANNER_DB) --stats
 
 # 端到端 demo（需先起靶机 oc-fp，见 README）
-demo: prober
+demo: assetprobe
 	python3 -m discovery --cidr 127.0.0.0/30 --ports 18789 --backend internal --allow-reserved --out candidates.csv
-	$(OCPROBE) -f candidates.csv --fingerprints $(FP) -o results.jsonl
+	$(ASSETPROBE) --type openclaw --fingerprints $(FP) -o results.jsonl candidates.csv
 	python3 -m store --db $(SCANNER_DB) --in results.jsonl
 	python3 -m store --db $(SCANNER_DB) --stats
 
