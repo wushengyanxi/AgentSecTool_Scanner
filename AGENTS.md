@@ -66,8 +66,13 @@
 
 强成功标准让你能独立循环推进。弱标准("跑起来就行")会逼着你不断回头确认。
 
-优雅的html文档是与用户讨论复杂任务的可靠模式。当用户为了与你更可靠的讨论而让你编写html时，参考 HTML_STYLE_GUIDE.md 中的内容。
-该文件应该位于项目的根目录下，不过如果不在的话，请在项目中遍历子路径查找。如果该文件不存在于项目中，则提醒用户创建。
+书写类产物（论文、综述、报告、笔记型报告、HTML 成果、项目文档）必须以 `/Users/wushengyanxi/Documents/Tsinghua/Topic_research/academic-writing` 下的规范作为写作依据。
+动笔前至少读取：
+
+- `/Users/wushengyanxi/Documents/Tsinghua/Topic_research/academic-writing/综合需求/大模型常见错误.md`
+- `/Users/wushengyanxi/Documents/Tsinghua/Topic_research/academic-writing/综合需求/样式指导.md`
+
+如果写作对象属于论文、综述或报告，还要继续读取该目录下对应类别的 `写作说明.md`。HTML 文档也按上述 academic-writing 规范处理：先确定文档类型、读者身份、证据边界和交付物身份，再组织内容；不要把与用户协作过程中的任务响应、重构叙事或“我做了什么”写进最终文档。
 在与用户沟通的时候，除非用户明确要求，否则不要使用诸如“若把 Python 项目类比为一间厨房”这种方式和用户沟通。你的用户具有专业背景，这种类比没有任何实际意义。
 
 ## 5. git提交
