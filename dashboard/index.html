@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OpenClaw 实例收集看板</title>
+<title>资产测绘平台看板</title>
 <style>
   /* 模板同款字体：YouSheBiaoTiHei（标题黑）/ D-DIN（数字）。server.py 已支持 .ttf */
   @font-face{
@@ -78,6 +78,8 @@
   .winpick input[type=date]:focus{outline:none;border-color:var(--indigo);box-shadow:0 0 0 2px rgba(159,158,242,.2);}
   .windash{color:var(--faint);font-size:13px;}
   .winhint{color:var(--faint);font-size:13px;letter-spacing:.03em;}
+  .type-select{height:30px;background:rgba(159,158,242,.08);border:1px solid var(--line);
+    border-radius:6px;color:var(--ink);font-size:12.5px;padding:0 9px;}
   /* 右上角 BLUE-LOTUS 品牌标识（纯展示，浏览器自带刷新即可） */
   /* 绝对定位脱离文档流：怎么挪都不影响左侧标题；top 控制下移量，让花瓣顶点落到标题上半边高度 */
   .logo{height:78px;width:auto;display:block;position:absolute;right:0;top:6px;}
@@ -175,8 +177,8 @@
   td{padding:9px 10px;border-bottom:1px solid var(--hair);font-variant-numeric:tabular-nums;
      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   td.ip{font-family:var(--mono);color:#fff;}
-  /* 7 列等宽（固定不随内容变，翻页不抖）*/
-  col.c-ip,col.c-port,col.c-cat,col.c-ver,col.c-src,col.c-prov,col.c-ts{width:14.28%;}
+  /* 8 列等宽（固定不随内容变，翻页不抖）*/
+  col.c-type,col.c-ip,col.c-port,col.c-cat,col.c-ver,col.c-src,col.c-prov,col.c-ts{width:12.5%;}
   tr:hover td{background:rgba(118,120,174,.10);}
   /* 研判标签：紫系深浅 + 一个中性灰，不堆多色（深底版：半透明色底 + 描边） */
   .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:2px 9px;border-radius:4px;font-weight:500;border:1px solid transparent;}
@@ -244,9 +246,9 @@
 <div class="wrap">
   <div class="head">
     <div class="title-wrap">
-      <h1>OpenClaw 实例收集</h1>
+      <h1>资产测绘平台</h1>
     </div>
-    <div class="subtitle">OpenClaw exposed instance collection and version intelligence platform</div>
+    <div class="subtitle">Asset discovery, detector verification and version intelligence platform</div>
     <img class="logo" src="/assets/blue-lotus.png" alt="BLUE-LOTUS">
   </div>
 
@@ -258,6 +260,10 @@
       <span class="windash">→</span>
       <input type="date" id="winEnd" onchange="applyWindow()">
       <span class="winhint" id="winHint"></span>
+      <select id="fType" class="type-select" onchange="applyAssetType()">
+        <option value="">全部资产类型</option>
+        <option value="openclaw">openclaw</option>
+      </select>
     </div>
   </div>
 
@@ -267,7 +273,7 @@
   <!-- 图表行 -->
   <div class="row2">
     <div class="panel">
-      <h3>版本分布（明确 OpenClaw 实例）</h3>
+      <h3>版本分布（确认资产）</h3>
       <div class="bars" id="versions"></div>
     </div>
     <div class="panel">
@@ -306,11 +312,11 @@
     </div>
     <table>
       <colgroup>
-        <col class="c-ip"><col class="c-port"><col class="c-cat"><col class="c-ver">
+        <col class="c-type"><col class="c-ip"><col class="c-port"><col class="c-cat"><col class="c-ver">
         <col class="c-src"><col class="c-prov"><col class="c-ts">
       </colgroup>
       <thead><tr>
-        <th>IP</th><th>端口</th><th>研判</th><th>版本</th><th>版本来源</th><th>省份</th><th>披露日期</th>
+        <th>资产类型</th><th>IP</th><th>端口</th><th>研判</th><th>版本</th><th>版本来源</th><th>省份</th><th>披露日期</th>
       </tr></thead>
       <tbody id="assetRows"></tbody>
     </table>
@@ -333,17 +339,18 @@ const SRC_TIPS = {
   'direct': '直接读到版本号：服务在响应里明文给出了版本',
   'implicit': '指纹反推：用资产指纹比对，推断出确切版本号',
   'implicit-range': '区间反推：指纹只能定位到一个版本范围，无法精确到某一版',
-  '(无)': '确认是 OpenClaw，但这台主机未能取到任何版本信息',
+  '(无)': '确认是目标资产，但这台主机未能取到任何版本信息',
 };
-let PAGE = 0, LIMIT = 50, ASSET_TOTAL = 0;
+let PAGE = 0, LIMIT = 50, ASSET_TOTAL = 0, ASSET_TYPE = '';
 
-// 时间窗口：全看板按 [start,end] 加载快照；窗口内同 ip:port 取最新快照那条（后端去重）。
+// 时间窗口：全看板按 [start,end] 加载快照；窗口内同 asset_type+ip:port 取最新快照那条（后端去重）。
 let WIN = { start: '', end: '' };
-// 把当前窗口拼成 query 串（带前导分隔符）；空端不传，由后端视作不设限。
+// 把当前窗口和资产类型拼成 query 串（带前导分隔符）；空端不传，由后端视作不设限。
 function winQ(sep){
   const p = [];
   if (WIN.start) p.push('start=' + WIN.start);
   if (WIN.end)   p.push('end=' + WIN.end);
+  if (ASSET_TYPE) p.push('asset_type=' + encodeURIComponent(ASSET_TYPE));
   return p.length ? sep + p.join('&') : '';
 }
 
@@ -355,6 +362,7 @@ async function loadOverview(){
   const d = await getJSON('/api/overview' + winQ('?'));
   if(d.error){ document.getElementById('cards').innerHTML = '<div class="card"><div class="k">错误</div><div class="v" style="font-size:15px">'+d.error+'</div></div>'; return; }
   const cats = Object.fromEntries(d.categories.map(c=>[c.key,c.count]));
+  syncTypeOptions(d.asset_types || []);
   // 数字卡：统一墨色数字 + 右下角极淡线描图标，不用多色
   const ICO = {
     host:'<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3" y="4" width="18" height="12" rx="1.5"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="16" x2="12" y2="20"/></svg>',
@@ -362,8 +370,9 @@ async function loadOverview(){
     ver:'<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     eye:'<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
   };
+  const matchedTotal = d.matched_total ?? d.openclaw_total ?? 0;
   document.getElementById('cards').innerHTML = `
-    <div class="card"><div class="k">明确 OpenClaw 实例</div><div class="v">${fmt(d.openclaw_total)}<small>台</small></div><div class="ico">${ICO.host}</div></div>
+    <div class="card"><div class="k">确认资产实例</div><div class="v">${fmt(matchedTotal)}<small>台</small></div><div class="ico">${ICO.host}</div></div>
     <div class="card"><div class="k">确认（含版本）</div><div class="v">${fmt(cats.confirmed)}</div><div class="ico">${ICO.check}</div></div>
     <div class="card"><div class="k">确认（版本待定）</div><div class="v">${fmt(cats.confirmed_no_version)}</div><div class="ico">${ICO.ver}</div></div>
     <div class="card"><div class="k">疑似（待复核）</div><div class="v">${fmt(cats.suspect)}</div><div class="ico">${ICO.eye}</div></div>`;
@@ -380,15 +389,32 @@ async function loadOverview(){
     `<span><i class="dot" style="background:${CAT_COLOR[c.key]}"></i>${c.label} ${fmt(c.count)}</span>`).join('');
 }
 
+function syncTypeOptions(types){
+  const sel = document.getElementById('fType');
+  const cur = sel.value;
+  const seen = new Set(['']);
+  sel.innerHTML = '<option value="">全部资产类型</option>';
+  for(const t of types){
+    if(!t.type || seen.has(t.type)) continue;
+    seen.add(t.type);
+    sel.insertAdjacentHTML('beforeend', `<option value="${esc(t.type)}">${esc(t.type)} (${fmt(t.count)})</option>`);
+  }
+  if(!seen.has('openclaw')){
+    sel.insertAdjacentHTML('beforeend', '<option value="openclaw">openclaw</option>');
+  }
+  sel.value = cur;
+}
+
 function renderBars(id, items, tips){
   const max = Math.max(1, ...items.map(i=>i.count));
   document.getElementById(id).innerHTML = items.map(i=>{
     const label = i.version ?? i.source;
+    const safeLabel = esc(label);
     // 有解释的标签（版本来源）：纯 CSS tooltip（data-tip），无虚线、0.3s 后浮出
     const tip = tips && tips[label];
     const lbl = tip
-      ? `<span class="hint" data-tip="${tip}">${label}</span>`
-      : label;
+      ? `<span class="hint" data-tip="${esc(tip)}">${safeLabel}</span>`
+      : safeLabel;
     return `<div class="bar-row"><div class="label">${lbl}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${(i.count/max*100).toFixed(1)}%"></div></div>
       <div class="num">${fmt(i.count)}</div></div>`;
@@ -403,16 +429,17 @@ async function loadAssets(page){
             (cat?`&category=${cat}`:'') + (q?`&q=${encodeURIComponent(q)}`:'') + winQ('&');
   const d = await getJSON(u);
   ASSET_TOTAL = d.total;
-  document.getElementById('assetTotal').textContent = `共 ${fmt(d.total)} 台`;
+  document.getElementById('assetTotal').textContent = `共 ${fmt(d.total)} 个资产`;
   document.getElementById('assetRows').innerHTML = d.rows.map(r=>`
-    <tr class="asset" data-ip="${r.ip}" data-port="${r.port}" ondblclick="toggleReport(this)" title="双击展开探测报告">
-      <td class="ip">${r.ip}</td><td>${r.port}</td>
-      <td><span class="pill ${r.category}">${CAT_LABEL[r.category]||r.category}</span></td>
-      <td>${r.latest_version||'<span style="color:var(--muted)">—</span>'}</td>
+    <tr class="asset" data-asset-type="${esc(r.asset_type||'openclaw')}" data-ip="${esc(r.ip)}" data-port="${esc(r.port)}" ondblclick="toggleReport(this)" title="双击展开探测报告">
+      <td>${esc(r.asset_type||'openclaw')}</td>
+      <td class="ip">${esc(r.ip)}</td><td>${esc(r.port)}</td>
+      <td><span class="pill ${esc(r.category)}">${CAT_LABEL[r.category]||esc(r.category)}</span></td>
+      <td>${r.latest_version?esc(r.latest_version):'<span style="color:var(--muted)">—</span>'}</td>
       <td>${srcCell(r.version_source)}</td>
-      <td>${r.province||'—'}</td>
-      <td>${r.disclosed||'—'}</td>
-    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">无数据</td></tr>';
+      <td>${esc(r.province||'—')}</td>
+      <td>${esc(r.disclosed||'—')}</td>
+    </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">无数据</td></tr>';
   const pages = Math.max(1, Math.ceil(d.total/LIMIT));
   document.getElementById('pageInfo').textContent = `第 ${page+1} / ${pages} 页`;
   document.getElementById('prev').disabled = page<=0;
@@ -453,18 +480,19 @@ function toggleReport(tr){
   document.querySelectorAll('tr.report-row').forEach(r=>r.remove());
   document.querySelectorAll('tr.asset.open').forEach(r=>r.classList.remove('open'));
   tr.classList.add('open');
+  const assetType = tr.dataset.assetType || '';
   const ip = tr.dataset.ip, port = tr.dataset.port;
   const row = document.createElement('tr');
   row.className = 'report-row';
-  row.innerHTML = `<td class="report-cell" colspan="6"><div class="report">
+  row.innerHTML = `<td class="report-cell" colspan="8"><div class="report">
     <div class="loading">正在加载 ${esc(ip)}:${esc(port)} 的探测报告…</div></div></td>`;
   tr.after(row);
-  loadReport(row.querySelector('.report'), ip, port);
+  loadReport(row.querySelector('.report'), assetType, ip, port);
 }
 
-async function loadReport(box, ip, port){
+async function loadReport(box, assetType, ip, port){
   let d;
-  try{ d = await getJSON(`/api/report?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}`); }
+  try{ d = await getJSON(`/api/report?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}${assetType?`&asset_type=${encodeURIComponent(assetType)}`:''}`); }
   catch(e){ box.innerHTML = `<div class="loading">报告加载失败：${esc(e.message)}</div>`; return; }
   if(d.error){ box.innerHTML = `<div class="loading">${esc(d.error)}</div>`; return; }
   const TM = d.test_meanings || {};
@@ -475,6 +503,7 @@ async function loadReport(box, ip, port){
   const matchedHtml = (d.matched||[]).map(tipMark).join('、') || '—';
   const ruleHtml = d.rule ? tipMark(d.rule) : '—';
   const meta = `<div class="meta">
+    <span>类型 <b>${esc(d.asset_type||'openclaw')}</b></span>
     <span><b>${esc(d.ip)}:${esc(d.port)}</b></span>
     <span>研判 <b>${CAT_LABEL[d.category]||esc(d.category)||'—'}</b></span>
     <span>版本 <b class="mono">${esc(d.version)||'—'}</b>${d.version_source?` <span class="src">(${esc(d.version_source)})</span>`:''}</span>
@@ -534,7 +563,7 @@ function geoOption(scope, points){
   const data = points.map(p => ({
     name: p.name,
     value: [p.lng, p.lat, p.count],
-    openclaw: p.openclaw,
+    matched: p.matched ?? p.openclaw,
   }));
   return {
     backgroundColor: 'transparent',
@@ -545,7 +574,7 @@ function geoOption(scope, points){
       textStyle: { color: '#fff', fontSize: 12 },
       formatter: p => {
         if(!p.value) return p.name;
-        return `${p.data.name}<br/>节点 <b>${fmt(p.value[2])}</b>　明确 ${fmt(p.data.openclaw)}`;
+        return `${p.data.name}<br/>节点 <b>${fmt(p.value[2])}</b>　确认 ${fmt(p.data.matched)}`;
       },
     },
     geo: {
@@ -621,6 +650,11 @@ function loadAll(){ loadOverview(); loadGeo(GEO_SCOPE); loadAssets(0); }
 function applyWindow(){
   WIN.start = document.getElementById('winStart').value || '';
   WIN.end   = document.getElementById('winEnd').value || '';
+  loadAll();
+}
+
+function applyAssetType(){
+  ASSET_TYPE = document.getElementById('fType').value || '';
   loadAll();
 }
 

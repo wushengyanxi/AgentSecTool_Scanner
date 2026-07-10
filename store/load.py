@@ -10,16 +10,44 @@ SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema.sql")
 
 
 def identity_key(r: dict) -> str:
-    """资产身份按 ip:port —— 每台独特的暴露主机一条记录。
+    """资产身份按 asset_type:ip:port —— 每类暴露服务的一台主机一条记录。
 
-    目标是统计"全网有多少个 OpenClaw 服务器"，所以一台主机就是一个实例，不按内容指纹跨 IP
-    合并（那会把不同主机当成同一资产）。资产名等内容指纹仍存在 observations/probe_records 里
-    供版本反推，只是不作去重键。"""
-    return f"ipport:{r.get('ip')}:{r.get('port')}"
+    目标是统计"全网有多少个某类资产实例"，所以同一资产类型下的一台主机就是一个实例，
+    不按内容指纹跨 IP 合并（那会把不同主机当成同一资产）。同一个 ip:port 未来可被多个
+    探测器识别成不同资产类型，因此 asset_type 必须进入身份键。"""
+    return f"{result_asset_type(r)}:ipport:{r.get('ip')}:{r.get('port')}"
 
 
 def asset_id(key: str) -> str:
     return hashlib.sha1(key.encode()).hexdigest()
+
+
+def result_asset_type(r: dict) -> str:
+    """从一条结果取平台资产类型；旧 OpenClaw JSONL 自动补为 openclaw。"""
+    asset_type = (r.get("asset_type") or "").strip()
+    if asset_type:
+        return asset_type
+    if "is_openclaw" in r:
+        return "openclaw"
+    return "unknown"
+
+
+def result_detector(r: dict) -> str:
+    return (r.get("detector") or result_asset_type(r)).strip()
+
+
+def result_is_match(r: dict) -> bool:
+    if "is_match" in r:
+        return bool(r.get("is_match"))
+    return bool(r.get("is_openclaw"))
+
+
+def result_is_openclaw(r: dict) -> bool:
+    if result_asset_type(r) != "openclaw":
+        return False
+    if "is_openclaw" in r:
+        return bool(r.get("is_openclaw"))
+    return result_is_match(r)
 
 
 def _unwrap(r: dict):
@@ -56,6 +84,12 @@ def _migrate(conn: sqlite3.Connection):
     cols = {r[1] for r in conn.execute("PRAGMA table_info(assets)")}
     if not cols:
         return  # 全新库，无旧表可迁移
+    if "asset_type" not in cols:
+        conn.execute("ALTER TABLE assets ADD COLUMN asset_type TEXT NOT NULL DEFAULT 'openclaw'")
+    if "detector" not in cols:
+        conn.execute("ALTER TABLE assets ADD COLUMN detector TEXT")
+    if "is_match" not in cols:
+        conn.execute("ALTER TABLE assets ADD COLUMN is_match INTEGER NOT NULL DEFAULT 0")
     for col in ("country", "region", "city"):
         if col not in cols:
             conn.execute(f"ALTER TABLE assets ADD COLUMN {col} TEXT")
@@ -66,6 +100,52 @@ def _migrate(conn: sqlite3.Connection):
     # SQLite 不能直接改主键，需重建表并把旧数据按其 last_seen 的日期归为一个快照。
     if "snapshot_date" not in cols and cols:
         _migrate_to_snapshots(conn)
+    _migrate_observations(conn)
+    _normalize_legacy_platform_columns(conn)
+
+
+def _migrate_observations(conn: sqlite3.Connection):
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(observations)")}
+    if not cols:
+        return
+    if "asset_type" not in cols:
+        conn.execute("ALTER TABLE observations ADD COLUMN asset_type TEXT NOT NULL DEFAULT 'openclaw'")
+    if "detector" not in cols:
+        conn.execute("ALTER TABLE observations ADD COLUMN detector TEXT")
+    if "is_match" not in cols:
+        conn.execute("ALTER TABLE observations ADD COLUMN is_match INTEGER NOT NULL DEFAULT 0")
+
+
+def _normalize_legacy_platform_columns(conn: sqlite3.Connection):
+    """把旧库的 OpenClaw 单类型口径补成平台字段，并迁移 identity_key 前缀。"""
+    conn.execute("UPDATE assets SET asset_type='openclaw' WHERE asset_type IS NULL OR asset_type=''")
+    conn.execute("UPDATE assets SET detector='openclaw' WHERE detector IS NULL OR detector=''")
+    conn.execute("UPDATE assets SET is_match=is_openclaw WHERE is_match=0 AND is_openclaw=1")
+    conn.execute("UPDATE observations SET asset_type='openclaw' WHERE asset_type IS NULL OR asset_type=''")
+    conn.execute("UPDATE observations SET detector='openclaw' WHERE detector IS NULL OR detector=''")
+    conn.execute("UPDATE observations SET is_match=is_openclaw WHERE is_match=0 AND is_openclaw=1")
+
+    rows = conn.execute(
+        "SELECT snapshot_date, asset_id, asset_type, ip, port, identity_key FROM assets "
+        "WHERE identity_key LIKE 'ipport:%'"
+    ).fetchall()
+    for snap_date, old_aid, asset_type, ip, port, old_key in rows:
+        new_key = f"{asset_type}:ipport:{ip}:{port}"
+        if new_key == old_key:
+            continue
+        new_aid = asset_id(new_key)
+        exists = conn.execute(
+            "SELECT 1 FROM assets WHERE snapshot_date=? AND asset_id=?",
+            (snap_date, new_aid),
+        ).fetchone()
+        if exists:
+            continue
+        conn.execute("UPDATE observations SET asset_id=? WHERE asset_id=?", (new_aid, old_aid))
+        conn.execute(
+            "UPDATE assets SET identity_key=?, asset_id=? WHERE snapshot_date=? AND asset_id=?",
+            (new_key, new_aid, snap_date, old_aid),
+        )
+    conn.commit()
 
 
 def _migrate_to_snapshots(conn: sqlite3.Connection):
@@ -97,12 +177,14 @@ _CATEGORY_RANK = {None: 0, "suspect": 1, "confirmed_no_version": 2, "confirmed":
 def classify(r: dict):
     """把一条探测结果分类为收录桶；探不到（无任何命中）返回 None（不收录）。
 
-    confirmed            明确 OpenClaw（白名单判 True）且取到版本
-    confirmed_no_version 明确 OpenClaw 但版本未取到
+    confirmed            确认目标资产且取到版本
+    confirmed_no_version 确认目标资产但版本未取到
     suspect              中了部分特征但未达白名单——保留供复扫/优化，但不呈现为 OpenClaw
     None                 超时/探不到/纯无命中——无价值，不收录
     """
-    if r.get("is_openclaw"):
+    if r.get("category") in _CATEGORY_RANK and r.get("category") is not None:
+        return r.get("category")
+    if result_is_match(r):
         if r.get("version") or r.get("version_candidates"):
             return "confirmed"
         return "confirmed_no_version"
@@ -163,7 +245,10 @@ def load(db_path: str, jsonl_path) -> int:
             aid = asset_id(key)
             ts = r.get("ts")
             sdate = snap_date or (ts or "")[:10]  # 文件用众数；stdin 用本条 ts 日期兜底
-            isoc = 1 if r.get("is_openclaw") else 0
+            atype = result_asset_type(r)
+            det = result_detector(r)
+            ismatch = 1 if result_is_match(r) else 0
+            isoc = 1 if result_is_openclaw(r) else 0
             ver = r.get("version") or None
             vsrc = r.get("version_source") or None
             # 物理位置：每次入库都按 IP 重新解析（库更新后能跟上变化）
@@ -174,12 +259,15 @@ def load(db_path: str, jsonl_path) -> int:
             conn.execute(
                 """
                 INSERT INTO assets
-                  (snapshot_date, asset_id, identity_key, ip, port, is_openclaw, category, latest_version, version_source, first_seen, last_seen, observations, country, region, city, lat, lng)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?)
+                  (snapshot_date, asset_id, identity_key, asset_type, detector, ip, port, is_match, is_openclaw, category, latest_version, version_source, first_seen, last_seen, observations, country, region, city, lat, lng)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?)
                 ON CONFLICT(snapshot_date, asset_id) DO UPDATE SET
                   last_seen      = MAX(assets.last_seen, excluded.last_seen),
                   first_seen     = MIN(assets.first_seen, excluded.first_seen),
                   observations   = assets.observations + 1,
+                  asset_type     = excluded.asset_type,
+                  detector       = excluded.detector,
+                  is_match       = excluded.is_match,
                   is_openclaw    = excluded.is_openclaw,
                   latest_version = excluded.latest_version,
                   version_source = excluded.version_source,
@@ -190,17 +278,18 @@ def load(db_path: str, jsonl_path) -> int:
                   lat            = COALESCE(excluded.lat, assets.lat),
                   lng            = COALESCE(excluded.lng, assets.lng)
                 """,
-                (sdate, aid, key, r.get("ip"), int(r.get("port")), isoc, category, ver, vsrc, ts, ts,
+                (sdate, aid, key, atype, det, r.get("ip"), int(r.get("port")), ismatch, isoc,
+                 category, ver, vsrc, ts, ts,
                  country, region, city, lat, lng),
             )
             cur = conn.execute(
                 """
                 INSERT INTO observations
-                  (asset_id, ip, port, ts, is_openclaw, category, rule, version, version_source, matched, error_type, tls)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                  (asset_id, asset_type, detector, ip, port, ts, is_match, is_openclaw, category, rule, version, version_source, matched, error_type, tls)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
-                    aid, r.get("ip"), int(r.get("port")), ts, isoc, category,
+                    aid, atype, det, r.get("ip"), int(r.get("port")), ts, ismatch, isoc, category,
                     r.get("rule") or None, ver, vsrc,
                     json.dumps(r.get("matched") or [], ensure_ascii=False),
                     r.get("error_type") or None,
@@ -237,16 +326,19 @@ def stats(db_path: str):
 
         summary = {
             "assets_total": one("SELECT COUNT(*) FROM assets"),
+            "asset_type_kinds": one("SELECT COUNT(DISTINCT asset_type) FROM assets"),
             # 按可信级别分桶（实例收集平台口径）
             "confirmed": one("SELECT COUNT(*) FROM assets WHERE category='confirmed'"),
             "confirmed_no_version": one("SELECT COUNT(*) FROM assets WHERE category='confirmed_no_version'"),
             "suspect": one("SELECT COUNT(*) FROM assets WHERE category='suspect'"),
-            "openclaw_total（confirmed+no_version）": one(
+            "matched_total（confirmed+no_version）": one(
                 "SELECT COUNT(*) FROM assets WHERE category IN ('confirmed','confirmed_no_version')"),
+            "openclaw_total（confirmed+no_version）": one(
+                "SELECT COUNT(*) FROM assets WHERE asset_type='openclaw' AND category IN ('confirmed','confirmed_no_version')"),
             "observations": one("SELECT COUNT(*) FROM observations"),
             "probe_records": one("SELECT COUNT(*) FROM probe_records"),
         }
-        # 版本分布只统计明确 OpenClaw 实例
+        # 版本分布统计已确认资产；OpenClaw 是当前唯一有版本反推的探测器。
         rows = conn.execute(
             "SELECT latest_version, COUNT(*) FROM assets "
             "WHERE category IN ('confirmed','confirmed_no_version') "

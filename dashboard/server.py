@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OpenClaw 实例收集看板的本地后端：实时查 scanner 库，给前端提供 JSON API。
+"""资产测绘看板的本地后端：实时查 scanner 库，给前端提供 JSON API。
 
 纯标准库（http.server + sqlite3），零依赖。前端是同目录的 index.html（单页）。
 只读查询 data/scanner/scan_results.sqlite，不修改任何数据。
@@ -38,8 +38,8 @@ _TPL = load_templates()  # 报告话术模板，进程启动时加载一次
 
 # 可信级别的展示口径
 CATEGORY_LABELS = {
-    "confirmed": "确认 OpenClaw（含版本）",
-    "confirmed_no_version": "确认 OpenClaw（版本待定）",
+    "confirmed": "确认资产（含版本）",
+    "confirmed_no_version": "确认资产（版本待定）",
     "suspect": "疑似（部分特征，待复核）",
 }
 
@@ -47,30 +47,67 @@ CATEGORY_LABELS = {
 def _conn():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    _create_compat_views(conn)
     return conn
 
 
+def _has_col(conn, table, col):
+    return col in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def _create_compat_views(conn):
+    """Create per-connection temp views that expose platform columns for old DBs."""
+    if _has_col(conn, "assets", "asset_type"):
+        conn.execute("CREATE TEMP VIEW assets_platform AS SELECT * FROM assets")
+    else:
+        conn.execute(
+            """
+            CREATE TEMP VIEW assets_platform AS
+            SELECT snapshot_date, asset_id, identity_key,
+                   'openclaw' AS asset_type, 'openclaw' AS detector,
+                   ip, port, is_openclaw AS is_match, is_openclaw, category,
+                   latest_version, version_source, first_seen, last_seen, observations,
+                   country, region, city, lat, lng
+            FROM assets
+            """
+        )
+    if _has_col(conn, "observations", "asset_type"):
+        conn.execute("CREATE TEMP VIEW observations_platform AS SELECT * FROM observations")
+    else:
+        conn.execute(
+            """
+            CREATE TEMP VIEW observations_platform AS
+            SELECT id, asset_id, 'openclaw' AS asset_type, 'openclaw' AS detector,
+                   ip, port, ts, is_openclaw AS is_match, is_openclaw, category,
+                   rule, version, version_source, matched, error_type, tls
+            FROM observations
+            """
+        )
+
+
 # 快照时间窗口去重子查询（单一真相源，4 个 API 共用）：
-#   在 [start, end] 日期窗口内，同一 (ip,port) 只取最新 snapshot_date 那条。
+#   在 [start, end] 日期窗口内，同一 (asset_type,ip,port) 只取最新 snapshot_date 那条。
 # start/end 为 YYYY-MM-DD（含端点），任一为 None 则该端不设限。返回 (sql 片段, 参数列表)，
 # 调用方以 "FROM (子查询) ..." 取代原 "FROM assets ..."。
-def _windowed_assets(start=None, end=None):
+def _windowed_assets(start=None, end=None, asset_type=None):
     cond, args = ["snapshot_date IS NOT NULL"], []
     if start:
         cond.append("snapshot_date >= ?"); args.append(start)
     if end:
         cond.append("snapshot_date <= ?"); args.append(end)
+    if asset_type:
+        cond.append("asset_type = ?"); args.append(asset_type)
     where = " AND ".join(cond)
     sub = (f"(SELECT * FROM (SELECT *, ROW_NUMBER() OVER "
-           f"(PARTITION BY ip,port ORDER BY snapshot_date DESC) AS _rn "
-           f"FROM assets WHERE {where}) WHERE _rn=1)")
+           f"(PARTITION BY asset_type,ip,port ORDER BY snapshot_date DESC) AS _rn "
+           f"FROM assets_platform WHERE {where}) WHERE _rn=1)")
     return sub, args
 
 
-def api_overview(start=None, end=None):
+def api_overview(start=None, end=None, asset_type=None):
     """顶部数字卡 + 分桶 + 版本/来源分布。基于时间窗口内、同 ip:port 取最新快照的结果集。"""
     conn = _conn()
-    A, aargs = _windowed_assets(start, end)
+    A, aargs = _windowed_assets(start, end, asset_type)
     try:
         def one(sql, args=()):
             r = conn.execute(sql, args).fetchone()
@@ -85,36 +122,43 @@ def api_overview(start=None, end=None):
         sources = [{"source": r["s"] or "(无)", "count": r["n"]} for r in conn.execute(
             f"SELECT version_source s, COUNT(*) n FROM {A} "
             "WHERE category IN ('confirmed','confirmed_no_version') GROUP BY s ORDER BY n DESC", aargs)]
+        asset_types = [{"type": r["t"], "count": r["n"]} for r in conn.execute(
+            f"SELECT asset_type t, COUNT(*) n FROM {A} GROUP BY t ORDER BY n DESC", aargs)]
+        matched_total = cats["confirmed"] + cats["confirmed_no_version"]
         return {
             "assets_total": one(f"SELECT COUNT(*) FROM {A}", aargs),
-            "openclaw_total": cats["confirmed"] + cats["confirmed_no_version"],
+            "matched_total": matched_total,
+            "openclaw_total": one(
+                f"SELECT COUNT(*) FROM {A} WHERE asset_type='openclaw' "
+                "AND category IN ('confirmed','confirmed_no_version')", aargs),
             "categories": [
                 {"key": k, "label": v, "count": cats[k]} for k, v in CATEGORY_LABELS.items()
             ],
+            "asset_types": asset_types,
             "versions": versions,
             "version_sources": sources,
-            "observations": one("SELECT COUNT(*) FROM observations"),
+            "observations": one("SELECT COUNT(*) FROM observations_platform"),
             "probe_records": one("SELECT COUNT(*) FROM probe_records"),
         }
     finally:
         conn.close()
 
 
-def api_assets(category=None, q=None, limit=200, offset=0, start=None, end=None):
+def api_assets(category=None, q=None, limit=200, offset=0, start=None, end=None, asset_type=None):
     """资产列表（分页、可按 category 过滤、可按 IP/版本搜）。窗口内同 ip:port 取最新快照。"""
     conn = _conn()
-    A, aargs = _windowed_assets(start, end)
+    A, aargs = _windowed_assets(start, end, asset_type)
     try:
         where, args = [], list(aargs)
         if category and category in CATEGORY_LABELS:
             where.append("category=?"); args.append(category)
         if q:
-            where.append("(ip LIKE ? OR latest_version LIKE ?)")
-            args += [f"%{q}%", f"%{q}%"]
+            where.append("(ip LIKE ? OR latest_version LIKE ? OR asset_type LIKE ?)")
+            args += [f"%{q}%", f"%{q}%", f"%{q}%"]
         wc = ("WHERE " + " AND ".join(where)) if where else ""
         total = conn.execute(f"SELECT COUNT(*) FROM {A} {wc}", args).fetchone()[0]
         rows = conn.execute(
-            f"""SELECT ip, port, category, latest_version, version_source, last_seen,
+            f"""SELECT asset_type, detector, ip, port, category, latest_version, version_source, last_seen,
                        region, city
                 FROM {A} {wc}
                 ORDER BY (category='confirmed') DESC, last_seen DESC
@@ -139,7 +183,7 @@ def api_snapshots():
     conn = _conn()
     try:
         rows = conn.execute(
-            "SELECT snapshot_date d, COUNT(*) n FROM assets "
+            "SELECT snapshot_date d, COUNT(*) n FROM assets_platform "
             "WHERE snapshot_date IS NOT NULL GROUP BY d ORDER BY d"
         ).fetchall()
         dates = [{"date": r["d"], "count": r["n"]} for r in rows]
@@ -150,15 +194,15 @@ def api_snapshots():
         conn.close()
 
 
-def api_geo(scope="china", start=None, end=None):
+def api_geo(scope="china", start=None, end=None, asset_type=None):
     """地理分布散点：按坐标聚合实例数，供地图打点。窗口内同 ip:port 取最新快照。
 
     scope=china：只取落在中国大致经纬度范围内的点（含港澳台、南海），按城市/坐标聚合；
     scope=world：全部点，按国家/坐标聚合。
-    每个点返回 name（地名）+ lng/lat（坐标）+ count（节点数）+ openclaw（其中明确实例数）。
+    每个点返回 name（地名）+ lng/lat（坐标）+ count（节点数）+ matched（其中确认实例数）。
     """
     conn = _conn()
-    A, aargs = _windowed_assets(start, end)
+    A, aargs = _windowed_assets(start, end, asset_type)
     try:
         # 中国大致经纬度范围（含港澳台与南海诸岛）。仅用经纬度矩形框无法把中国与邻国分开
         # ——矩形的西南角会框进印度北部 / 中亚（如新德里 77.22E,28.63N 落在框内）。故 china
@@ -177,7 +221,7 @@ def api_geo(scope="china", start=None, end=None):
             f"""SELECT {name_col} AS name, lng, lat,
                        COUNT(*) AS n,
                        SUM(CASE WHEN category IN ('confirmed','confirmed_no_version')
-                                THEN 1 ELSE 0 END) AS openclaw
+                                THEN 1 ELSE 0 END) AS matched
                 FROM {A} {where}
                 GROUP BY lat, lng
                 ORDER BY n DESC""",
@@ -189,7 +233,7 @@ def api_geo(scope="china", start=None, end=None):
         total = conn.execute(f"SELECT COUNT(*) FROM {A}", aargs).fetchone()[0]
         return {
             "points": [{"name": r["name"], "lng": r["lng"], "lat": r["lat"],
-                        "count": r["n"], "openclaw": r["openclaw"]} for r in rows],
+                        "count": r["n"], "matched": r["matched"], "openclaw": r["matched"]} for r in rows],
             "located": located, "total": total, "scope": scope,
         }
     finally:
@@ -224,14 +268,16 @@ def _safe_text(s, limit=8000):
     return text
 
 
-def api_report(ip=None, port=None):
+def api_report(ip=None, port=None, asset_type=None):
     """单台主机的探测报告：最近一次观测的概况 + 该次全部 probe（命中/未命中都列）。"""
     if not ip:
         return {"error": "缺少 ip 参数"}
     conn = _conn()
     try:
-        q = "SELECT * FROM observations WHERE ip=?"
+        q = "SELECT * FROM observations_platform WHERE ip=?"
         args = [ip]
+        if asset_type:
+            q += " AND asset_type=?"; args.append(asset_type)
         if port:
             q += " AND port=?"; args.append(int(port))
         q += " ORDER BY ts DESC LIMIT 1"  # 最近一次观测
@@ -265,6 +311,8 @@ def api_report(ip=None, port=None):
                 "response": _safe_text(p["response"]),
             })
         return {
+            "asset_type": obs.get("asset_type") or "openclaw",
+            "detector": obs.get("detector") or obs.get("asset_type") or "openclaw",
             "ip": obs["ip"], "port": obs["port"], "ts": obs["ts"],
             "category": obs["category"], "rule": obs["rule"],
             "version": obs["version"], "version_source": obs["version_source"],
@@ -312,22 +360,26 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(api_snapshots())
             elif u.path == "/api/overview":
                 self._send(api_overview(
-                    start=qs.get("start", [None])[0], end=qs.get("end", [None])[0]))
+                    start=qs.get("start", [None])[0], end=qs.get("end", [None])[0],
+                    asset_type=qs.get("asset_type", [None])[0]))
             elif u.path == "/api/geo":
                 self._send(api_geo(
                     scope=qs.get("scope", ["china"])[0],
-                    start=qs.get("start", [None])[0], end=qs.get("end", [None])[0]))
+                    start=qs.get("start", [None])[0], end=qs.get("end", [None])[0],
+                    asset_type=qs.get("asset_type", [None])[0]))
             elif u.path == "/api/assets":
                 self._send(api_assets(
                     category=qs.get("category", [None])[0],
                     q=qs.get("q", [None])[0],
                     limit=qs.get("limit", ["200"])[0],
                     offset=qs.get("offset", ["0"])[0],
-                    start=qs.get("start", [None])[0], end=qs.get("end", [None])[0]))
+                    start=qs.get("start", [None])[0], end=qs.get("end", [None])[0],
+                    asset_type=qs.get("asset_type", [None])[0]))
             elif u.path == "/api/report":
                 self._send(api_report(
                     ip=qs.get("ip", [None])[0],
-                    port=qs.get("port", [None])[0]))
+                    port=qs.get("port", [None])[0],
+                    asset_type=qs.get("asset_type", [None])[0]))
             else:
                 self._send({"error": "not found"}, 404)
         except FileNotFoundError:
@@ -349,7 +401,7 @@ def main():
     if not os.path.exists(DB_PATH):
         print(f"警告：数据库 {DB_PATH} 不存在，先运行 store 入库再开看板")
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    print(f"OpenClaw 实例看板：http://127.0.0.1:{args.port}/  （库 {DB_PATH}）")
+    print(f"资产测绘看板：http://127.0.0.1:{args.port}/  （库 {DB_PATH}）")
     print("Ctrl-C 停止")
     try:
         srv.serve_forever()
