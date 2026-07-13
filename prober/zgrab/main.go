@@ -1,8 +1,9 @@
 // zgrab-openclaw：注册 openclaw 自定义模块并跑 ZGrab2 单模块扫描流程。
 //
 // 用法（与标准 zgrab2 一致）：
-//   echo "1.2.3.4,18789" | zgrab-openclaw openclaw --port 18789 --fingerprints fingerprints/fingerprints.json
-//   zgrab-openclaw openclaw -f candidates.csv -o results-zgrab.jsonl --senders 1000
+//
+//	echo "1.2.3.4,18789" | zgrab-openclaw openclaw --port 18789 --fingerprints prober/fingerprints/openclaw.json
+//	zgrab-openclaw openclaw -f src/agentsectool_scanner/discovery/output/candidates.csv -o prober/output/results-zgrab.jsonl --senders 1000
 //
 // 这里不引入 github.com/zmap/zgrab2/bin，以免把所有默认模块（mysql/mongodb…）一并编入；
 // 只复刻其单模块路径所需的几步。

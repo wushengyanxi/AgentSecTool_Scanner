@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -67,6 +68,11 @@ func main() {
 
 	var jsonl *os.File
 	if *outPath != "" {
+		if dir := filepath.Dir(*outPath); dir != "." && dir != "" {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				fail(err)
+			}
+		}
 		f, err := os.Create(*outPath)
 		if err != nil {
 			fail(err)

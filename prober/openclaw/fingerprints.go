@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-// FingerprintDB 把"可观测签名 → 版本"。由 fingerprint/build_corpus.py 逐版本起容器记录签名而成。
+// FingerprintDB 把"可观测签名 → 版本"。由 tools/fingerprint/build_corpus.py 逐版本起容器记录签名而成。
 type FingerprintDB struct {
 	Entries []FingerprintEntry `json:"entries"`
 }

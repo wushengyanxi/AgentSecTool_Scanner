@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,19 +24,19 @@ func main() {
 	cfg := loadConfig() // config.toml 的默认值；找不到用内置默认
 
 	var (
-		portsArg = flag.String("port", "", "端口，逗号分隔多个（默认取 config.toml）")
-		conc     = flag.Int("concurrency", int(cfg.concurrency), "全局并发探测数")
-		timeout  = flag.Duration("timeout", cfg.timeoutPerIP, "单 IP 探测超时")
-		deadline = flag.Duration("deadline", cfg.deadline, "整个任务的总时长上限（0=不限）")
-		rate     = flag.Int("rate", int(cfg.rate), "单个目标 IP 的每秒发包上限（0=不限）")
-		logFlag  = flag.Bool("l", cfg.verbose > 0, "详细日志：打印每个 IP 的完整研判依据")
-		fpPath   = flag.String("fingerprints", "", "指纹库 JSON 路径（隐式版本反推）")
-		outPath  = flag.String("o", "", "JSONL 输出文件（含完整请求/响应，供入库）；缺省不落盘")
-		tlsOn    = flag.Bool("tls", false, "强制所有目标用 TLS（缺省按端口自动）")
+		portsArg    = flag.String("port", "", "端口，逗号分隔多个（默认取 config.toml）")
+		conc        = flag.Int("concurrency", int(cfg.concurrency), "全局并发探测数")
+		timeout     = flag.Duration("timeout", cfg.timeoutPerIP, "单 IP 探测超时")
+		deadline    = flag.Duration("deadline", cfg.deadline, "整个任务的总时长上限（0=不限）")
+		rate        = flag.Int("rate", int(cfg.rate), "单个目标 IP 的每秒发包上限（0=不限）")
+		logFlag     = flag.Bool("l", cfg.verbose > 0, "详细日志：打印每个 IP 的完整研判依据")
+		fpPath      = flag.String("fingerprints", "", "指纹库 JSON 路径（隐式版本反推）")
+		outPath     = flag.String("o", "", "JSONL 输出文件（含完整请求/响应，供入库）；缺省不落盘")
+		tlsOn       = flag.Bool("tls", false, "强制所有目标用 TLS（缺省按端口自动）")
 		skipUnreach = flag.Bool("skip-unreachable", false, "不落盘探不到的目标（timeout/refused/unreachable/down）；大规模枚举时这类占多数")
 		progress    = flag.Bool("progress", false, "单行刷新进度（替代逐行输出）：已扫数/各分类计数/百分比")
-		_        = flag.String("report", "", "从已落盘结果生成报告，按文件名后缀定格式（由 store 实现，占位）")
-		_        = flag.Bool("resume", false, "断点续扫（占位）")
+		_           = flag.String("report", "", "从已落盘结果生成报告，按文件名后缀定格式（由 store 实现，占位）")
+		_           = flag.Bool("resume", false, "断点续扫（占位）")
 	)
 	// 像 nmap 那样允许目标与选项混排：先把位置参数（目标）与选项分开，再解析选项。
 	flagArgs, posArgs := splitArgs(os.Args[1:])
@@ -66,6 +67,11 @@ func main() {
 
 	var jsonl *os.File
 	if *outPath != "" {
+		if dir := filepath.Dir(*outPath); dir != "." && dir != "" {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				fail(err)
+			}
+		}
 		f, err := os.Create(*outPath)
 		if err != nil {
 			fail(err)

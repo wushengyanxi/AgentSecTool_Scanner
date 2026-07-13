@@ -12,6 +12,8 @@
 
 ## 组成
 
+以下路径是 Round 1 当时的目录口径，现行路径以根目录 `README.md` 和 `docs/项目文档-v2.html` 为准。
+
 - `prober/`：OpenClaw 探测核心、`ocprobe` 兼容入口，以及当前平台级 `assetprobe` 入口。
 - `discovery/`：主动 masscan/ZMap/internal 发现、FOFA/Shodan 被动种子、候选合并去重和黑名单过滤。
 - `fofa/`：FOFA 候选拉取、断点续拉、时间窗、导出、省份统计和省份版本统计。

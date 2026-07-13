@@ -175,7 +175,7 @@
     <div class="kv"><div class="k">一句话定义</div><div class="v">综合资产测绘平台：发现 → 按资产类型探测 → 版本测定 → SQLite 归档 → 看板展示</div></div>
     <div class="kv"><div class="k">平台形态</div><div class="v">平台级入口按资产类型调度 detector；OpenClaw 是首个内置 detector，既有 OpenClaw 数据与报告逻辑保留兼容</div></div>
     <div class="kv"><div class="k">技术栈</div><div class="v">Go 1.24（detector 注册表 + assetprobe runner）+ Python 标准库（发现 / 测绘 / 落地 / 看板）+ SQLite + echarts（看板地图）</div></div>
-    <div class="kv"><div class="k">权威数据位置</div><div class="v"><code>data/scanner/scan_results.sqlite</code>（扫描结果，101MB，已 gitignore）</div></div>
+    <div class="kv"><div class="k">权威数据位置</div><div class="v"><code>src/agentsectool_scanner/store/data/scan_results.sqlite</code>（扫描结果，101MB，已 gitignore）</div></div>
   </div>
 
   <h3>核心能力</h3>
@@ -183,16 +183,16 @@
     <li><strong>平台级探测调度</strong>：<code>assetprobe --type &lt;asset_type&gt;</code> 从注册表选择 detector；当前注册 <code>openclaw</code>。<span class="ev">prober/detectors/, prober/cmd/assetprobe/</span></li>
     <li><strong>只读探测判定</strong>：每个 detector 对单个 IP:端口执行只读探测，输出统一的 <code>asset_type / is_match / category</code> 平台字段；OpenClaw 分支按 C1/C2/C3 二元研判。<span class="ev">prober/openclaw/probe.go, signals.go</span></li>
     <li><strong>版本测定</strong>：OpenClaw 分支优先直读 <code>serverVersion</code>（<code>direct</code>），否则用首页构建产物的资产哈希集合精确匹配指纹库反推（<code>implicit</code> / <code>implicit-range</code>）。<span class="ev">version.go, fingerprints.go</span></li>
-    <li><strong>发现层</strong>：主动扫描（masscan / zmap / 内置 async connect）+ 被动种子（FOFA / Shodan），合并去重产出 <code>candidates.csv</code>。<span class="ev">discovery/</span></li>
-    <li><strong>落地归档</strong>：<code>results.jsonl</code> → SQLite，按 <code>asset_type:ip:port</code> 去重，入库时按 IP 富化地理位置。<span class="ev">store/load.py</span></li>
-    <li><strong>看板</strong>：纯标准库只读看板，支持时间窗口和资产类型过滤，含可切换世界/中国的 2D 散点地图。<span class="ev">dashboard/</span></li>
+    <li><strong>发现层</strong>：主动扫描（masscan / zmap / 内置 async connect）+ 被动种子（FOFA / Shodan），合并去重产出 <code>candidates.csv</code>。<span class="ev">src/agentsectool_scanner/discovery/</span></li>
+    <li><strong>落地归档</strong>：<code>results.jsonl</code> → SQLite，按 <code>asset_type:ip:port</code> 去重，入库时按 IP 富化地理位置。<span class="ev">src/agentsectool_scanner/store/load.py</span></li>
+    <li><strong>看板</strong>：纯标准库只读看板，支持时间窗口和资产类型过滤，含可切换世界/中国的 2D 散点地图。<span class="ev">src/agentsectool_scanner/dashboard/</span></li>
   </ul>
 
   <h3>核心约束</h3>
   <ul>
     <li><strong>探测全程只读</strong>（函数级有单测固化）：探测只发 HTTP 升级请求与无鉴权 GET，绝不发 WS 数据帧或利用面请求。<span class="ev">ws.go:24-79, probe_test.go:55-89</span> 注：整条 runner 调用链未抓包断言，见 <a href="#validation">验证</a>。</li>
     <li><strong>凭据绝不入库</strong>：FOFA / MaxMind 凭据走 <code>.ini</code> 或环境变量，配置文件已 gitignore。</li>
-    <li><strong>真实数据绝不入库</strong>：<code>data/</code>、<code>scan_test/results/</code> 含真实暴露主机数据，已 gitignore。</li>
+    <li><strong>真实数据绝不入库</strong>：各模块 <code>data/</code> / <code>output/</code> 目录含真实暴露主机数据，已 gitignore。</li>
   </ul>
 
   <h3>非目标</h3>
@@ -222,7 +222,7 @@
       <tr><td>平台入口</td><td>按 <code>--type</code> 选择资产类型，展开目标、并发、限速、输出 JSONL</td><td><code>prober/cmd/assetprobe</code></td></tr>
       <tr><td>探测器体系根包</td><td>管理接口、asset_type → detector factory 注册表、通用摘要字段</td><td><code>prober/detectors</code></td></tr>
       <tr><td>资产类型分支</td><td>实现只读探测、证据采集、版本测定、detector 专属 JSON</td><td><code>prober/detectors/openclaw</code> + <code>prober/openclaw</code></td></tr>
-      <tr><td>落库与看板</td><td>按 <code>asset_type:ip:port</code> 去重；按时间窗口和资产类型查询</td><td><code>store/</code>、<code>dashboard/</code></td></tr>
+      <tr><td>落库与看板</td><td>按 <code>asset_type:ip:port</code> 去重；按时间窗口和资产类型查询</td><td><code>src/agentsectool_scanner/store</code>、<code>src/agentsectool_scanner/dashboard</code></td></tr>
     </tbody>
   </table></div>
 
@@ -234,18 +234,20 @@
     <li>OpenClaw 的 <code>is_openclaw</code>、<code>rule</code>、C1/C2/C3、T1–T7 是兼容字段和专属规则，不应泄漏成平台通用规则。</li>
   </ul>
 
-  <pre><code># 平台级入口
+  <pre><code>export PYTHONPATH=src:.
+
+# 平台级入口
 prober/bin/assetprobe --list-types
-prober/bin/assetprobe --type openclaw --fingerprints fingerprints/fingerprints.json -o results.jsonl candidates.csv
+prober/bin/assetprobe --type openclaw --fingerprints prober/fingerprints/openclaw.json -o prober/output/results.jsonl src/agentsectool_scanner/discovery/output/candidates.csv
 
 # 入库后可按资产类型过滤
-python3 -m dashboard --db data/scanner/scan_results.sqlite</code></pre>
+python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/data/scan_results.sqlite</code></pre>
 </section>
 
 <!-- ========== QUICKSTART ========== -->
 <section id="quickstart">
   <h2>快速开始 Quickstart</h2>
-  <p>最小可复现闭环。所有命令<strong>在项目根目录</strong>（<code>AgentSecTool_Scanner/</code>）运行——Python 模块以 <code>python3 -m</code> 调用，Makefile 已设 <code>PYTHONPATH</code>；在子目录内运行会报 <code>No module named …</code>。</p>
+  <p>最小可复现闭环。所有命令<strong>在项目根目录</strong>（<code>AgentSecTool_Scanner/</code>）运行——Python 模块以 <code>python3 -m</code> 调用；Makefile 已设 <code>PYTHONPATH</code>，手动执行 Python 命令前先运行 <code>export PYTHONPATH=src:.</code>。在子目录内运行会报 <code>No module named …</code>。</p>
 
   <div class="callout info">
     <p class="ct">NOTE · 平台入口</p>
@@ -256,8 +258,8 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite</code></pre>
   <pre><code>make test</code></pre>
   <ul>
     <li><strong>运行目录</strong>：项目根 ｜ <strong>写文件/库</strong>：否 ｜ <strong>网络</strong>：否 ｜ <strong>凭据</strong>：否 ｜ <strong>幂等</strong>：是</li>
-    <li><strong>实际执行</strong>：<code>go -C prober build</code> + <code>go -C prober test ./...</code> + <code>python3 -m unittest discovery.tests.test_discovery store.tests.test_store progress.tests.test_blocks fofa.tests.test_pull</code>。<span class="ev">Makefile:23-25</span></li>
-    <li><strong>成功标志</strong>：Go 三包 <code>ok</code> + Python <code>24 tests OK</code>（已复核全过）。</li>
+    <li><strong>实际执行</strong>：<code>go -C prober build</code> + <code>go -C prober test ./...</code> + <code>python3 -m unittest agentsectool_scanner.discovery.tests.test_discovery agentsectool_scanner.store.tests.test_store agentsectool_scanner.progress.tests.test_blocks tools.fofa.tests.test_pull</code>。<span class="ev">Makefile</span></li>
+    <li><strong>成功标志</strong>：Go 三包 <code>ok</code> + Python <code>25 tests OK</code>（已复核全过）。</li>
     <li><strong>注意</strong>：<code>make test</code> 只跑 5 个模块的测试；clawsec/geoip/dashboard/scope/fingerprint 无单测，见 <a href="#validation">验证</a>。</li>
   </ul>
 
@@ -276,7 +278,7 @@ go -C prober build -o bin/ocprobe ./cmd/ocprobe</code></pre>
 prober/bin/assetprobe --type openclaw -port 18789 203.0.113.10
 
 # 带指纹库做版本反推、结果落盘供入库
-prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fingerprints.json -o results.jsonl targets.txt</code></pre>
+prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerprints/openclaw.json -o prober/output/results.jsonl targets.txt</code></pre>
   <ul>
     <li><strong>运行目录</strong>：项目根 ｜ <strong>写文件</strong>：仅在给 <code>-o</code> 时写该 JSONL（<code>os.Create</code> 截断重建）｜ <strong>写库</strong>：否 ｜ <strong>网络</strong>：<strong>是，对目标 IP 发起 TCP/HTTP/WS 连接</strong> ｜ <strong>凭据</strong>：否 ｜ <strong>幂等</strong>：是（同名 <code>-o</code> 文件会被覆盖）</li>
     <li><strong>成功标志</strong>：终端逐行打印 <code>IP:端口 OpenClaw version=…</code> 或 <code>not-openclaw …</code>。</li>
@@ -288,24 +290,24 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
   </div>
 
   <h3>4 · 入库（可选，需 venv 装 geoip2）</h3>
-  <pre><code>.venv/bin/python3 -m store --in results.jsonl --db data/scanner/scan_results.sqlite</code></pre>
+  <pre><code>.venv/bin/python3 -m agentsectool_scanner.store --in prober/output/results.jsonl --db src/agentsectool_scanner/store/data/scan_results.sqlite</code></pre>
   <ul>
     <li><strong>写库</strong>：是，写 <code>scan_results.sqlite</code>（assets upsert / observations 追加）｜ <strong>网络</strong>：否 ｜ <strong>凭据</strong>：否 ｜ <strong>幂等</strong>：是（同一观测重跑会追加 observations，assets 合并更新）</li>
-    <li><strong>为何用 venv</strong>：入库时调 geoip 富化，依赖第三方包 <code>geoip2</code>；系统 python 无此包则地理列留空（软依赖、不阻断）。<span class="ev">store/load.py:88-91</span></li>
+    <li><strong>为何用 venv</strong>：入库时调 geoip 富化，依赖第三方包 <code>geoip2</code>；系统 python 无此包则地理列留空（软依赖、不阻断）。<span class="ev">src/agentsectool_scanner/store/load.py:88-91</span></li>
   </ul>
 
   <h3>5 · 看板查看结果（只读）</h3>
-  <pre><code>python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787</code></pre>
+  <pre><code>python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/data/scan_results.sqlite --port 8787</code></pre>
   <ul>
     <li><strong>网络</strong>：仅监听 <code>127.0.0.1:8787</code>（不对公网暴露）｜ <strong>写库</strong>：否（纯只读）｜ <strong>凭据</strong>：否</li>
-    <li>浏览器开 <code>http://127.0.0.1:8787/</code>。库不存在仅告警、不退出。<span class="ev">dashboard/server.py:294-309</span></li>
+    <li>浏览器开 <code>http://127.0.0.1:8787/</code>。库不存在仅告警、不退出。<span class="ev">src/agentsectool_scanner/dashboard/server.py:294-309</span></li>
   </ul>
 </section>
 
 <!-- ========== ARCHITECTURE ========== -->
 <section id="architecture">
   <h2>架构 Architecture</h2>
-  <p>系统分两条链路。<strong>正式主链路</strong>：发现 → 平台调度 → detector 探测 → 落地 → 看板。<strong>供料与辅助链路</strong>：FOFA / ClawSec（被动测绘数据源）、geoip（富化）、指纹库、progress / scope（调度）；fingerprint / scan_test 是一次性历史工具。平台层不承载具体资产判定规则；判定与版本测定发生在对应 detector 分支，OpenClaw 分支使用 C1/C2/C3 规则。</p>
+  <p>系统分两条链路。<strong>正式主链路</strong>：发现 → 平台调度 → detector 探测 → 落地 → 看板。<strong>供料与辅助链路</strong>：FOFA / ClawSec（被动测绘数据源）、geoip（富化）、指纹库、progress / scope（调度）；<code>tools/fingerprint</code> / <code>tools/scan_test</code> 是一次性历史工具。平台层不承载具体资产判定规则；判定与版本测定发生在对应 detector 分支，OpenClaw 分支使用 C1/C2/C3 规则。</p>
 
   <div class="diagram">
     <svg viewBox="0 0 1120 540" role="img" aria-label="AgentSecTool Scanner 系统架构图">
@@ -385,7 +387,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
       <text x="375" y="494" class="arch-code">progress / scope</text>
       <rect x="695" y="452" width="150" height="52" rx="3" class="arch-soft"/>
       <text x="770" y="475" class="arch-label">指纹库</text>
-      <text x="770" y="494" class="arch-code">fingerprints.json</text>
+      <text x="770" y="494" class="arch-code">openclaw.json</text>
       <rect x="925" y="104" width="150" height="52" rx="3" class="arch-soft"/>
       <text x="1000" y="127" class="arch-label">地理富化</text>
       <text x="1000" y="146" class="arch-code">GeoLite2</text>
@@ -412,16 +414,16 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
       <tr><td><code>prober/openclaw</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>只读探测核心：判定 + 版本测定</td><td><code>openclaw.Probe()</code></td><td>有（Go 3 包）</td></tr>
       <tr><td><code>prober/cmd/ocprobe</code></td><td><span class="badge stable">stable</span></td><td>专用入口</td><td>OpenClaw runner：目标展开 + 并发 + 落 JSONL</td><td><code>ocprobe</code></td><td>有</td></tr>
       <tr><td><code>prober/zgrab</code></td><td><span class="badge experimental">experimental</span></td><td>主链路(备)</td><td>ZGrab2 自定义模块，薄封装 Probe</td><td><code>zgrab-openclaw openclaw</code></td><td>无（独立 go.mod，不在 go test ./... 范围）</td></tr>
-      <tr><td><code>discovery</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>发现层：主动扫描+被动种子→candidates.csv</td><td><code>python3 -m discovery</code></td><td>有</td></tr>
-      <tr><td><code>store</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>落地：jsonl→SQLite，入库时 geoip 富化</td><td><code>python3 -m store</code></td><td>有</td></tr>
-      <tr><td><code>progress</code></td><td><span class="badge stable">stable</span></td><td>辅助调度</td><td>CIDR 块切分 + 原子领取（断点续扫）</td><td><code>python3 -m progress</code></td><td>有</td></tr>
-      <tr><td><code>fofa</code></td><td><span class="badge stable">stable</span></td><td>供料</td><td>FOFA 被动测绘：候选归档+按省统计</td><td><code>python3 -m fofa</code></td><td>有</td></tr>
-      <tr><td><code>clawsec</code></td><td><span class="badge partial">partial</span></td><td>供料</td><td>ClawSec 每日快照归档（免凭据）</td><td><code>python3 -m clawsec</code></td><td>无</td></tr>
-      <tr><td><code>geoip</code></td><td><span class="badge partial">partial</span></td><td>辅助富化</td><td>IP→城市离线解析（GeoLite2）+ 回填</td><td><code>python3 -m geoip.backfill</code></td><td>无</td></tr>
-      <tr><td><code>dashboard</code></td><td><span class="badge partial">partial</span></td><td>辅助</td><td>只读看板（4 个 API + echarts 地图）</td><td><code>python3 -m dashboard</code></td><td>无</td></tr>
-      <tr><td><code>scope</code></td><td><span class="badge partial">partial</span></td><td>辅助</td><td>APNIC→中国 CIDR 全集生成</td><td><code>python3 -m scope.cn_ranges</code></td><td>无</td></tr>
-      <tr><td><code>fingerprint</code></td><td><span class="badge experimental">experimental</span></td><td>工具</td><td>指纹库采集（build/collect）+ 一次性拆库迁移</td><td><code>python3 fingerprint/*.py</code></td><td>无</td></tr>
-      <tr><td><code>scan_test</code></td><td><span class="badge experimental">experimental</span></td><td>验证</td><td>对真实公网目标的一次性实战验证脚本与结果</td><td>各脚本</td><td>无</td></tr>
+      <tr><td><code>src/agentsectool_scanner/discovery</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>发现层：主动扫描+被动种子→candidates.csv</td><td><code>python3 -m agentsectool_scanner.discovery</code></td><td>有</td></tr>
+      <tr><td><code>src/agentsectool_scanner/store</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>落地：jsonl→SQLite，入库时 geoip 富化</td><td><code>python3 -m agentsectool_scanner.store</code></td><td>有</td></tr>
+      <tr><td><code>src/agentsectool_scanner/progress</code></td><td><span class="badge stable">stable</span></td><td>辅助调度</td><td>CIDR 块切分 + 原子领取（断点续扫）</td><td><code>python3 -m agentsectool_scanner.progress</code></td><td>有</td></tr>
+      <tr><td><code>tools/fofa</code></td><td><span class="badge stable">stable</span></td><td>供料</td><td>FOFA 被动测绘：候选归档+按省统计</td><td><code>python3 -m tools.fofa</code></td><td>有</td></tr>
+      <tr><td><code>tools/clawsec</code></td><td><span class="badge partial">partial</span></td><td>供料</td><td>ClawSec 每日快照归档（免凭据）</td><td><code>python3 -m tools.clawsec</code></td><td>无</td></tr>
+      <tr><td><code>src/agentsectool_scanner/geoip</code></td><td><span class="badge partial">partial</span></td><td>辅助富化</td><td>IP→城市离线解析（GeoLite2）+ 回填</td><td><code>python3 -m agentsectool_scanner.geoip.backfill</code></td><td>无</td></tr>
+      <tr><td><code>src/agentsectool_scanner/dashboard</code></td><td><span class="badge partial">partial</span></td><td>辅助</td><td>只读看板（4 个 API + echarts 地图）</td><td><code>python3 -m agentsectool_scanner.dashboard</code></td><td>无</td></tr>
+      <tr><td><code>tools/scope</code></td><td><span class="badge partial">partial</span></td><td>辅助</td><td>APNIC→中国 CIDR 全集生成</td><td><code>python3 -m tools.scope.cn_ranges</code></td><td>无</td></tr>
+      <tr><td><code>tools/fingerprint</code></td><td><span class="badge experimental">experimental</span></td><td>工具</td><td>指纹库采集（build/collect）+ 一次性拆库迁移</td><td><code>python3 tools/fingerprint/*.py</code></td><td>无</td></tr>
+      <tr><td><code>tools/scan_test</code></td><td><span class="badge experimental">experimental</span></td><td>验证</td><td>对真实公网目标的一次性实战验证脚本与结果</td><td>各脚本</td><td>无</td></tr>
     </tbody>
   </table></div>
   <p class="caption">「链路」列：主链路＝产品路径；供料＝向扫描器提供探测目标/外部标注；辅助＝调度/富化/可视化；工具/验证＝一次性。详见各模块在 <a href="#commands">命令参考</a> 与 <a href="#data-model">数据模型</a> 的展开。</p>
@@ -438,7 +440,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
   <p>本节定义全文反复出现的术语。后文用到的每个编号、状态、规则名、数据对象都在此或首次出现处落到具体对象。</p>
 
   <h3>测试项 T1–T7（探测采集的证据信号）</h3>
-  <p>每次探测对一台主机采集 7 个测试项，按可仿冒难度分确证 / 强 / 弱三级。定义见 <span class="ev">result.go:5-13</span>，采集见 <span class="ev">http.go / ws.go</span>。下表每项的「真实返回样字」取自本项目对 6-20 中国 18789 段的实测结果（<code>scan_test/results/cn-2026-06-20.jsonl</code>，约 1.2 万个确认实例），非杜撰。</p>
+  <p>每次探测对一台主机采集 7 个测试项，按可仿冒难度分确证 / 强 / 弱三级。定义见 <span class="ev">result.go:5-13</span>，采集见 <span class="ev">http.go / ws.go</span>。下表每项的「真实返回样字」取自本项目对 6-20 中国 18789 段的实测结果（<code>tools/scan_test/output/results/cn-2026-06-20.jsonl</code>，约 1.2 万个确认实例），非杜撰。</p>
 
   <h4>T1 <span class="tag">确证</span> control-ui-config 返回 200 且体含 serverVersion</h4>
   <div class="card"><div class="bd"><dl>
@@ -516,7 +518,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
   </div>
 
   <h3>category：资产收录三值枚举</h3>
-  <p>入库时 <code>store.classify()</code> 把一条探测结果分桶；探不到的不收录。<span class="ev">store/load.py:52-66</span></p>
+  <p>入库时 <code>store.classify()</code> 把一条探测结果分桶；探不到的不收录。<span class="ev">src/agentsectool_scanner/store/load.py:52-66</span></p>
   <div class="tbl-wrap"><table>
     <thead><tr><th>枚举值</th><th>含义</th><th>判定条件</th></tr></thead>
     <tbody>
@@ -526,7 +528,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
       <tr><td>（不收录）</td><td>探不到 / 纯无命中</td><td>classify 返回 None，跳过</td></tr>
     </tbody>
   </table></div>
-  <p>资产的 category 是该快照内最新观测的研判分档；同一快照内重复观测会覆盖为最新结果，不跨快照做历史最强聚合。<span class="ev">store/load.py</span></p>
+  <p>资产的 category 是该快照内最新观测的研判分档；同一快照内重复观测会覆盖为最新结果，不跨快照做历史最强聚合。<span class="ev">src/agentsectool_scanner/store/load.py</span></p>
 
   <h3>版本来源 version_source</h3>
   <ul>
@@ -540,7 +542,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
 
   <div class="callout invariant">
     <p class="ct">INVARIANT · 术语口径</p>
-    <p>① OpenClaw 判定口径以 <a href="#rules">规则白名单</a> 为准：T1 单独（确证级、非 WS）即可达标；「≥2」必须跨表面，同表面 T3+T4 不达标。② 资产身份键为 <code>{asset_type}:ipport:{ip}:{port}</code>，不按内容指纹跨 IP 合并，同一 IP:端口可承载多个资产类型。<span class="ev">store/load.py</span></p>
+    <p>① OpenClaw 判定口径以 <a href="#rules">规则白名单</a> 为准：T1 单独（确证级、非 WS）即可达标；「≥2」必须跨表面，同表面 T3+T4 不达标。② 资产身份键为 <code>{asset_type}:ipport:{ip}:{port}</code>，不按内容指纹跨 IP 合并，同一 IP:端口可承载多个资产类型。<span class="ev">src/agentsectool_scanner/store/load.py</span></p>
   </div>
 </section>
 
@@ -553,7 +555,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
   <ul>
     <li><strong>前置</strong>：装 Go 1.24 与 Python 3；无需凭据/网络。</li>
     <li><strong>步骤</strong>：<code>make test</code></li>
-    <li><strong>产物</strong>：无（不写文件/库）。<strong>验证</strong>：Go 三包 ok + Python 24 tests OK。</li>
+    <li><strong>产物</strong>：无（不写文件/库）。<strong>验证</strong>：Go 三包 ok + Python 25 tests OK。</li>
     <li><strong>失败恢复</strong>：可任意重跑（幂等）。</li>
     <li><strong>禁止</strong>：无。</li>
   </ul>
@@ -561,10 +563,10 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
   <h3>WF-2 · 正式扫描工作流（发现 → 探测 → 落地）</h3>
   <ul>
     <li><strong>前置</strong>：构建 <code>assetprobe</code>；准备目标（candidates.csv 或目标文件）；如走 FOFA 种子需配置凭据。</li>
-    <li><strong>步骤</strong>：① <code>python3 -m discovery …</code> 产 candidates.csv → ② <code>assetprobe --type openclaw -port … -fingerprints … -o results.jsonl &lt;目标&gt;</code> → ③ <code>.venv/bin/python3 -m store --in results.jsonl</code>。</li>
+    <li><strong>步骤</strong>：① <code>python3 -m agentsectool_scanner.discovery …</code> 产 candidates.csv → ② <code>assetprobe --type openclaw -port … -fingerprints … -o results.jsonl &lt;目标&gt;</code> → ③ <code>.venv/bin/python3 -m agentsectool_scanner.store --in prober/output/results.jsonl</code>。</li>
     <li><strong>注意</strong>：candidates.csv 是 <code>ip,port</code> 两列，<strong>不能</strong>直接作为 ocprobe 的目标文件（ocprobe 目标文件要求每行一个 IP，端口走 <code>-port</code>）。需自行抽列或按 IP 生成目标文件。</li>
     <li><strong>产物</strong>：candidates.csv（临时）、results.jsonl（临时）、scan_results.sqlite（权威）。</li>
-    <li><strong>验证</strong>：<code>python3 -m store --stats</code> 看分桶计数；看板查看。</li>
+    <li><strong>验证</strong>：<code>python3 -m agentsectool_scanner.store --stats</code> 看分桶计数；看板查看。</li>
     <li><strong>失败恢复</strong>：results.jsonl 同名会被覆盖；入库后历史在 observations（append-only），重跑安全。</li>
     <li><strong>禁止</strong>：对未授权目标做大规模主动扫描（见 <a href="#security">安全边界</a>）。</li>
   </ul>
@@ -572,23 +574,23 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
   <h3>WF-3 · ClawSec 持续运营拉取</h3>
   <ul>
     <li><strong>前置</strong>：免凭据。</li>
-    <li><strong>步骤</strong>：<code>python3 -m clawsec pull</code>（前台常驻）。先续拉当前快照，再每 <code>--watch-interval</code> 秒（默认 600）轮询平台 lastScanTime，出现更新日期即拉新批。Ctrl-C 停。</li>
-    <li><strong>产物</strong>：<code>data/clawsec/clawsec.sqlite</code> 的 clawsec_snapshots（每日快照，跨日各留一行）。</li>
+    <li><strong>步骤</strong>：<code>python3 -m tools.clawsec pull</code>（前台常驻）。先续拉当前快照，再每 <code>--watch-interval</code> 秒（默认 600）轮询平台 lastScanTime，出现更新日期即拉新批。Ctrl-C 停。</li>
+    <li><strong>产物</strong>：<code>tools/clawsec/data/clawsec.sqlite</code> 的 clawsec_snapshots（每日快照，跨日各留一行）。</li>
     <li><strong>失败恢复</strong>：断点续传按 (snapshot_date, page)；中断重跑接着拉；某日全量已入库则幂等跳过。</li>
-    <li><strong>禁止 / 须知</strong>：平台<strong>持续返回 502/503/504 时单批 pull 会无限退避重试、永不退出</strong>（这是有意的无人值守设计）。<span class="ev">clawsec/client.py:63-66</span></li>
+    <li><strong>禁止 / 须知</strong>：平台<strong>持续返回 502/503/504 时单批 pull 会无限退避重试、永不退出</strong>（这是有意的无人值守设计）。<span class="ev">tools/clawsec/client.py:63-66</span></li>
   </ul>
 
   <h3>WF-4 · 结果查看工作流</h3>
   <ul>
-    <li><strong>步骤</strong>：<code>python3 -m dashboard</code> → 浏览器 <code>http://127.0.0.1:8787/</code>；或 <code>python3 -m store --report out.html</code> 出报告。</li>
+    <li><strong>步骤</strong>：<code>python3 -m agentsectool_scanner.dashboard</code> → 浏览器 <code>http://127.0.0.1:8787/</code>；或 <code>python3 -m agentsectool_scanner.store --report out.html</code> 出报告。</li>
     <li><strong>产物</strong>：看板只读不产物；report 写指定文件。<strong>禁止</strong>：把看板暴露到公网（默认只听回环）。</li>
   </ul>
 
   <h3>WF-5 · 指纹库维护工作流（版本演进时）</h3>
   <ul>
     <li><strong>触发</strong>：OpenClaw 发布新版本，公网出现指纹库未覆盖的实例（隐式反推返回未知）。</li>
-    <li><strong>步骤</strong>：<code>python3 fingerprint/collect_corpus.py --repo &lt;本地 openclaw 仓库&gt; --only &lt;版本列表&gt;</code>（优先官方镜像静态提取）。</li>
-    <li><strong>产物</strong>：<code>fingerprints/fingerprints.json</code> 新增/覆盖对应版本条目。</li>
+    <li><strong>步骤</strong>：<code>python3 tools/fingerprint/collect_corpus.py --repo &lt;本地 openclaw 仓库&gt; --only &lt;版本列表&gt;</code>（优先官方镜像静态提取）。</li>
+    <li><strong>产物</strong>：<code>prober/fingerprints/openclaw.json</code> 新增/覆盖对应版本条目。</li>
     <li><strong>验证</strong>：重扫相关目标，原先 suspect 的实例若属新版应被 C3 救回。</li>
     <li><strong>禁止</strong>：依赖 <code>local-build</code> 来源条目作为权威——本机构建的哈希未必等同官方分发，须独立核验（见 <a href="#limitations">限制</a>）。</li>
   </ul>
@@ -782,7 +784,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
 <!-- ========== NARRATIVE ========== -->
 <section id="narrative">
   <h2>研判依据拼接 Narrative</h2>
-  <p>机器判定（<code>is_openclaw</code> / <code>rule</code>）是结论，报告与看板负责生成面向读者的研判说明。该逻辑由 <code>store/report.py</code> 独立完成，是「研判结论如何对人解释」的统一来源。<strong>判定与话术解耦</strong>：本模块不重新判定，只把已有的 observation + probe_records 拼成分析文字。<span class="ev">store/report.py:1-4</span></p>
+  <p>机器判定（<code>is_openclaw</code> / <code>rule</code>）是结论，报告与看板负责生成面向读者的研判说明。该逻辑由 <code>src/agentsectool_scanner/store/report.py</code> 独立完成，是「研判结论如何对人解释」的统一来源。<strong>判定与话术解耦</strong>：本模块不重新判定，只把已有的 observation + probe_records 拼成分析文字。<span class="ev">src/agentsectool_scanner/store/report.py:1-4</span></p>
 
   <div class="callout invariant">
     <p class="ct">INVARIANT · 同一套拼装逻辑被两处复用</p>
@@ -790,18 +792,18 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
   </div>
 
   <h3>拼装流程（observation + probes → 分析文字）</h3>
-  <p>对一台主机的最近一次观测：<span class="ev">store/report.py:109-305</span></p>
+  <p>对一台主机的最近一次观测：<span class="ev">src/agentsectool_scanner/store/report.py:109-305</span></p>
   <ul>
-    <li><strong>逐探针分析</strong>（<code>analysis_by_probe</code>）：对每个测试项按其实际命中态，套 <code>report_templates.toml</code> 的话术，拼出「该探针做了什么、命中了什么关键特征」。命中时给出 highlights（同时出现在响应里的关键特征词）。<span class="ev">report.py:173</span></li>
-    <li><strong>研判小结</strong>（<code>verdict_summary</code>）：收口达标逻辑，每例讲一次——按 <code>rule</code> 分 <strong>C1 / C2 / C3</strong> / 判假(false) / 探不到(down) 五种话术；C2 与 C3 都按 <code>version_source</code> 把版本子句（direct / implicit / implicit-range / 无版本）嵌进去。<span class="ev">report.py:279-321</span></li>
+    <li><strong>逐探针分析</strong>（<code>analysis_by_probe</code>）：对每个测试项按其实际命中态，套 <code>report_templates.toml</code> 的话术，拼出「该探针做了什么、命中了什么关键特征」。命中时给出 highlights（同时出现在响应里的关键特征词）。<span class="ev">src/agentsectool_scanner/store/report.py:173</span></li>
+    <li><strong>研判小结</strong>（<code>verdict_summary</code>）：收口达标逻辑，每例讲一次——按 <code>rule</code> 分 <strong>C1 / C2 / C3</strong> / 判假(false) / 探不到(down) 五种话术；C2 与 C3 都按 <code>version_source</code> 把版本子句（direct / implicit / implicit-range / 无版本）嵌进去。<span class="ev">src/agentsectool_scanner/store/report.py:279-321</span></li>
     <li><strong>版本说明</strong>（<code>version_note</code>）：解释这台的版本是直读还是反推、是否落在不可区分区间。</li>
-    <li><strong>测试项含义</strong>（<code>TEST_MEANINGS</code>）：T1–T7 / C1 / C2 每项的研判标准与含义文案——同一份文案也供<a href="#frontend">前端</a>横幅悬停提示。测试项的定义本身见 <a href="#concepts">核心概念</a>。<span class="ev">report.py:265-277</span></li>
+    <li><strong>测试项含义</strong>（<code>TEST_MEANINGS</code>）：T1–T7 / C1 / C2 每项的研判标准与含义文案——同一份文案也供<a href="#frontend">前端</a>横幅悬停提示。测试项的定义本身见 <a href="#concepts">核心概念</a>。<span class="ev">src/agentsectool_scanner/store/report.py:265-277</span></li>
   </ul>
 
   <h3>话术模板与兜底</h3>
   <ul>
-    <li>话术文案集中在 <code>prober/report_templates.toml</code>（与 <code>config.toml</code> 平级），<code>load_templates</code> 进程启动时加载一次。<span class="ev">report.py:20-24</span></li>
-    <li>找不到模板文件时有<strong>内置兜底话术</strong>，保证报告仍能出，不因缺模板而崩。<span class="ev">report.py:27</span></li>
+    <li>话术文案集中在 <code>prober/report_templates.toml</code>（与 <code>config.toml</code> 平级），<code>load_templates</code> 进程启动时加载一次。<span class="ev">src/agentsectool_scanner/store/report.py:20-24</span></li>
+    <li>找不到模板文件时有<strong>内置兜底话术</strong>，保证报告仍能出，不因缺模板而崩。<span class="ev">src/agentsectool_scanner/store/report.py:27</span></li>
     <li>请求/响应原文落库后，报告呈现时对二进制响应体折算 MD5 摘要（避免乱码/超长），见 <a href="#data-model">probe_records</a>。</li>
   </ul>
   <p class="note">报告输出格式、命令用法见 <a href="#commands">命令参考</a> 的 <code>store --report</code>；看板里的逐主机报告见 <a href="#frontend">前端看板</a> 的 <code>/api/report</code>。本节只讲「文字怎么拼出来」。</p>
@@ -815,20 +817,20 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
   <div class="tbl-wrap"><table>
     <thead><tr><th>数据对象</th><th>库</th><th>身份键</th><th>写入语义</th><th>分类</th><th>可提交</th></tr></thead>
     <tbody>
-      <tr><td><code>assets</code></td><td>data/scanner/</td><td><code>(snapshot_date, asset_id)</code></td><td>按快照分行；同快照内同 asset_type:ip:port REPLACE 取最新</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否（data/ gitignore）</td></tr>
-      <tr><td><code>observations</code></td><td>data/scanner/</td><td>自增 id（不去重）</td><td>append-only 时序</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
-      <tr><td><code>probe_records</code></td><td>data/scanner/</td><td>自增 id</td><td>append-only，完整请求/响应原文</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
-      <tr><td><code>fofa_candidates</code></td><td>data/fofa/</td><td><code>(ip, port)</code></td><td>当前态 upsert</td><td><span class="tag">外部</span><span class="tag">敏感</span></td><td>否</td></tr>
-      <tr><td><code>clawsec_snapshots</code></td><td>data/clawsec/</td><td><code>(snapshot_date, id)</code></td><td>每日快照（跨日追加）</td><td><span class="tag">外部</span><span class="tag">敏感</span></td><td>否</td></tr>
-      <tr><td><code>scan_blocks</code></td><td>data/scanner/</td><td><code>(campaign, block_cidr)</code></td><td>就地更新状态</td><td><span class="tag">权威</span></td><td>否</td></tr>
-      <tr><td><code>fingerprints.json</code></td><td>fingerprints/</td><td><code>version</code></td><td>整条覆盖</td><td><span class="tag">权威</span></td><td><strong>是</strong>（git 跟踪）</td></tr>
-      <tr><td><code>candidates.csv</code></td><td>项目根</td><td>(ip,port) 内存去重</td><td>整文件覆盖</td><td><span class="tag">临时</span></td><td>否</td></tr>
-      <tr><td><code>results.jsonl</code></td><td>指定路径</td><td>不去重</td><td><code>os.Create</code> 截断重建</td><td><span class="tag">临时</span><span class="tag">敏感</span></td><td>否</td></tr>
+      <tr><td><code>assets</code></td><td>src/agentsectool_scanner/store/data/</td><td><code>(snapshot_date, asset_id)</code></td><td>按快照分行；同快照内同 asset_type:ip:port REPLACE 取最新</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否（运行数据 gitignore）</td></tr>
+      <tr><td><code>observations</code></td><td>src/agentsectool_scanner/store/data/</td><td>自增 id（不去重）</td><td>append-only 时序</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
+      <tr><td><code>probe_records</code></td><td>src/agentsectool_scanner/store/data/</td><td>自增 id</td><td>append-only，完整请求/响应原文</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
+      <tr><td><code>fofa_candidates</code></td><td>tools/fofa/data/</td><td><code>(ip, port)</code></td><td>当前态 upsert</td><td><span class="tag">外部</span><span class="tag">敏感</span></td><td>否</td></tr>
+      <tr><td><code>clawsec_snapshots</code></td><td>tools/clawsec/data/</td><td><code>(snapshot_date, id)</code></td><td>每日快照（跨日追加）</td><td><span class="tag">外部</span><span class="tag">敏感</span></td><td>否</td></tr>
+      <tr><td><code>scan_blocks</code></td><td>src/agentsectool_scanner/store/data/</td><td><code>(campaign, block_cidr)</code></td><td>就地更新状态</td><td><span class="tag">权威</span></td><td>否</td></tr>
+      <tr><td><code>openclaw.json</code></td><td>prober/fingerprints/</td><td><code>version</code></td><td>整条覆盖</td><td><span class="tag">权威</span></td><td><strong>是</strong>（git 跟踪）</td></tr>
+      <tr><td><code>candidates.csv</code></td><td><code>src/agentsectool_scanner/discovery/output</code> 或 <code>tools/fofa/output</code></td><td>(ip,port) 内存去重</td><td>整文件覆盖</td><td><span class="tag">临时</span></td><td>否</td></tr>
+      <tr><td><code>results.jsonl</code></td><td>prober/output/</td><td>不去重</td><td><code>os.Create</code> 截断重建</td><td><span class="tag">临时</span><span class="tag">敏感</span></td><td>否</td></tr>
     </tbody>
   </table></div>
 
   <h4><code>scan_blocks</code> 状态机（多机协同断点续扫）</h4>
-  <p><code>progress</code> 模块用 scan_blocks 表把大范围切成 CIDR 块、在多 worker 间分发，是这张表的权威落点。状态流转：<span class="ev">progress/blocks.py:39-118</span></p>
+  <p><code>progress</code> 模块用 scan_blocks 表把大范围切成 CIDR 块、在多 worker 间分发，是这张表的权威落点。状态流转：<span class="ev">src/agentsectool_scanner/progress/blocks.py</span></p>
   <ul>
     <li><strong>seed</strong>：按 /prefix 切块，<code>INSERT OR IGNORE</code> 登记为 <code>pending</code>（重复登记幂等）。</li>
     <li><strong>claim</strong>：worker 用 <code>BEGIN IMMEDIATE</code> 串行化，原子领取一个 pending 块、置 <code>claimed</code> 并记 worker 与领取时间——保证两个 worker 不会领到同一块。</li>
@@ -838,10 +840,10 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
 
   <div class="callout danger">
     <p class="ct">WARNING · 指纹库维护口径</p>
-    <p><code>fingerprints/fingerprints.json</code> 是 git 跟踪的权威数据文件，不属于本地临时数据；<code>.gitignore</code> 只忽略 <code>fingerprints/*.local.json</code>。<span class="ev">git check-ignore 退出码 1，已复核</span> 指纹库需要随仓库版本管理，新增或修正官方指纹时应提交该文件。</p>
+    <p><code>prober/fingerprints/openclaw.json</code> 是 git 跟踪的权威数据文件，不属于本地临时数据；<code>.gitignore</code> 只忽略 <code>prober/fingerprints/*.local.json</code>。指纹库需要随仓库版本管理，新增或修正官方指纹时应提交该文件。</p>
   </div>
 
-  <h4><code>assets</code> 字段级（store/schema.sql:7-23）</h4>
+  <h4><code>assets</code> 字段级（src/agentsectool_scanner/store/schema.sql:7-23）</h4>
   <div class="tbl-wrap"><table>
     <thead><tr><th>字段</th><th>语义</th></tr></thead>
     <tbody>
@@ -859,7 +861,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
 
   <div class="callout invariant">
     <p class="ct">INVARIANT · 快照模型与时间窗口去重</p>
-    <p>一个 jsonl = 一个快照，<code>snapshot_date</code> 取该 jsonl 内 ts 的日期众数（跨天扫描以最多的日期为准，整个 jsonl 统一归此版）。同资产每个快照日期一行——既有快照<strong>不被覆盖</strong>，作镜像留存。<code>store --in</code> 入库时同一快照内同 <code>asset_type:ip:port</code> 以最新结果 <code>REPLACE</code>。前端按<a href="#frontend">时间窗口</a>加载：窗口内同 <code>asset_type:ip:port</code> 取<strong>最新 snapshot_date 那条</strong>（<code>ROW_NUMBER() OVER (PARTITION BY asset_type,ip,port ORDER BY snapshot_date DESC)=1</code>）。这同时解决两个问题：窗口内取并集 → 部分重扫不会让未扫目标假消失；太久没扫到的点落在窗口外 → 自动淘汰，不会永久残留。<span class="ev">store/schema.sql; store/load.py:_snapshot_date; dashboard/server.py:_windowed_assets</span></p>
+    <p>一个 jsonl = 一个快照，<code>snapshot_date</code> 取该 jsonl 内 ts 的日期众数（跨天扫描以最多的日期为准，整个 jsonl 统一归此版）。同资产每个快照日期一行——既有快照<strong>不被覆盖</strong>，作镜像留存。<code>store --in</code> 入库时同一快照内同 <code>asset_type:ip:port</code> 以最新结果 <code>REPLACE</code>。前端按<a href="#frontend">时间窗口</a>加载：窗口内同 <code>asset_type:ip:port</code> 取<strong>最新 snapshot_date 那条</strong>（<code>ROW_NUMBER() OVER (PARTITION BY asset_type,ip,port ORDER BY snapshot_date DESC)=1</code>）。这同时解决两个问题：窗口内取并集 → 部分重扫不会让未扫目标假消失；太久没扫到的点落在窗口外 → 自动淘汰，不会永久残留。<span class="ev">src/agentsectool_scanner/store/schema.sql; src/agentsectool_scanner/store/load.py:_snapshot_date; src/agentsectool_scanner/dashboard/server.py:_windowed_assets</span></p>
   </div>
 
   <h4>外部数据 vs 项目确认</h4>
@@ -876,21 +878,21 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
 
   <div class="callout danger">
     <p class="ct">WARNING · 凭据安全</p>
-    <p>本文档<strong>不</strong>列出任何凭据的真实值。<code>fofa/fofa.ini</code> 与 <code>geoip/geoip.ini</code> 含真实有效的明文凭据，已 gitignore 且从未进入 git 历史（已复核）。但明文落在工作区，建议定期轮换并限制文件权限。</p>
+    <p>本文档<strong>不</strong>列出任何凭据的真实值。<code>tools/fofa/fofa.ini</code> 与 <code>src/agentsectool_scanner/geoip/geoip.ini</code> 含真实有效的明文凭据，已 gitignore 且从未进入 git 历史（已复核）。但明文落在工作区，建议定期轮换并限制文件权限。</p>
   </div>
 
   <div class="tbl-wrap"><table>
     <thead><tr><th>配置项</th><th>来源</th><th>必需</th><th>默认</th><th>作用</th><th>错配表现</th></tr></thead>
     <tbody>
-      <tr><td><code>FOFA_EMAIL</code> / <code>FOFA_KEY</code></td><td>环境变量 或 <code>fofa/fofa.ini</code></td><td>用 FOFA 时必需</td><td>—</td><td>FOFA 拉取/被动种子的凭据</td><td>discovery 缺则 <code>sys.exit</code>；fofa 模块缺则拉取失败</td></tr>
+      <tr><td><code>FOFA_EMAIL</code> / <code>FOFA_KEY</code></td><td>环境变量 或 <code>tools/fofa/fofa.ini</code></td><td>用 FOFA 时必需</td><td>—</td><td>FOFA 拉取/被动种子的凭据</td><td>discovery 缺则 <code>sys.exit</code>；fofa 模块缺则拉取失败</td></tr>
       <tr><td><code>SHODAN_API_KEY</code></td><td>环境变量</td><td>用 Shodan 时必需</td><td>—</td><td>Shodan 被动种子</td><td>discovery 加 <code>--shodan</code> 缺则 <code>sys.exit</code></td></tr>
-      <tr><td>MaxMind account_id / license_key</td><td><code>geoip/geoip.ini</code></td><td>下载库时需</td><td>—</td><td>下载 GeoLite2 库；运行时富化只需库文件本身</td><td>缺库文件则 geoip 软降级、地理列留空</td></tr>
+      <tr><td>MaxMind account_id / license_key</td><td><code>src/agentsectool_scanner/geoip/geoip.ini</code></td><td>下载库时需</td><td>—</td><td>下载 GeoLite2 库；运行时富化只需库文件本身</td><td>缺库文件则 geoip 软降级、地理列留空</td></tr>
       <tr><td><code>[probe] concurrency</code></td><td><code>prober/config.toml</code> 或 <code>-concurrency</code></td><td>否</td><td>16（内置）</td><td>全局并发探测数</td><td>过高撞 ulimit/conntrack（见安全节）</td></tr>
       <tr><td><code>[probe] timeout_per_ip</code></td><td>config.toml 或 <code>-timeout</code></td><td>否</td><td>8s</td><td>单 IP 探测超时</td><td>过短漏判慢机；过长拖慢枚举</td></tr>
       <tr><td><code>[probe] rate</code></td><td>config.toml 或 <code>-rate</code></td><td>否</td><td>50</td><td>单 IP 每秒发包上限（per-worker，0=不限）</td><td>注：实现为 per-worker sleep，非全局限速（见安全节）</td></tr>
       <tr><td><code>[scan] deadline</code></td><td>config.toml 或 <code>-deadline</code></td><td>否</td><td>0（不限）</td><td>整个任务总时长上限</td><td>—</td></tr>
       <tr><td><code>[scan] ports</code></td><td>config.toml 或 <code>-port</code></td><td>否</td><td>18789（内置）</td><td>默认端口集</td><td>空且未给 -port 则报「未指定端口」</td></tr>
-      <tr><td><code>geoip/geoip.ini [geoip] city_db</code></td><td>配置文件</td><td>否</td><td>data/geoip/GeoLite2-City.mmdb</td><td>GeoLite2 库路径</td><td>路径错则 geoip 软降级</td></tr>
+      <tr><td><code>src/agentsectool_scanner/geoip/geoip.ini [geoip] city_db</code></td><td>配置文件</td><td>否</td><td>src/agentsectool_scanner/geoip/data/GeoLite2-City.mmdb</td><td>GeoLite2 库路径</td><td>路径错则 geoip 软降级</td></tr>
     </tbody>
   </table></div>
   <p class="caption"><code>config/</code> 目录只含示例文件（<code>scanner.example.yaml</code> / <code>blocklist.example.txt</code>）；ocprobe 的运行配置实为 <code>prober/config.toml</code>。<span class="ev">config/ ls; prober/config.toml:1-16</span></p>
@@ -927,7 +929,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints fingerprints/fin
     </tbody>
   </table></div>
   <pre><code>prober/bin/assetprobe --list-types
-prober/bin/assetprobe --type openclaw --fingerprints fingerprints/fingerprints.json -o results.jsonl candidates.csv</code></pre>
+prober/bin/assetprobe --type openclaw --fingerprints prober/fingerprints/openclaw.json -o prober/output/results.jsonl src/agentsectool_scanner/discovery/output/candidates.csv</code></pre>
 
   <h3><code>ocprobe</code>（OpenClaw 专用入口）</h3>
   <p>目标为<strong>位置参数</strong>：精确 IP / CIDR / 通配 IP（<code>1.14.*.22</code>）/ 每行一个 IP 的文件。<strong>无 <code>-f</code> 参数。</strong> 跨资产类型扫描入口为 <code>assetprobe</code>；OpenClaw 可用 <code>assetprobe --type openclaw</code> 或本入口。</p>
@@ -959,12 +961,12 @@ prober/bin/ocprobe -port 18789 203.0.113.0/24
 prober/bin/ocprobe -port 18789 '1.14.*.22'
 
 # 典型：目标文件 + 指纹库版本反推 + 结果落盘
-prober/bin/ocprobe -port 18789 -fingerprints fingerprints/fingerprints.json -o results.jsonl targets.txt
+prober/bin/ocprobe -port 18789 -fingerprints prober/fingerprints/openclaw.json -o prober/output/results.jsonl targets.txt
 
 # 大规模枚举：高并发 + 单行进度 + 探不到的不落盘 + 限速 + 缩短超时
 prober/bin/ocprobe -port 18789 -concurrency 4000 -timeout 5s -rate 50 \
-  --progress --skip-unreachable -fingerprints fingerprints/fingerprints.json \
-  -o results.jsonl targets.txt
+  --progress --skip-unreachable -fingerprints prober/fingerprints/openclaw.json \
+  -o prober/output/results.jsonl targets.txt
 
 # 逐 IP 完整研判依据（排查为何某目标未达标）
 prober/bin/ocprobe -port 18789 -l 203.0.113.10</code></pre>
@@ -977,58 +979,60 @@ prober/bin/ocprobe -port 18789 -l 203.0.113.10</code></pre>
   <div class="tbl-wrap"><table>
     <thead><tr><th>命令</th><th>用途</th><th>写库</th><th>网络</th><th>凭据</th><th>幂等/重跑</th></tr></thead>
     <tbody>
-      <tr><td><code>python3 -m discovery</code></td><td>发现层产 candidates.csv（主动扫描+被动种子）</td><td>否（写 csv）</td><td>是（扫描/查 API）</td><td>FOFA/Shodan 时需</td><td>csv 整文件覆盖</td></tr>
-      <tr><td><code>python3 -m fofa pull</code></td><td>FOFA 候选拉取入库（时间窗/自定义查询/限条/断点续）</td><td>是（fofa.sqlite）</td><td>是</td><td>需 FOFA</td><td>upsert，可续</td></tr>
-      <tr><td><code>python3 -m fofa export</code></td><td>库内候选导出为 candidates.csv（可限条）</td><td>否（写 csv）</td><td>否</td><td>否</td><td>整文件覆盖</td></tr>
-      <tr><td><code>python3 -m fofa provinces</code></td><td>按省统计 FOFA 候选数</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
-      <tr><td><code>python3 -m fofa province-versions</code></td><td>ATTACH 扫描库，按 省×版本 统计已探测资产</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
-      <tr><td><code>python3 -m fofa info</code></td><td>查 FOFA 账号 VIP / 剩余额度</td><td>否</td><td>是</td><td>需 FOFA</td><td>只读</td></tr>
-      <tr><td><code>python3 -m clawsec pull</code></td><td>ClawSec 每日快照<strong>持续运营</strong>（详见 <a href="#workflows">WF-3</a>）</td><td>是（clawsec.sqlite）</td><td>是（明文 http）</td><td>免</td><td>可续；持续 5xx 可能<strong>永不退出</strong></td></tr>
-      <tr><td><code>python3 -m clawsec longlived</code></td><td>跨快照分析长期有效实例（<code>--min-days</code>/<code>--all-scope</code>/<code>--limit</code>）</td><td>否</td><td>否</td><td>免</td><td>只读</td></tr>
-      <tr><td><code>python3 -m clawsec overlap</code></td><td>最新快照 × fofa_candidates 的隐位重叠数</td><td>否</td><td>否</td><td>免</td><td>只读</td></tr>
-      <tr><td><code>python3 -m clawsec versions / info</code></td><td>最新快照版本分布 / 平台汇总计数</td><td>否</td><td>versions 否、info 是</td><td>免</td><td>只读</td></tr>
-      <tr><td><code>.venv/bin/python3 -m store --in …</code></td><td>jsonl 入库（缺省读 stdin）</td><td>是（scan_results）</td><td>否</td><td>否</td><td>observations 追加、assets 合并</td></tr>
-      <tr><td><code>python3 -m store --stats</code></td><td>统计摘要 + 版本分布</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
-      <tr><td><code>python3 -m store --report out.{html\|json\|csv\|txt}</code></td><td>出报告，<strong>按后缀自动定格式</strong>；narrative 见 <a href="#narrative">研判依据拼接</a></td><td>否（写报告文件）</td><td>否</td><td>否</td><td>整文件覆盖</td></tr>
-      <tr><td><code>python3 -m progress seed</code></td><td>按 /prefix 切 CIDR 块、登记 campaign 待扫块</td><td>是（scan_blocks）</td><td>否</td><td>否</td><td>INSERT OR IGNORE</td></tr>
-      <tr><td><code>python3 -m progress claim</code></td><td>为 worker 原子领一个待扫块（多机协同）</td><td>是（scan_blocks）</td><td>否</td><td>否</td><td>BEGIN IMMEDIATE 串行</td></tr>
-      <tr><td><code>python3 -m progress status</code></td><td>查某 campaign 块完成进度</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
-      <tr><td><code>.venv/bin/python3 -m geoip.backfill [--all]</code></td><td>回填/重刷资产地理列（<code>--all</code> 全量重刷）</td><td>是（assets）</td><td>否</td><td>否</td><td>幂等</td></tr>
-      <tr><td><code>python3 -m dashboard</code></td><td>只读看板（127.0.0.1:8787，详见 <a href="#frontend">前端看板</a>）</td><td>否</td><td>仅监听回环</td><td>否</td><td>只读</td></tr>
-      <tr><td><code>python3 -m scope.cn_ranges</code></td><td>生成中国 CIDR 全集</td><td>否（写 txt）</td><td>是（拉 APNIC）</td><td>否</td><td>整文件覆盖</td></tr>
+      <tr><td><code>python3 -m agentsectool_scanner.discovery</code></td><td>发现层产 candidates.csv（主动扫描+被动种子）</td><td>否（写 csv）</td><td>是（扫描/查 API）</td><td>FOFA/Shodan 时需</td><td>csv 整文件覆盖</td></tr>
+      <tr><td><code>python3 -m tools.fofa pull</code></td><td>FOFA 候选拉取入库（时间窗/自定义查询/限条/断点续）</td><td>是（fofa.sqlite）</td><td>是</td><td>需 FOFA</td><td>upsert，可续</td></tr>
+      <tr><td><code>python3 -m tools.fofa export</code></td><td>库内候选导出为 candidates.csv（可限条）</td><td>否（写 csv）</td><td>否</td><td>否</td><td>整文件覆盖</td></tr>
+      <tr><td><code>python3 -m tools.fofa provinces</code></td><td>按省统计 FOFA 候选数</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
+      <tr><td><code>python3 -m tools.fofa province-versions</code></td><td>ATTACH 扫描库，按 省×版本 统计已探测资产</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
+      <tr><td><code>python3 -m tools.fofa info</code></td><td>查 FOFA 账号 VIP / 剩余额度</td><td>否</td><td>是</td><td>需 FOFA</td><td>只读</td></tr>
+      <tr><td><code>python3 -m tools.clawsec pull</code></td><td>ClawSec 每日快照<strong>持续运营</strong>（详见 <a href="#workflows">WF-3</a>）</td><td>是（clawsec.sqlite）</td><td>是（明文 http）</td><td>免</td><td>可续；持续 5xx 可能<strong>永不退出</strong></td></tr>
+      <tr><td><code>python3 -m tools.clawsec longlived</code></td><td>跨快照分析长期有效实例（<code>--min-days</code>/<code>--all-scope</code>/<code>--limit</code>）</td><td>否</td><td>否</td><td>免</td><td>只读</td></tr>
+      <tr><td><code>python3 -m tools.clawsec overlap</code></td><td>最新快照 × fofa_candidates 的隐位重叠数</td><td>否</td><td>否</td><td>免</td><td>只读</td></tr>
+      <tr><td><code>python3 -m tools.clawsec versions / info</code></td><td>最新快照版本分布 / 平台汇总计数</td><td>否</td><td>versions 否、info 是</td><td>免</td><td>只读</td></tr>
+      <tr><td><code>.venv/bin/python3 -m agentsectool_scanner.store --in …</code></td><td>jsonl 入库（缺省读 stdin）</td><td>是（scan_results）</td><td>否</td><td>否</td><td>observations 追加、assets 合并</td></tr>
+      <tr><td><code>python3 -m agentsectool_scanner.store --stats</code></td><td>统计摘要 + 版本分布</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
+      <tr><td><code>python3 -m agentsectool_scanner.store --report out.{html\|json\|csv\|txt}</code></td><td>出报告，<strong>按后缀自动定格式</strong>；narrative 见 <a href="#narrative">研判依据拼接</a></td><td>否（写报告文件）</td><td>否</td><td>否</td><td>整文件覆盖</td></tr>
+      <tr><td><code>python3 -m agentsectool_scanner.progress seed</code></td><td>按 /prefix 切 CIDR 块、登记 campaign 待扫块</td><td>是（scan_blocks）</td><td>否</td><td>否</td><td>INSERT OR IGNORE</td></tr>
+      <tr><td><code>python3 -m agentsectool_scanner.progress claim</code></td><td>为 worker 原子领一个待扫块（多机协同）</td><td>是（scan_blocks）</td><td>否</td><td>否</td><td>BEGIN IMMEDIATE 串行</td></tr>
+      <tr><td><code>python3 -m agentsectool_scanner.progress status</code></td><td>查某 campaign 块完成进度</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
+      <tr><td><code>.venv/bin/python3 -m agentsectool_scanner.geoip.backfill [--all]</code></td><td>回填/重刷资产地理列（<code>--all</code> 全量重刷）</td><td>是（assets）</td><td>否</td><td>否</td><td>幂等</td></tr>
+      <tr><td><code>python3 -m agentsectool_scanner.dashboard</code></td><td>只读看板（127.0.0.1:8787，详见 <a href="#frontend">前端看板</a>）</td><td>否</td><td>仅监听回环</td><td>否</td><td>只读</td></tr>
+      <tr><td><code>python3 -m tools.scope.cn_ranges</code></td><td>生成中国 CIDR 全集</td><td>否（写 txt）</td><td>是（拉 APNIC）</td><td>否</td><td>整文件覆盖</td></tr>
     </tbody>
   </table></div>
 
   <h4>Python 模块命令样例</h4>
-  <pre><code># 发现层：被动 FOFA 种子 + 黑名单过滤，产 candidates.csv（需 FOFA 凭据）
-python3 -m discovery --fofa --out candidates.csv
+  <pre><code>export PYTHONPATH=src:.
+
+# 发现层：被动 FOFA 种子 + 黑名单过滤，默认产出到 discovery/output/candidates.csv（需 FOFA 凭据）
+python3 -m agentsectool_scanner.discovery --fofa
 
 # FOFA 候选拉取入库 / 看额度 / 按省统计
-python3 -m fofa pull
-python3 -m fofa info
-python3 -m fofa provinces
+python3 -m tools.fofa pull
+python3 -m tools.fofa info
+python3 -m tools.fofa provinces
 
 # ClawSec 每日快照持续运营（前台常驻，Ctrl-C 停）；可调轮询间隔
-python3 -m clawsec pull
-python3 -m clawsec pull --watch-interval 300
+python3 -m tools.clawsec pull
+python3 -m tools.clawsec pull --watch-interval 300
 
 # 入库：jsonl → SQLite（用 venv，因 geoip 富化需 geoip2 包）
-.venv/bin/python3 -m store --in results.jsonl --db data/scanner/scan_results.sqlite
+.venv/bin/python3 -m agentsectool_scanner.store --in prober/output/results.jsonl --db src/agentsectool_scanner/store/data/scan_results.sqlite
 
 # 统计 / 出报告（只读）
-python3 -m store --stats
-python3 -m store --report out.html
+python3 -m agentsectool_scanner.store --stats
+python3 -m agentsectool_scanner.store --report out.html
 
 # 看板（只监听回环）
-python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
+python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/data/scan_results.sqlite --port 8787
 
 # geoip 回填/重刷已有资产的地理列（幂等）
-.venv/bin/python3 -m geoip.backfill --all</code></pre>
+.venv/bin/python3 -m agentsectool_scanner.geoip.backfill --all</code></pre>
 
   <h3>Makefile target</h3>
   <div class="callout danger">
     <p class="ct">WARNING · make clean 危险</p>
-    <p><code>make clean</code> 执行 <code>rm -rf data/</code>，<strong>会删除全部三个权威库</strong>（scanner/fofa/clawsec），不可逆。<code>make probe</code> / <code>make demo</code> 使用 <code>assetprobe --type openclaw</code>。</p>
+    <p><code>make clean</code> 会删除各模块的本地 <code>data/</code> / <code>output/</code> 目录，包含 scanner、FOFA、ClawSec 的 SQLite 库和临时扫描产物，不可逆。<code>make probe</code> / <code>make demo</code> 使用 <code>assetprobe --type openclaw</code>。</p>
   </div>
   <p>可用 target：<code>make test</code>（测试）、<code>make prober</code>（构建 assetprobe + ocprobe）、<code>make assetprobe</code>、<code>make ocprobe</code>、<code>make zgrab</code>（构建 ZGrab2 模块）、<code>make probe</code>、<code>make demo</code>、<code>make load</code>（store 入库）、<code>make stats</code>、<code>make fofa-info/pull/provinces/export/pv</code>、<code>make clawsec-info/pull/longlived/overlap</code>。<span class="ev">Makefile</span></p>
 </section>
@@ -1036,10 +1040,10 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
 <!-- ========== FRONTEND ========== -->
 <section id="frontend">
   <h2>前端看板 Frontend &amp; Dashboard</h2>
-  <p>这是看板所有<strong>对人可见产物</strong>的权威章节——想了解看板展示什么、怎么交互、数据从哪来，看这一节即可。看板是辅助链路 <span class="badge partial">partial</span>（无单测），由 <code>dashboard/</code> 提供：纯标准库 <code>http.server</code> 后端 + 单页前端 <code>dashboard/index.html</code>（594 行），只读查 <code>scan_results.sqlite</code>，<strong>不写任何库</strong>。起服务见 <a href="#workflows">WF-4 结果查看工作流</a>，进程入口见 <a href="#commands">命令参考</a>。<span class="ev">dashboard/server.py, index.html</span></p>
+  <p>这是看板所有<strong>对人可见产物</strong>的权威章节——想了解看板展示什么、怎么交互、数据从哪来，看这一节即可。看板是辅助链路 <span class="badge partial">partial</span>（无单测），由 <code>src/agentsectool_scanner/dashboard</code> 提供：纯标准库 <code>http.server</code> 后端 + 单页前端 <code>index.html</code>（594 行），只读查 <code>scan_results.sqlite</code>，<strong>不写任何库</strong>。起服务见 <a href="#workflows">WF-4 结果查看工作流</a>，进程入口见 <a href="#commands">命令参考</a>。<span class="ev">src/agentsectool_scanner/dashboard/server.py, index.html</span></p>
 
   <h3>可见产物（页面区块）</h3>
-  <p>单页自上而下的区块，每块的数据来自下方某个 API。<span class="ev">dashboard/index.html:235-301</span></p>
+  <p>单页自上而下的区块，每块的数据来自下方某个 API。<span class="ev">src/agentsectool_scanner/dashboard/index.html:235-301</span></p>
   <div class="tbl-wrap"><table>
     <thead><tr><th>区块</th><th>展示什么</th><th>交互</th><th>数据源</th></tr></thead>
     <tbody>
@@ -1055,11 +1059,11 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
   </table></div>
   <div class="callout invariant">
     <p class="ct">INVARIANT · 研判标记的悬停含义来自单一文案源</p>
-    <p>资产表/报告里的 <code>T1</code>/<code>T3</code>/<code>C1</code> 等研判标记，悬停弹出的「含义」文案不是前端硬编码，而是来自 <code>store/report.py</code> 的 <code>TEST_MEANINGS</code><span class="ev">report.py:265-277</span>——同一份文案被前端横幅悬停与 <code>store --report</code> 报告共用。测试项本身的定义见 <a href="#concepts">核心概念 T1–T7</a>，文案如何拼成报告见 <a href="#narrative">研判依据拼接</a>。</p>
+    <p>资产表/报告里的 <code>T1</code>/<code>T3</code>/<code>C1</code> 等研判标记，悬停弹出的「含义」文案不是前端硬编码，而是来自 <code>src/agentsectool_scanner/store/report.py</code> 的 <code>TEST_MEANINGS</code><span class="ev">src/agentsectool_scanner/store/report.py:265-277</span>——同一份文案被前端横幅悬停与 <code>store --report</code> 报告共用。测试项本身的定义见 <a href="#concepts">核心概念 T1–T7</a>，文案如何拼成报告见 <a href="#narrative">研判依据拼接</a>。</p>
   </div>
 
   <h3>JSON API 契约</h3>
-  <p>后端四个只读 API，前端各区块据此渲染。全部 GET、无鉴权、仅监听 <code>127.0.0.1</code>。<span class="ev">dashboard/server.py:53-235,269-282</span></p>
+  <p>后端四个只读 API，前端各区块据此渲染。全部 GET、无鉴权、仅监听 <code>127.0.0.1</code>。<span class="ev">src/agentsectool_scanner/dashboard/server.py:53-235,269-282</span></p>
   <div class="tbl-wrap"><table>
     <thead><tr><th>端点</th><th>查询参数</th><th>返回</th><th>说明</th></tr></thead>
     <tbody>
@@ -1067,14 +1071,14 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
       <tr><td><code>/api/overview</code></td><td><code>start, end</code></td><td>概览对象：分桶计数、版本分布、来源分布、观测/探针总数</td><td>数字卡 + 三个分布条的数据；统计基于时间窗口内同 ip:port 取最新快照的结果集</td></tr>
       <tr><td><code>/api/geo</code></td><td><code>scope=china|world, start, end</code></td><td><code>{points:[{name,lng,lat,count,openclaw}], located, total}</code></td><td>china 以 country 字段为准（中国/香港/澳门/台湾；country 为空时退回经纬度框），<strong>排除落在框内的境外邻国</strong>（印度/中亚等）；按坐标聚合；窗口内取最新快照</td></tr>
       <tr><td><code>/api/assets</code></td><td><code>category, q, limit, offset, start, end</code></td><td><code>{total, rows}</code></td><td>分页 + 类别过滤 + IP/版本搜索；窗口内同 ip:port 取最新快照；rows 富化省/市与披露日期</td></tr>
-      <tr><td><code>/api/report</code></td><td><code>ip, port</code></td><td>逐主机研判报告对象</td><td>narrative 由 <a href="#narrative">研判依据拼接</a>（<code>store/report.py</code>）生成；含全部探针命中态、研判小结、版本说明、请求/响应（二进制体折 MD5）</td></tr>
+      <tr><td><code>/api/report</code></td><td><code>ip, port</code></td><td>逐主机研判报告对象</td><td>narrative 由 <a href="#narrative">研判依据拼接</a>（<code>src/agentsectool_scanner/store/report.py</code>）生成；含全部探针命中态、研判小结、版本说明、请求/响应（二进制体折 MD5）</td></tr>
     </tbody>
   </table></div>
 
   <h3>静态路由与防护</h3>
   <ul>
     <li><code>GET /</code> 与 <code>/index.html</code> → 单页前端；<code>/assets/*</code> → 静态资源（logo/字体/js/json），按扩展名定 content-type。</li>
-    <li>防目录穿越：<code>/assets/*</code> 取 <code>basename</code>，越界路径或缺失文件返回 404。<span class="ev">dashboard/server.py:251-268</span></li>
+    <li>防目录穿越：<code>/assets/*</code> 取 <code>basename</code>，越界路径或缺失文件返回 404。<span class="ev">src/agentsectool_scanner/dashboard/server.py:251-268</span></li>
     <li>库不存在时仅告警、服务照起（返回空数据）。</li>
   </ul>
 </section>
@@ -1091,7 +1095,7 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
       <tr><td>判定白名单 C1/C2/C3 正确，反例不达标</td><td><code>TestEvaluate</code> 覆盖 C1/C2/C3 + 反例（assetHash 单独不达标等），go test 全过 <span class="ev">probe_test.go:91-130</span></td></tr>
       <tr><td>probeWS 函数级只读不变量（不发利用帧）</td><td><code>TestProbeWS_ReadOnlyAndChallenge</code> 断言写入字节不含 connect/config.apply、以 \r\n\r\n 结尾 <span class="ev">probe_test.go:55-89</span></td></tr>
       <tr><td>版本反推 implicit-range / direct 正确</td><td>对应测试断言 source 标记 <span class="ev">version_test / probe_test</span></td></tr>
-      <tr><td>discovery / store / progress / fofa 核心逻辑</td><td>各模块 tests/，<code>make test</code> 跑 24 个 python 用例全过</td></tr>
+      <tr><td>discovery / store / progress / fofa 核心逻辑</td><td>各模块 tests/，<code>make test</code> 跑 25 个 python 用例全过</td></tr>
       <tr><td>主链路对真实数据可跑通入库</td><td>scan_results.sqlite 实有 assets 5762 / observations 5762 / probe_records 28810（已复核 count）</td></tr>
     </tbody>
   </table></div>
@@ -1120,13 +1124,13 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
   <div class="tbl-wrap"><table>
     <thead><tr><th>现象</th><th>可能原因</th><th>检查 / 恢复</th><th>影响权威数据</th><th>可安全重跑</th></tr></thead>
     <tbody>
-      <tr><td><code>No module named xxx</code></td><td>在子目录内运行 python -m</td><td>回项目根运行</td><td>否</td><td>是</td></tr>
+      <tr><td><code>No module named xxx</code></td><td>未在项目根运行，或手动命令缺 <code>PYTHONPATH=src:.</code></td><td>回项目根运行；手动执行前先 <code>export PYTHONPATH=src:.</code>，或使用 Makefile target</td><td>否</td><td>是</td></tr>
       <tr><td><code>flag provided but not defined: -f</code>（退出码 2）</td><td>手动使用了无效的 <code>ocprobe -f</code></td><td>改用 <code>assetprobe --type openclaw candidates.csv</code>，或用 ocprobe 位置参数</td><td>否</td><td>是</td></tr>
       <tr><td>探测大面积超时 / <code>too many open files</code></td><td>并发过高撞 ulimit/conntrack</td><td><code>ulimit -n 65535</code>；降并发；检查目标侧封禁</td><td>否</td><td>是</td></tr>
-      <tr><td>discovery 直接退出</td><td><code>--fofa/--shodan</code> 缺对应环境变量 → <code>sys.exit</code></td><td>设 FOFA_EMAIL/KEY 或 SHODAN_API_KEY <span class="ev">discovery/__main__.py:56-65</span></td><td>否</td><td>是</td></tr>
+      <tr><td>discovery 直接退出</td><td><code>--fofa/--shodan</code> 缺对应环境变量 → <code>sys.exit</code></td><td>设 FOFA_EMAIL/KEY 或 SHODAN_API_KEY <span class="ev">src/agentsectool_scanner/discovery/__main__.py:56-65</span></td><td>否</td><td>是</td></tr>
       <tr><td>地理列全空 / 全英文</td><td>geoip2 或 GeoLite2 库缺失（软降级）；或 cn_names 映射空</td><td>装 geoip2、放 .mmdb；中文化需填 cn_names.py</td><td>否（不阻断入库）</td><td>是（geoip.backfill 重刷）</td></tr>
-      <tr><td>masscan 报错（需 root）</td><td>masscan/zmap 非 root 或未安装</td><td>sudo 运行；或用 internal 后端（无 root，/16 上限）<span class="ev">active.py:73-75</span></td><td>否</td><td>是</td></tr>
-      <tr><td>clawsec pull 长时间不结束</td><td>平台持续 5xx → 无限退避重试（有意行为）</td><td>查平台状态；Ctrl-C 停。已入库快照不受影响 <span class="ev">client.py:63-66</span></td><td>否（已入快照保留）</td><td>是（断点续）</td></tr>
+      <tr><td>masscan 报错（需 root）</td><td>masscan/zmap 非 root 或未安装</td><td>sudo 运行；或用 internal 后端（无 root，/16 上限）<span class="ev">src/agentsectool_scanner/discovery/active.py:73-75</span></td><td>否</td><td>是</td></tr>
+      <tr><td>clawsec pull 长时间不结束</td><td>平台持续 5xx → 无限退避重试（有意行为）</td><td>查平台状态；Ctrl-C 停。已入库快照不受影响 <span class="ev">tools/clawsec/client.py:63-66</span></td><td>否（已入快照保留）</td><td>是（断点续）</td></tr>
       <tr><td>FOFA 拉取中途停</td><td>额度耗尽（优雅停）或 429</td><td>查 <code>make fofa-info</code> 额度；429 自动退避；按 (ip,port) 去重续拉</td><td>否</td><td>是</td></tr>
       <tr><td>找不到数据库</td><td>store/dashboard 指向不存在的库</td><td>先跑 store 入库；dashboard 库缺仅告警不退出</td><td>否</td><td>是</td></tr>
     </tbody>
@@ -1157,20 +1161,20 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
   <h3>速率与限制</h3>
   <ul>
     <li><code>-rate</code>（默认 50）：单 IP 每秒发包上限，但<strong>实现为 per-worker <code>time.Sleep</code>、非跨 goroutine 全局限速</strong>。同一 IP 多端口入队后各 worker 互不协调。HTML 不声称「严格全局单 IP 速率」。<span class="ev">main.go minInterval</span></li>
-    <li>masscan 限速靠 <code>--rate</code>；blocklist 默认排除 16 个 RFC 保留/私有网段，非法 IP 一律排除。<span class="ev">discovery/blocklist.py:6-30</span></li>
+    <li>masscan 限速靠 <code>--rate</code>；blocklist 默认排除 16 个 RFC 保留/私有网段，非法 IP 一律排除。<span class="ev">src/agentsectool_scanner/discovery/blocklist.py:6-30</span></li>
   </ul>
 
   <h3>凭据 / 敏感数据 / 网络</h3>
   <ul>
     <li><strong>凭据存储</strong>：FOFA/MaxMind 走 <code>.ini</code>（已 gitignore、从未进历史）或环境变量。文档不列值。</li>
-    <li><strong>敏感数据</strong>：<code>data/</code>、<code>scan_test/results/</code>、各 .sqlite 含真实暴露主机与原始请求/响应，已 gitignore。probe_records 的响应原文做了二进制摘要清洗、前端 HTML 转义防 XSS。</li>
+    <li><strong>敏感数据</strong>：各模块的 <code>data/</code> / <code>output/</code> 目录、<code>prober/output/</code>、<code>tools/scan_test/output/results/</code>、各 .sqlite 含真实暴露主机与原始请求/响应，已 gitignore。probe_records 的响应原文做了二进制摘要清洗、前端 HTML 转义防 XSS。</li>
     <li><strong>明文传输</strong>：ClawSec 平台走 <code>http://clawsec.tcode.com.cn/api</code>（明文，非 https）。请求/响应明文传输。</li>
     <li><strong>看板</strong>：仅监听 <code>127.0.0.1</code>，不对公网暴露。</li>
   </ul>
 
   <h3>误操作与止损</h3>
   <ul>
-    <li><code>make clean</code> 执行 <code>rm -rf data/</code>，删除全部三个权威库，<strong>不可逆</strong>。运行前确认。</li>
+    <li><code>make clean</code> 删除各模块本地 <code>data/</code> / <code>output/</code> 目录，包含 SQLite 库和临时扫描产物，<strong>不可逆</strong>。运行前确认。</li>
     <li><code>ocprobe -o</code> / discovery 输出对同名文件<strong>截断重建</strong>（非追加），覆盖前确认。</li>
     <li>入库后历史在 observations（append-only），探测可安全重跑。</li>
   </ul>
@@ -1184,11 +1188,11 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
 <section id="maintenance">
   <h2>维护 Maintenance</h2>
   <ul>
-    <li><strong>指纹库更新</strong>：OpenClaw 发新版时 <code>fingerprint/collect_corpus.py --repo &lt;仓库&gt; --only &lt;版本&gt;</code>，优先官方镜像静态提取（source=image）。现库 161 条，覆盖正式版 2026.1.5~2026.6.9 与 2026.5.16 起的预发布版；缺口见限制。</li>
-    <li><strong>GeoLite2 库更新</strong>：MaxMind 每周更新，重新下载 .mmdb 后 <code>.venv/bin/python3 -m geoip.backfill --all</code> 重刷已有资产。</li>
-    <li><strong>地名中文化</strong>：填 <code>geoip/cn_names.py</code> 的 CITY_ZH/REGION_ZH，再 backfill --all。</li>
-    <li><strong>schema 变更</strong>：store/load.py 的 <code>_migrate</code> 对既有库 ALTER 补列（幂等）；新增字段在此处加。</li>
-    <li><strong>数据备份/清理</strong>：备份 data/*.sqlite 即可；<code>make clean</code> 危险（删全部库）。</li>
+    <li><strong>指纹库更新</strong>：OpenClaw 发新版时 <code>tools/fingerprint/collect_corpus.py --repo &lt;仓库&gt; --only &lt;版本&gt;</code>，优先官方镜像静态提取（source=image）。现库 161 条，覆盖正式版 2026.1.5~2026.6.9 与 2026.5.16 起的预发布版；缺口见限制。</li>
+    <li><strong>GeoLite2 库更新</strong>：MaxMind 每周更新，重新下载 .mmdb 后 <code>.venv/bin/python3 -m agentsectool_scanner.geoip.backfill --all</code> 重刷已有资产。</li>
+    <li><strong>地名中文化</strong>：填 <code>src/agentsectool_scanner/geoip/cn_names.py</code> 的 CITY_ZH/REGION_ZH，再 backfill --all。</li>
+    <li><strong>schema 变更</strong>：<code>src/agentsectool_scanner/store/load.py</code> 的 <code>_migrate</code> 对既有库 ALTER 补列（幂等）；新增字段在此处加。</li>
+    <li><strong>数据备份/清理</strong>：备份 <code>src/agentsectool_scanner/store/data/*.sqlite</code>、<code>tools/fofa/data/*.sqlite</code>、<code>tools/clawsec/data/*.sqlite</code>；<code>make clean</code> 危险（删本地库和输出）。</li>
     <li><strong>凭据轮换</strong>：定期轮换 FOFA/MaxMind 凭据，更新对应 .ini。</li>
     <li><strong>文档更新触发</strong>：判定规则、指纹库口径、数据 schema、命令参数、安全边界变更时，须同步本文档对应章节。</li>
   </ul>
@@ -1200,15 +1204,15 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
   <p>本节面向后续修改本项目的代码智能体，作用接近 <code>AGENTS.md</code> / <code>CLAUDE.md</code>（项目根有此二文件，<span class="badge unverified">本节未逐字吸收其内容，TODO</span>）。</p>
 
   <h3>项目目标（压缩）</h3>
-  <p>授权范围内发现公网 OpenClaw 暴露面，<strong>只读</strong>探测判定（C1/C2/C3 二元白名单）+ 版本测定（direct / implicit），归档到 SQLite，服务漏洞协同披露。判定与版本测定<strong>只在 prober/openclaw</strong>。</p>
+  <p>授权范围内发现公网资产暴露面，通过平台入口调度具体 detector，执行只读探测、版本测定、结果归档和看板展示。OpenClaw 是当前内置的首个资产类型；其 C1/C2/C3 判定与版本测定只在 <code>prober/openclaw</code>。</p>
 
   <h3>代码地图（改之前先读）</h3>
   <ul>
     <li>改判定规则 → <code>prober/openclaw/signals.go</code>（evaluate）+ 必须同步 <code>probe_test.go</code> 的 TestEvaluate。</li>
     <li>改版本测定 → <code>version.go</code> / <code>fingerprints.go</code>。</li>
     <li>改探测采集 → <code>http.go</code> / <code>ws.go</code>（T1–T7 信号）。</li>
-    <li>改入库语义 → <code>store/load.py</code> + <code>store/schema.sql</code>（去重/覆盖/迁移）。</li>
-    <li>改地名 → <code>geoip/lookup.py</code> / <code>cn_names.py</code>。</li>
+    <li>改入库语义 → <code>src/agentsectool_scanner/store/load.py</code> + <code>src/agentsectool_scanner/store/schema.sql</code>（去重/覆盖/迁移）。</li>
+    <li>改地名 → <code>src/agentsectool_scanner/geoip/lookup.py</code> / <code>src/agentsectool_scanner/geoip/cn_names.py</code>。</li>
   </ul>
 
   <h3>修改约束</h3>
@@ -1232,11 +1236,11 @@ python3 -m dashboard --db data/scanner/scan_results.sqlite --port 8787
     <tbody>
       <tr><td><code>ocprobe</code> 不支持 <code>-f</code> 文件参数</td><td>按文件参数习惯调用会失败（退出码 2）</td><td>目标文件作为位置参数传入；平台级扫描使用 <code>assetprobe</code></td></tr>
       <tr><td><code>detectConfidenceFloor=0.90</code> 死常量</td><td>consts.go 声明但全 prober 零引用；evaluate 纯二元不读分值。注释误导</td><td>删常量或删注释</td></tr>
-      <tr><td>地名 region/city 全英文</td><td>看板/资产展示英文（Guangdong 而非广东）</td><td>填 geoip/cn_names.py 映射表 + backfill --all</td></tr>
+      <tr><td>地名 region/city 全英文</td><td>看板/资产展示英文（Guangdong 而非广东）</td><td>填 <code>src/agentsectool_scanner/geoip/cn_names.py</code> 映射表 + backfill --all</td></tr>
       <tr><td>指纹库覆盖缺口</td><td>2026.5.16 前的预发布版、无官方镜像的纯 alpha 版未收录 → 这些实例 implicit 反推为未知</td><td>持续 collect_corpus 增量补录</td></tr>
       <tr><td>不可区分版本区间</td><td>构建产物相同的版本（如 2026.3.7=2026.3.8）只能给 implicit-range，无法精确到单版</td><td>设计局限，无解（除非引入别的区分信号）</td></tr>
       <tr><td>scannerUserAgent 不含 abuse 联系信息</td><td>规模化扫描合规性不足</td><td>运营前补 rDNS/info_url/abuse_contact</td></tr>
-      <tr><td>根目录历史库 <code>scan.sqlite</code>（69MB）</td><td>已被 data/{fofa,clawsec,scanner} 分库存储取代</td><td>确认无用后删除</td></tr>
+      <tr><td>历史合并库 <code>tools/fingerprint/data/scan.sqlite</code>（69MB，本地忽略）</td><td>已被 <code>tools/fofa/data</code>、<code>tools/clawsec/data</code>、<code>src/agentsectool_scanner/store/data</code> 分库存储取代</td><td>确认无用后删除</td></tr>
       <tr><td>部分历史资料与代码口径不一致</td><td>schema.sql:1「内容指纹去重」、result.go:38 漏 C3、测试覆盖范围等表述需继续校准</td><td>逐处以代码、测试与运行证据为准修正</td></tr>
     </tbody>
   </table></div>

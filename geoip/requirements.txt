@@ -1,5 +1,0 @@
-# GeoIP 富化所需的第三方依赖（项目其余部分仍为纯标准库）。
-# 安装到项目 venv：
-#   python3 -m venv .venv
-#   .venv/bin/python3 -m pip install -r geoip/requirements.txt
-geoip2>=4.0
