@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentSecTool Scanner Project Map</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#1f2328; --fg-muted:#59636e; --fg-faint:#818b98;
+    --border:#d1d9e0; --border-soft:#e4e8ec; --code-bg:#f6f8fa; --nav-bg:#f6f8fa;
+    --link:#0969da; --co-bg:#f6f8fa; --co-bg-strong:#eaedf1; --co-bd:#d1d9e0;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Helvetica,Arial,sans-serif;
+    --nav-w:280px; --maxw:1180px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth; scroll-padding-top:16px;}
+  body{margin:0; background:var(--bg); color:var(--fg); font-family:var(--sans);
+    font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased;}
+  .layout{display:flex; align-items:flex-start;}
+  nav.side{position:sticky; top:0; height:100vh; width:var(--nav-w); flex:0 0 var(--nav-w);
+    overflow-y:auto; background:var(--nav-bg); border-right:1px solid var(--border);
+    padding:20px 14px 60px;}
+  nav.side .brand{font-weight:700; font-size:15px; padding:4px 10px 14px; color:var(--fg);}
+  nav.side .brand small{display:block; font-weight:400; font-size:12px; color:var(--fg-muted); margin-top:3px;}
+  nav.side a{display:block; padding:5px 10px; color:var(--fg-muted); text-decoration:none;
+    border-radius:6px; font-size:13.5px; line-height:1.4;}
+  nav.side a:hover{background:#eaeef2; color:var(--fg);}
+  nav.side .grp{font-size:11px; text-transform:uppercase; letter-spacing:0;
+    color:var(--fg-faint); padding:16px 10px 4px; font-weight:600;}
+  main{flex:1 1 auto; min-width:0; padding:40px 56px 120px; max-width:calc(var(--maxw) + 112px);}
+  .wrap{max-width:var(--maxw);}
+  h1{font-size:38px; font-weight:700; line-height:1.2; margin:0 0 10px; letter-spacing:0;}
+  h2{font-size:27px; font-weight:700; line-height:1.3; margin:54px 0 16px; padding-bottom:8px;
+    border-bottom:1px solid var(--border-soft); scroll-margin-top:16px; letter-spacing:0;}
+  h3{font-size:19px; font-weight:600; margin:28px 0 10px;}
+  section > :not(h2):not(h1){margin-left:18px;}
+  section > h2{margin-left:0;}
+  p{margin:0 0 13px;}
+  a{color:var(--link); text-decoration:none;} a:hover{text-decoration:underline;}
+  ul,ol{margin:0 0 13px; padding-left:24px;} li{margin:3px 0;}
+  strong{font-weight:600; color:var(--fg);}
+  code{font-family:var(--mono); font-size:85%; background:var(--code-bg);
+    padding:.15em .4em; border-radius:5px; color:#1f2328;}
+  pre{background:var(--code-bg); border:1px solid var(--border-soft); border-radius:8px;
+    padding:14px 16px; overflow-x:auto; margin:0 0 14px;}
+  pre code{background:none; padding:0; font-size:12.5px; line-height:1.62; display:block;}
+  .lead{font-size:16px; color:var(--fg-muted); line-height:1.65; margin:0 0 20px; max-width:900px;}
+  .keyval{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:0 0 20px;}
+  .keyval .kv{border:1px solid var(--border); border-radius:8px; padding:12px 14px; background:#fcfdfe;}
+  .keyval .kv .k{font-size:11px; text-transform:uppercase; letter-spacing:0; color:var(--fg-faint); font-weight:600; margin-bottom:4px;}
+  .keyval .kv .v{font-size:13.5px; color:var(--fg);}
+  .callout{border:1px solid var(--co-bd); background:var(--co-bg); border-radius:8px;
+    padding:12px 16px; margin:0 0 16px; border-left-width:4px; border-left-color:#6e7781; font-size:14px;}
+  .callout .ct{font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:0;
+    margin:0 0 6px; color:var(--fg);}
+  .callout p:last-child{margin-bottom:0;}
+  .tbl-wrap{overflow-x:auto; margin:0 0 16px; border:1px solid var(--border); border-radius:8px;}
+  table{border-collapse:collapse; width:100%; font-size:13.5px;}
+  th,td{text-align:left; padding:8px 12px; border-bottom:1px solid var(--border-soft); vertical-align:top;}
+  th{background:var(--code-bg); font-weight:600; white-space:nowrap; color:var(--fg);}
+  tr:last-child td{border-bottom:none;}
+  td code,th code{font-size:12px; white-space:nowrap;}
+  .badge{display:inline-block; font-family:var(--mono); font-size:11px; font-weight:600;
+    padding:1px 7px; border-radius:20px; letter-spacing:0; vertical-align:middle; white-space:nowrap;
+    background:var(--co-bg-strong); color:var(--fg-muted); border:1px solid #afb8c1;}
+  .flow{display:grid; grid-template-columns:repeat(5,minmax(130px,1fr)); gap:10px; align-items:stretch;
+    border:1px solid var(--border); border-radius:8px; padding:14px; background:#fcfdfe; margin:0 0 10px;}
+  .flow .step{position:relative; min-height:116px; border:1px solid var(--border); border-radius:8px;
+    background:#fff; padding:12px 14px;}
+  .flow .step:not(:last-child)::after{content:"→"; position:absolute; right:-17px; top:42px;
+    font-family:var(--mono); font-size:18px; color:var(--fg-faint); background:#fcfdfe; line-height:1;}
+  .flow .nm{font-weight:700; margin-bottom:6px;}
+  .flow .desc{font-size:13px; color:var(--fg-muted); margin:0 0 7px;}
+  .flow .src{font-family:var(--mono); font-size:11.5px; color:var(--fg-faint); overflow-wrap:anywhere;}
+  .caption{font-size:12.5px; color:var(--fg-muted); margin:8px 2px 18px; line-height:1.6;}
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:12px; margin:0 0 16px;}
+  .card{border:1px solid var(--border); border-radius:8px; background:#fff; overflow:hidden;}
+  .card .hd{background:var(--code-bg); padding:10px 14px; border-bottom:1px solid var(--border-soft); font-weight:700;}
+  .card .bd{padding:11px 14px; font-size:13.5px;}
+  .card .bd p{margin-bottom:9px;}
+  .card .bd p:last-child{margin-bottom:0;}
+  footer{margin-top:48px; padding-top:20px; border-top:1px solid var(--border-soft);
+    font-size:12.5px; color:var(--fg-faint);}
+  .nav-toggle{display:none;}
+  @media(max-width:1050px){
+    .flow{grid-template-columns:1fr;}
+    .flow .step{min-height:auto;}
+    .flow .step:not(:last-child)::after{content:"↓"; right:calc(50% - 6px); top:auto; bottom:-17px;}
+  }
+  @media(max-width:900px){
+    nav.side{position:fixed; left:0; top:0; z-index:50; transform:translateX(-100%);
+      transition:transform .2s; box-shadow:2px 0 12px rgba(0,0,0,.1);}
+    body.nav-open nav.side{transform:translateX(0);}
+    main{padding:60px 20px 100px;}
+    section > :not(h2):not(h1){margin-left:0;}
+    .nav-toggle{display:inline-flex; position:fixed; top:12px; left:12px; z-index:60;
+      background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:7px 11px;
+      font-family:var(--sans); font-size:13px; cursor:pointer; align-items:center; gap:6px;}
+  }
+  @media print{
+    nav.side,.nav-toggle{display:none!important;}
+    main{padding:0; max-width:none;} body{font-size:11pt;}
+    .card,.callout,pre,.tbl-wrap,.flow{break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+<button class="nav-toggle" onclick="document.body.classList.toggle('nav-open')">目录</button>
+<div class="layout">
+<nav class="side" id="sidenav">
+  <div class="brand">Project Map<small>AgentSecTool Scanner</small></div>
+  <a href="#overview">定位与读法</a>
+  <a href="#tree">目录地图</a>
+  <a href="#flow">主链路</a>
+  <a href="#go-prober">Go 探测侧</a>
+  <a href="#python-platform">Python 平台侧</a>
+  <a href="#tools">tools 地图</a>
+  <a href="#data">运行数据</a>
+  <a href="#change-points">修改入口</a>
+  <a href="#commands">命令入口</a>
+  <a href="#boundaries">边界与注意</a>
+</nav>
+<main>
+<div class="wrap">
+
+<section id="overview">
+  <h1>AgentSecTool Scanner Project Map</h1>
+  <p class="lead">本文档用于快速定位项目结构、代码职责、主数据链路和常见修改入口。它描述当前代码状态：AgentSecTool Scanner 是一个可扩展的资产测绘平台，OpenClaw 是当前内置的首个资产类型。</p>
+
+  <div class="keyval">
+    <div class="kv"><div class="k">项目定位</div><div class="v">候选发现、资产探测、版本测定、证据归档、看板展示的综合测绘平台。</div></div>
+    <div class="kv"><div class="k">推荐探测入口</div><div class="v"><code>prober/bin/assetprobe --type openclaw</code></div></div>
+    <div class="kv"><div class="k">Python 包根</div><div class="v"><code>src/agentsectool_scanner/</code>，使用 src-layout 隔离源码包和仓库杂项。</div></div>
+    <div class="kv"><div class="k">OpenClaw 边界</div><div class="v">OpenClaw 判定、版本和证据采集属于 detector 分支，不是平台层的唯一目标。</div></div>
+  </div>
+
+  <div class="callout">
+    <div class="ct">读法</div>
+    <p>先看目录地图确认代码位置，再看主链路理解数据如何流动。需要改功能时优先查“修改入口”，需要运行或验收时查“命令入口”。</p>
+  </div>
+</section>
+
+<section id="tree">
+  <h2>目录地图</h2>
+  <p>项目一级目录按职责收敛为探测内核、平台主流程、外部工具、配置和文档。运行数据默认就近写入各模块的 <code>data/</code> 或 <code>output/</code>，这些目录不作为源码边界。</p>
+  <pre><code>AgentSecTool_Scanner/
+├─ prober/                         Go 探测工程
+│  ├─ cmd/assetprobe/              平台化探测入口：按 --type 调 detector
+│  ├─ cmd/ocprobe/                 OpenClaw 兼容入口
+│  ├─ detectors/                   detector 注册表与资产类型实现
+│  │  └─ openclaw/                 OpenClaw detector 适配层
+│  ├─ openclaw/                    OpenClaw 协议判定、证据、版本、指纹
+│  ├─ fingerprints/                detector 指纹库
+│  ├─ targeting/                   目标展开：IP、CIDR、通配 IPv4、CSV、stdin
+│  └─ zgrab/                       ZGrab2 OpenClaw 模块
+├─ src/agentsectool_scanner/       Python 平台包
+│  ├─ discovery/                   主动/被动候选发现与合并
+│  ├─ store/                       JSONL 入库、SQLite schema、统计与报告查询
+│  ├─ dashboard/                   本地只读看板服务与静态页面
+│  ├─ progress/                    主动扫描块队列
+│  ├─ geoip/                       GeoLite2 富化与离线配置
+│  └─ paths.py                     Python CLI 的仓库默认路径
+├─ tools/                          外部测绘源与一次性工具
+│  ├─ fofa/                        FOFA 拉取、增量、导出候选、地区统计
+│  ├─ clawsec/                     ClawSec 快照拉取与交集分析
+│  ├─ scope/                       中国网段范围生成
+│  ├─ fingerprint/                 指纹语料采集、迁移、构建
+│  └─ scan_test/                   扫描测试辅助脚本
+├─ config/                         跨模块配置模板
+└─ docs/                           当前项目文档与历史归档</code></pre>
+
+  <div class="callout">
+    <div class="ct">src-layout 说明</div>
+    <p><code>src/agentsectool_scanner</code> 多一层包名是 Python 项目的标准 src-layout。这样可以避免从仓库根目录误导入同名脚本，也让 <code>PYTHONPATH=src:.</code> 下的包边界更清楚。</p>
+  </div>
+</section>
+
+<section id="flow">
+  <h2>主链路</h2>
+  <p>平台链路把外部候选和主动发现统一成候选集合，再交给资产类型 detector 只读探测。detector 输出统一摘要字段和专属证据，平台层负责入库、查询和展示。</p>
+  <div class="flow" aria-label="AgentSecTool Scanner main data flow">
+    <div class="step">
+      <div class="nm">候选来源</div>
+      <p class="desc">主动扫描、FOFA、ClawSec 或人工种子。</p>
+      <div class="src">discovery/ · tools/fofa · tools/clawsec</div>
+    </div>
+    <div class="step">
+      <div class="nm">目标展开</div>
+      <p class="desc">把 IP、CIDR、通配地址、CSV、stdin 统一成 host:port。</p>
+      <div class="src">prober/targeting</div>
+    </div>
+    <div class="step">
+      <div class="nm">detector 调度</div>
+      <p class="desc">按 <code>--type</code> 选择资产类型，并发、限速、超时。</p>
+      <div class="src">cmd/assetprobe · detectors</div>
+    </div>
+    <div class="step">
+      <div class="nm">JSONL 结果</div>
+      <p class="desc">保留平台摘要字段和 detector 专属证据。</p>
+      <div class="src">prober/output/results.jsonl</div>
+    </div>
+    <div class="step">
+      <div class="nm">归档与展示</div>
+      <p class="desc">按快照入库，供只读 API、看板和报告查询。</p>
+      <div class="src">store · dashboard</div>
+    </div>
+  </div>
+  <p class="caption">图中只表达单向数据流。候选来源的第三方标签只作为候选输入，本项目确认口径以 <code>assetprobe</code> 的实时只读探测结果为准。</p>
+</section>
+
+<section id="go-prober">
+  <h2>Go 探测侧</h2>
+  <p>Go 侧负责高并发探测和资产类型分发。平台层只认识 detector 接口和统一摘要；OpenClaw 的协议细节留在 OpenClaw 分支中。</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>路径</th><th>职责</th><th>重点文件 / 对象</th><th>什么时候看这里</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>prober/cmd/assetprobe</code></td>
+          <td>平台化探测 CLI。</td>
+          <td><code>main.go</code>、<code>progress.go</code>、<code>config_load.go</code></td>
+          <td>改 <code>--type</code>、并发、限速、输出 JSONL、进度汇报、配置加载。</td>
+        </tr>
+        <tr>
+          <td><code>prober/detectors</code></td>
+          <td>资产类型注册表。</td>
+          <td><code>Detector</code>、<code>Register</code>、<code>New</code>、<code>Summary</code></td>
+          <td>新增资产类型、调整平台摘要字段、查看 detector 合约。</td>
+        </tr>
+        <tr>
+          <td><code>prober/detectors/openclaw</code></td>
+          <td>OpenClaw detector 适配层。</td>
+          <td><code>Detector.Probe</code>、<code>DefaultPorts</code></td>
+          <td>把 OpenClaw 探测核心接入平台接口，或修改默认端口与指纹加载。</td>
+        </tr>
+        <tr>
+          <td><code>prober/openclaw</code></td>
+          <td>OpenClaw 判定、取版本、证据采集。</td>
+          <td><code>Probe</code>、<code>probeWS</code>、<code>probeHTTP</code>、<code>score</code>、<code>determineVersion</code></td>
+          <td>改 OpenClaw 特征、版本推断、证据结构、只读安全边界。</td>
+        </tr>
+        <tr>
+          <td><code>prober/targeting</code></td>
+          <td>目标展开与候选解析。</td>
+          <td><code>targets.go</code></td>
+          <td>新增候选输入格式，或修复 CIDR、通配地址、CSV 第一列解析。</td>
+        </tr>
+        <tr>
+          <td><code>prober/zgrab</code></td>
+          <td>ZGrab2 OpenClaw 模块。</td>
+          <td><code>module.go</code>、<code>main.go</code></td>
+          <td>需要接入 ZGrab2 生态或复用其扫描输出格式时看这里。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="python-platform">
+  <h2>Python 平台侧</h2>
+  <p>Python 侧承担平台主流程：发现候选、持久化、看板、进度队列、地理富化。它不承载具体资产类型的判定规则。</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>路径</th><th>职责</th><th>重点文件 / 对象</th><th>什么时候看这里</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>src/agentsectool_scanner/discovery</code></td>
+          <td>候选发现。</td>
+          <td><code>active.py</code>、<code>passive.py</code>、<code>merge.py</code>、<code>blocklist.py</code></td>
+          <td>调整 masscan/ZMap/internal 发现，或合并、去重、黑名单策略。</td>
+        </tr>
+        <tr>
+          <td><code>src/agentsectool_scanner/store</code></td>
+          <td>扫描结果入库与查询。</td>
+          <td><code>schema.sql</code>、<code>load.py</code>、<code>report.py</code></td>
+          <td>改 SQLite 表结构、快照规则、报告查询、统计口径。</td>
+        </tr>
+        <tr>
+          <td><code>src/agentsectool_scanner/dashboard</code></td>
+          <td>本地只读看板。</td>
+          <td><code>server.py</code>、<code>index.html</code>、<code>assets/</code></td>
+          <td>改 API、地图、筛选、展示字段或前端静态资源。</td>
+        </tr>
+        <tr>
+          <td><code>src/agentsectool_scanner/progress</code></td>
+          <td>主动扫描块队列。</td>
+          <td><code>blocks.py</code>、<code>__main__.py</code></td>
+          <td>做断点续扫、分片领取、扫描轮次管理。</td>
+        </tr>
+        <tr>
+          <td><code>src/agentsectool_scanner/geoip</code></td>
+          <td>离线地理富化。</td>
+          <td><code>lookup.py</code>、<code>backfill.py</code>、<code>geoip.example.ini</code></td>
+          <td>接入 GeoLite2、补填国家/省市/经纬度、排查地图坐标。</td>
+        </tr>
+        <tr>
+          <td><code>src/agentsectool_scanner/paths.py</code></td>
+          <td>Python CLI 默认路径。</td>
+          <td><code>SCANNER_DB</code>、<code>PROBER_RESULTS</code>、<code>FOFA_DB</code></td>
+          <td>默认数据位置调整时先看这里，再同步 Makefile 与文档。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="tools">
+  <h2>tools 地图</h2>
+  <p><code>tools/</code> 放外部测绘源和一次性辅助工具。它们可以生产候选、指纹或统计，但不替代 detector 的最终确认。</p>
+  <div class="cards">
+    <div class="card">
+      <div class="hd"><code>tools/fofa</code></div>
+      <div class="bd">
+        <p>FOFA 拉取、增量查询、导出候选和省份版本统计。凭据走环境变量或本地配置模板，不入库。</p>
+        <p><span class="badge">候选源</span> 输出 <code>tools/fofa/output/candidates.csv</code>。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="hd"><code>tools/clawsec</code></div>
+      <div class="bd">
+        <p>ClawSec 快照拉取、长期暴露分析、与 FOFA 库做交集。</p>
+        <p><span class="badge">外部参考</span> 第三方标注不作为本项目确认事实。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="hd"><code>tools/scope</code></div>
+      <div class="bd">
+        <p>从 APNIC 等来源生成扫描范围，当前用于中国网段候选范围。</p>
+        <p><span class="badge">范围工具</span> 输出默认在 <code>tools/scope/output/</code>。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="hd"><code>tools/fingerprint</code></div>
+      <div class="bd">
+        <p>采集、迁移、构建 OpenClaw 指纹语料，用于补充 <code>prober/fingerprints/openclaw.json</code>。</p>
+        <p><span class="badge">离线工具</span> 适合扩展版本覆盖率。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="data">
+  <h2>运行数据</h2>
+  <p>默认运行数据按生产者就近存放。源码提交不应包含真实扫描库、JSONL 输出、第三方平台凭据或 GeoIP 商用/授权数据文件。</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>数据</th><th>默认路径</th><th>生产者</th><th>用途</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>scanner 权威库</td>
+          <td><code>src/agentsectool_scanner/store/data/scan_results.sqlite</code></td>
+          <td><code>agentsectool_scanner.store</code></td>
+          <td>资产快照、观测、probe_records、看板查询。</td>
+        </tr>
+        <tr>
+          <td>发现候选</td>
+          <td><code>src/agentsectool_scanner/discovery/output/candidates.csv</code></td>
+          <td><code>agentsectool_scanner.discovery</code></td>
+          <td>主动/被动发现后的标准候选输入。</td>
+        </tr>
+        <tr>
+          <td>探测结果</td>
+          <td><code>prober/output/results.jsonl</code></td>
+          <td><code>assetprobe</code></td>
+          <td>detector 原始输出，供 store 入库。</td>
+        </tr>
+        <tr>
+          <td>FOFA 库与导出</td>
+          <td><code>tools/fofa/data/fofa.sqlite</code>、<code>tools/fofa/output/candidates.csv</code></td>
+          <td><code>tools.fofa</code></td>
+          <td>第三方候选留存、增量查询、导出候选。</td>
+        </tr>
+        <tr>
+          <td>ClawSec 库</td>
+          <td><code>tools/clawsec/data/clawsec.sqlite</code></td>
+          <td><code>tools.clawsec</code></td>
+          <td>外部快照留存和交集分析。</td>
+        </tr>
+        <tr>
+          <td>OpenClaw 指纹库</td>
+          <td><code>prober/fingerprints/openclaw.json</code></td>
+          <td><code>tools/fingerprint</code> 或人工审定</td>
+          <td>静态资源哈希与版本推断。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="change-points">
+  <h2>常见修改入口</h2>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>目标</th><th>优先修改位置</th><th>需要同步检查</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>新增资产类型</td>
+          <td><code>prober/detectors/&lt;type&gt;/</code>、<code>prober/detectors/registry.go</code></td>
+          <td><code>assetprobe --list-types</code>、JSONL 摘要字段、store 入库字段、报告展示。</td>
+        </tr>
+        <tr>
+          <td>调整 OpenClaw 判定规则</td>
+          <td><code>prober/openclaw/signals.go</code>、<code>probe.go</code>、<code>ws.go</code>、<code>http.go</code></td>
+          <td>只读边界单测、误报/漏报样本、证据字段是否仍能解释判定。</td>
+        </tr>
+        <tr>
+          <td>扩展版本测定</td>
+          <td><code>prober/openclaw/version.go</code>、<code>fingerprints.go</code>、<code>prober/fingerprints/openclaw.json</code></td>
+          <td>指纹语料来源、版本冲突处理、未知版本展示。</td>
+        </tr>
+        <tr>
+          <td>调整候选发现</td>
+          <td><code>src/agentsectool_scanner/discovery</code>、<code>tools/fofa</code>、<code>tools/clawsec</code></td>
+          <td>候选 CSV 格式、黑名单、授权范围、第三方额度和节流。</td>
+        </tr>
+        <tr>
+          <td>调整入库或看板字段</td>
+          <td><code>src/agentsectool_scanner/store/schema.sql</code>、<code>load.py</code>、<code>dashboard/server.py</code>、<code>dashboard/index.html</code></td>
+          <td>历史库迁移、API 兼容、前端字段缺省值。</td>
+        </tr>
+        <tr>
+          <td>调整默认路径</td>
+          <td><code>src/agentsectool_scanner/paths.py</code>、<code>Makefile</code></td>
+          <td>README、项目文档、gitignore、容器或脚本中的挂载路径。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="commands">
+  <h2>命令入口</h2>
+  <p>本地验证默认不向公网发包。手动执行 Python 模块时，需要在仓库根目录设置 <code>PYTHONPATH=src:.</code>。</p>
+  <pre><code># 全量测试
+make test
+
+# 本地最小链路：discovery(localhost) -> assetprobe -> store -> stats
+make demo
+
+# 构建并查看资产类型
+go -C prober build -o bin/assetprobe ./cmd/assetprobe
+prober/bin/assetprobe --list-types
+
+# 手动跑最小链路
+export PYTHONPATH=src:.
+python3 -m agentsectool_scanner.discovery --cidr 127.0.0.0/30 --ports 18789 --backend internal --allow-reserved
+prober/bin/assetprobe --type openclaw --fingerprints prober/fingerprints/openclaw.json \
+  -o prober/output/results.jsonl src/agentsectool_scanner/discovery/output/candidates.csv
+python3 -m agentsectool_scanner.store --in prober/output/results.jsonl --stats
+python3 -m agentsectool_scanner.dashboard</code></pre>
+  <p class="caption">看板默认地址为 <code>http://127.0.0.1:8787/</code>。主动扫描公网前必须配置授权范围、黑名单、限速和可识别出口。</p>
+</section>
+
+<section id="boundaries">
+  <h2>边界与注意</h2>
+  <div class="callout">
+    <div class="ct">安全边界</div>
+    <p>探测器默认只读，不应发送修改状态、写配置、登录尝试或提交敏感数据的请求。JSONL、SQLite 和 <code>probe_records</code> 可能包含目标响应原文，应按敏感运行数据处理。</p>
+  </div>
+  <div class="callout">
+    <div class="ct">第三方数据口径</div>
+    <p>FOFA、ClawSec、Shodan、ZoomEye 等外部测绘标签只能作为候选或参照。平台内的确认、版本和证据以本项目 detector 的实时探测输出为准。</p>
+  </div>
+  <div class="callout">
+    <div class="ct">文档边界</div>
+    <p><code>docs/archive/</code> 保存历史阶段说明，不代表当前架构入口。当前项目文档以 <code>docs/项目文档-v2.html</code> 和本文档为主。</p>
+  </div>
+</section>
+
+<footer>
+  <p>最后更新：2026-07-13。目录、默认路径、CLI 入口或数据表结构变化时，应同步更新本文档。</p>
+</footer>
+
+</div>
+</main>
+</div>
+</body>
+</html>
