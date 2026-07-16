@@ -1,8 +1,11 @@
 # --- 凭据与本地配置（绝不入库）---
 config/scanner.yaml
 config/blocklist.txt
+config/agent-runtime.toml
 tools/fofa/fofa.ini
 src/agentsectool_scanner/geoip/geoip.ini
+src/agentsectool_scanner/agent_runtime/deploy/.env
+src/agentsectool_scanner/agent_runtime/deploy/litellm-config.yaml
 
 # --- GeoIP 库文件（体积大，第三方分发，本地下载，不入库）---
 *.mmdb

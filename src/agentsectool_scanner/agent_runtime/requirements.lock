@@ -1,0 +1,45 @@
+# Exported from the verified Scanner agent runtime dependency lock.
+annotated-types==0.7.0
+    # via pydantic
+anyio==4.13.0
+    # via httpx
+certifi==2026.5.20
+    # via
+    #   httpcore
+    #   httpx
+h11==0.16.0
+    # via httpcore
+httpcore==1.0.9
+    # via httpx
+httpx==0.28.1
+    # via scanner agent runtime
+idna==3.18
+    # via
+    #   anyio
+    #   httpx
+openai-codex==0.1.0b3
+    # via scanner agent runtime
+openai-codex-cli-bin==0.137.0a4
+    # via
+    #   scanner agent runtime
+    #   openai-codex
+prompt-toolkit==3.0.52
+    # via scanner agent runtime
+pydantic==2.13.4
+    # via
+    #   scanner agent runtime
+    #   openai-codex
+pydantic-core==2.46.4
+    # via pydantic
+socksio==1.0.0
+    # via httpx
+typing-extensions==4.15.0
+    # via
+    #   anyio
+    #   pydantic
+    #   pydantic-core
+    #   typing-inspection
+typing-inspection==0.4.2
+    # via pydantic
+wcwidth==0.7.0
+    # via prompt-toolkit

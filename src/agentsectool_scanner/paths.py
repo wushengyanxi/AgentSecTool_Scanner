@@ -19,3 +19,9 @@ SCOPE_CN_CIDRS = TOOLS_ROOT / "scope" / "output" / "cn-cidrs.txt"
 
 GEOIP_CONFIG = SRC_ROOT / "geoip" / "geoip.ini"
 GEOIP_CITY_DB = SRC_ROOT / "geoip" / "data" / "GeoLite2-City.mmdb"
+
+AGENT_RUNTIME_ROOT = SRC_ROOT / "agent_runtime"
+AGENT_RUNTIME_CONFIG = ROOT / "config" / "agent-runtime.toml"
+AGENT_RUNTIME_CONFIG_EXAMPLE = ROOT / "config" / "agent-runtime.example.toml"
+AGENT_RUNTIME_DEPLOY = AGENT_RUNTIME_ROOT / "deploy"
+AGENT_RUNTIME_RUNS = AGENT_RUNTIME_ROOT / "data" / "runs"

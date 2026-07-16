@@ -11,6 +11,9 @@ FOFA_DB    := $(ROOT)/tools/fofa/data/fofa.sqlite
 CLAWSEC_DB := $(ROOT)/tools/clawsec/data/clawsec.sqlite
 SCANNER_DB := $(ROOT)/src/agentsectool_scanner/store/data/scan_results.sqlite
 ZB      := $(PROBER)/bin/zgrab-openclaw
+AGENT_RUNTIME := $(ROOT)/src/agentsectool_scanner/agent_runtime
+AGENT_PYTHON ?= $(ROOT)/.venv/bin/python
+UV ?= uv
 export PYTHONPATH := $(ROOT)/src:$(ROOT)
 
 # 发现参数（可覆盖）：make discover CIDR=1.2.3.0/24 BACKEND=masscan
@@ -19,6 +22,7 @@ PORTS   ?= 18789
 BACKEND ?= internal
 
 .PHONY: prober assetprobe ocprobe zgrab test discover probe probe-zgrab load stats demo \
+        agent-setup agent agent-doctor agent-test \
         fofa-info fofa-pull fofa-provinces fofa-export fofa-pv \
         clawsec-info clawsec-pull clawsec-longlived clawsec-overlap clean
 
@@ -33,6 +37,19 @@ ocprobe:
 test: prober
 	go -C $(PROBER) test ./...
 	python3 -m unittest agentsectool_scanner.discovery.tests.test_discovery agentsectool_scanner.store.tests.test_store agentsectool_scanner.progress.tests.test_blocks tools.fofa.tests.test_pull
+
+agent-setup:
+	python3 -m venv $(ROOT)/.venv
+	$(UV) pip install --python $(AGENT_PYTHON) -r $(AGENT_RUNTIME)/requirements-dev.txt
+
+agent:
+	$(AGENT_PYTHON) -m agentsectool_scanner.agent_runtime repl
+
+agent-doctor:
+	$(AGENT_PYTHON) -m agentsectool_scanner.agent_runtime doctor
+
+agent-test:
+	$(AGENT_PYTHON) -m pytest $(AGENT_RUNTIME)/tests
 
 discover:
 	python3 -m agentsectool_scanner.discovery --cidr $(CIDR) --ports $(PORTS) --backend $(BACKEND) --out $(CANDIDATES)
@@ -78,6 +95,7 @@ fofa-pv:
 clean:
 	rm -rf $(ROOT)/src/agentsectool_scanner/discovery/output \
 	       $(ROOT)/src/agentsectool_scanner/store/data \
+	       $(ROOT)/src/agentsectool_scanner/agent_runtime/data \
 	       $(ROOT)/prober/output \
 	       $(ROOT)/tools/fofa/data $(ROOT)/tools/fofa/output \
 	       $(ROOT)/tools/clawsec/data \
