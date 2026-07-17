@@ -21,7 +21,7 @@ CIDR    ?= 127.0.0.0/30
 PORTS   ?= 18789
 BACKEND ?= internal
 
-.PHONY: prober assetprobe ocprobe zgrab test discover probe probe-zgrab load stats demo \
+.PHONY: prober assetprobe ocprobe zgrab test dashboard discover probe probe-zgrab load stats demo \
         agent-setup agent agent-doctor agent-test \
         fofa-info fofa-pull fofa-provinces fofa-export fofa-pv \
         clawsec-info clawsec-pull clawsec-longlived clawsec-overlap clean
@@ -36,7 +36,20 @@ ocprobe:
 
 test: prober
 	go -C $(PROBER) test ./...
-	python3 -m unittest agentsectool_scanner.discovery.tests.test_discovery agentsectool_scanner.store.tests.test_store agentsectool_scanner.progress.tests.test_blocks tools.fofa.tests.test_pull
+	python3 -m unittest \
+		agentsectool_scanner.discovery.tests.test_discovery \
+		agentsectool_scanner.store.tests.test_store \
+		agentsectool_scanner.dashboard.tests.test_dashboard \
+		agentsectool_scanner.progress.tests.test_blocks \
+		agentsectool_scanner.derivation.tests.test_packages \
+		agentsectool_scanner.derivation.tests.test_agent \
+		agentsectool_scanner.derivation.tests.test_capabilities \
+		agentsectool_scanner.derivation.tests.test_web \
+		agentsectool_scanner.derivation.tests.test_harness \
+		tools.fofa.tests.test_pull
+
+dashboard:
+	python3 -m agentsectool_scanner.dashboard
 
 agent-setup:
 	python3 -m venv $(ROOT)/.venv

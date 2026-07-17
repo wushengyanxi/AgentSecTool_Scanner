@@ -19,6 +19,7 @@ from urllib.parse import urlparse, parse_qs
 
 # 复用 store 里现成的报告话术渲染（模板 prober/report_templates.toml）。
 from agentsectool_scanner.paths import SCANNER_DB
+from agentsectool_scanner.derivation.web import DerivationAPI
 from agentsectool_scanner.store.report import (load_templates, analysis_by_probe, verdict_summary,
                                                version_note, TEST_MEANINGS)
 
@@ -34,6 +35,7 @@ PROBE_NAMES = {
 HERE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = str(SCANNER_DB)
 _TPL = load_templates()  # 报告话术模板，进程启动时加载一次
+DERIVATION_API = DerivationAPI()
 
 # 可信级别的展示口径
 CATEGORY_LABELS = {
@@ -52,6 +54,19 @@ def _conn():
 
 def _has_col(conn, table, col):
     return col in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def _has_table(conn, table):
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+    ).fetchone() is not None
+
+
+def _json_value(value, fallback):
+    try:
+        return json.loads(value) if value is not None else fallback
+    except (TypeError, ValueError):
+        return fallback
 
 
 def _create_compat_views(conn):
@@ -288,10 +303,16 @@ def api_report(ip=None, port=None, asset_type=None):
             "SELECT test_id, request, response, hit FROM probe_records "
             "WHERE observation_id=? ORDER BY hit DESC, test_id", (obs["id"],))]
 
-        # 用原始数据算「每个探针的观测」与「研判小结」（状态判定要读未清洗的 response 取状态码）
-        desc = analysis_by_probe(_TPL, obs, raw_probes)
-        summary = verdict_summary(_TPL, obs)
-        ver_note = version_note(_TPL, obs)
+        is_openclaw = (obs.get("asset_type") or "openclaw") == "openclaw"
+        if is_openclaw:
+            # 状态判定需要读取未清洗的响应，再向前端返回安全文本。
+            desc = analysis_by_probe(_TPL, obs, raw_probes)
+            summary = verdict_summary(_TPL, obs)
+            ver_note = version_note(_TPL, obs)
+        else:
+            desc = {}
+            summary = ""
+            ver_note = ""
 
         try:
             matched = json.loads(obs.get("matched") or "[]")
@@ -309,6 +330,53 @@ def api_report(ip=None, port=None, asset_type=None):
                 "request": _safe_text(p["request"]),
                 "response": _safe_text(p["response"]),
             })
+        project_tests = []
+        facts = {}
+        if _has_table(conn, "project_test_results"):
+            rows = conn.execute(
+                """SELECT test_id, status, facts, evidence, error
+                   FROM project_test_results WHERE observation_id=? ORDER BY test_id""",
+                (obs["id"],),
+            ).fetchall()
+            for row in rows:
+                item_facts = _json_value(row["facts"], {})
+                if isinstance(item_facts, dict):
+                    facts.update(item_facts)
+                project_tests.append({
+                    "test_id": row["test_id"],
+                    "status": row["status"],
+                    "facts": item_facts,
+                    "evidence": _json_value(row["evidence"], []),
+                    "error": _json_value(row["error"], row["error"]),
+                })
+        if _has_table(conn, "observation_facts"):
+            aggregate = conn.execute(
+                "SELECT facts FROM observation_facts WHERE observation_id=?", (obs["id"],)
+            ).fetchone()
+            if aggregate:
+                facts = _json_value(aggregate["facts"], facts)
+        vulnerabilities = []
+        if _has_table(conn, "vulnerability_matches"):
+            vulnerabilities = [{
+                "vulnerability_id": row["vulnerability_id"],
+                "status": row["status"],
+                "rule": _json_value(row["rule"], {}),
+            } for row in conn.execute(
+                """SELECT vulnerability_id, status, rule
+                   FROM vulnerability_matches WHERE observation_id=?
+                   ORDER BY vulnerability_id""",
+                (obs["id"],),
+            )]
+        display_templates = []
+        if _has_table(conn, "observation_presentations"):
+            presentation = conn.execute(
+                "SELECT template FROM observation_presentations WHERE observation_id=?",
+                (obs["id"],),
+            ).fetchone()
+            if presentation:
+                display_templates = _json_value(presentation["template"], [])
+                if isinstance(display_templates, dict):
+                    display_templates = [display_templates]
         return {
             "asset_type": obs.get("asset_type") or "openclaw",
             "detector": obs.get("detector") or obs.get("asset_type") or "openclaw",
@@ -319,6 +387,10 @@ def api_report(ip=None, port=None, asset_type=None):
             "tls": bool(obs["tls"]), "summary": summary,
             "version_note": ver_note, "probes": probes,
             "test_meanings": TEST_MEANINGS,   # T1..T7 / C1 / C2 悬停含义
+            "facts": facts,
+            "project_tests": project_tests,
+            "vulnerability_matches": vulnerabilities,
+            "display_templates": display_templates,
         }
     finally:
         conn.close()
@@ -339,6 +411,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if u.path == "/" or u.path == "/index.html":
                 with open(os.path.join(HERE, "index.html"), "rb") as f:
+                    self._send(f.read(), ctype="text/html")
+            elif u.path in {"/derivation", "/derivation/"}:
+                with open(os.path.join(HERE, "derivation.html"), "rb") as f:
                     self._send(f.read(), ctype="text/html")
             elif u.path.startswith("/assets/"):
                 # 只 serve 本包 assets 下的静态文件（logo 等），防目录穿越
@@ -379,10 +454,41 @@ class Handler(BaseHTTPRequestHandler):
                     ip=qs.get("ip", [None])[0],
                     port=qs.get("port", [None])[0],
                     asset_type=qs.get("asset_type", [None])[0]))
+            elif u.path.startswith("/api/derivation"):
+                result = DERIVATION_API.handle("GET", u.path, qs, None)
+                code, payload = result if result else (404, {"error": "not found"})
+                self._send(payload, code)
             else:
                 self._send({"error": "not found"}, 404)
         except FileNotFoundError:
             self._send({"error": f"找不到数据库 {DB_PATH}，先运行 store 入库"}, 500)
+        except Exception as e:  # noqa: BLE001
+            self._send({"error": str(e)}, 500)
+
+    def do_POST(self):
+        self._handle_write("POST")
+
+    def _handle_write(self, method):
+        u = urlparse(self.path)
+        qs = parse_qs(u.query)
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if length > 40 * 1024 * 1024:
+                self._send({"error": "request body too large"}, 413)
+                return
+            raw = self.rfile.read(length) if length else b"{}"
+            body = json.loads(raw.decode("utf-8"))
+            if not isinstance(body, dict):
+                self._send({"error": "JSON body must be an object"}, 400)
+                return
+            result = DERIVATION_API.handle(method, u.path, qs, body)
+            if result is None:
+                self._send({"error": "not found"}, 404)
+                return
+            code, payload = result
+            self._send(payload, code)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send({"error": "invalid JSON body"}, 400)
         except Exception as e:  # noqa: BLE001
             self._send({"error": str(e)}, 500)
 

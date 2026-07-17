@@ -1,6 +1,7 @@
 # --- 凭据与本地配置（绝不入库）---
 config/scanner.yaml
 config/blocklist.txt
+config/derivation.ini
 config/agent-runtime.toml
 tools/fofa/fofa.ini
 src/agentsectool_scanner/geoip/geoip.ini

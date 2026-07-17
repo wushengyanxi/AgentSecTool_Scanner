@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>测绘能力派生工作台</title>
+<style>
+  :root{
+    --bg:#0f1113;--side:#15181b;--surface:#1a1e21;--surface-2:#202529;
+    --line:#343a3f;--line-strong:#4a535a;--ink:#e8e9e9;--muted:#9da3a7;
+    --accent:#58c3b0;--accent-ink:#08241f;--warning:#d7ad5c;--danger:#d97979;
+    --good:#73bf86;--focus:#8cd9cc;--sans:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;letter-spacing:0}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans);overflow:hidden}
+  button,input,select,textarea{font:inherit;color:inherit}
+  button{cursor:pointer}
+  button:disabled{cursor:default;opacity:.45}
+  :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  .app{display:grid;grid-template-columns:228px minmax(0,1fr);height:100vh}
+  .sidebar{background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+  .brand{height:70px;padding:17px 18px;border-bottom:1px solid var(--line)}
+  .brand strong{display:block;font-size:15px}.brand span{font:11px var(--mono);color:var(--muted)}
+  .nav{padding:14px 10px;display:grid;gap:4px}
+  .nav a{height:38px;display:flex;align-items:center;gap:10px;padding:0 10px;color:var(--muted);text-decoration:none;border-radius:4px}
+  .nav a:hover{background:var(--surface);color:var(--ink)}
+  .nav a.active{background:#20342f;color:var(--ink);border-left:2px solid var(--accent)}
+  .nav-icon{width:18px;text-align:center;font:15px var(--mono)}
+  .config-state{margin-top:auto;padding:14px 16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+  .config-state .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--danger);margin-right:7px}
+  .config-state.ready .dot{background:var(--good)}
+  .shell{min-width:0;display:grid;grid-template-rows:58px minmax(0,1fr)}
+  .topbar{border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 18px;background:var(--bg)}
+  .topbar h1{font-size:16px;margin:0;font-weight:650;white-space:nowrap}
+  .search{margin-left:auto;width:min(330px,35vw);height:34px;border:1px solid var(--line);background:var(--surface);border-radius:5px;padding:0 10px}
+  .btn{height:34px;border:1px solid var(--line-strong);background:var(--surface-2);border-radius:5px;padding:0 12px;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:650}
+  .btn.icon{width:34px;padding:0;justify-content:center;font-size:18px}
+  .workspace{display:grid;grid-template-columns:310px minmax(430px,1fr) 360px;min-height:0}
+  .task-pane,.main-pane,.inspect-pane{min-height:0;min-width:0}
+  .task-pane{border-right:1px solid var(--line);background:var(--side);display:grid;grid-template-rows:auto minmax(0,1fr)}
+  .pane-tools{padding:12px;border-bottom:1px solid var(--line);display:flex;gap:8px}
+  select{height:32px;border:1px solid var(--line);background:var(--surface);border-radius:4px;padding:0 8px;min-width:0}
+  .task-list{overflow:auto}
+  .task-row{width:100%;border:0;border-bottom:1px solid #292e32;background:transparent;text-align:left;padding:13px 14px;display:grid;gap:6px}
+  .task-row:hover{background:var(--surface)}
+  .task-row.active{background:#1d2926;border-left:3px solid var(--accent);padding-left:11px}
+  .task-title{font-weight:620;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .task-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px}
+  .status{display:inline-flex;align-items:center;height:22px;padding:0 7px;border:1px solid var(--line);border-radius:3px;font-size:11px;color:var(--muted)}
+  .status.running{border-color:#5e9e93;color:#8bd5c8}.status.waiting_user,.status.validation_failed{border-color:#927647;color:#e0bb72}
+  .status.candidate_review,.status.admitted{border-color:#4d855a;color:#82c992}.status.infra_failed{border-color:#8a4e4e;color:#df8989}
+  .main-pane{display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:var(--bg)}
+  .task-head{padding:14px 18px;border-bottom:1px solid var(--line);min-height:76px}
+  .task-head h2{font-size:17px;margin:0 0 4px}.task-head .identity{color:var(--muted);font-size:12px;display:flex;gap:12px;flex-wrap:wrap}
+  .timeline{overflow:auto;padding:18px 22px 28px}
+  .empty{height:100%;display:grid;place-items:center;color:var(--muted);text-align:center;padding:24px}
+  .entry{display:grid;grid-template-columns:88px minmax(0,1fr);gap:14px;margin-bottom:18px}
+  .entry-time{color:#747b80;font:11px var(--mono);padding-top:5px;text-align:right}
+  .message{border-left:2px solid var(--line-strong);padding:2px 0 2px 14px;white-space:pre-wrap;overflow-wrap:anywhere}
+  .message.user{border-color:var(--accent)}
+  .message .role{font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase}
+  .event{border:1px solid var(--line);background:var(--surface);border-radius:5px;padding:9px 11px;color:var(--muted);font-size:12px}
+  .event strong{color:var(--ink);font-weight:600}
+  .composer{border-top:1px solid var(--line);padding:12px 16px;background:var(--side)}
+  .attachment-list{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+  .attachment{height:26px;border:1px solid var(--line);border-radius:3px;padding:0 7px;display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+  .attachment button{border:0;background:none;color:var(--muted);padding:0}
+  .compose-row{display:grid;grid-template-columns:34px minmax(0,1fr) 38px;gap:8px;align-items:end}
+  .compose-row textarea{resize:none;min-width:0;width:100%;min-height:38px;max-height:150px;border:1px solid var(--line);background:var(--surface);border-radius:5px;padding:8px 10px;line-height:20px}
+  .compose-row textarea:focus{border-color:var(--accent);outline:0}
+  .inspect-pane{border-left:1px solid var(--line);display:grid;grid-template-rows:43px minmax(0,1fr);background:var(--side)}
+  .inspect-tabs{display:flex;border-bottom:1px solid var(--line)}
+  .inspect-tabs button{flex:1;border:0;background:none;color:var(--muted);border-bottom:2px solid transparent;font-size:12px}
+  .inspect-tabs button.active{color:var(--ink);border-bottom-color:var(--accent)}
+  .inspect-body{overflow:auto;padding:14px}
+  .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .section-head h3{font-size:13px;margin:0}
+  .mini-btn{height:27px;border:1px solid var(--line);background:var(--surface);border-radius:4px;padding:0 8px;font-size:12px}
+  .acceptance-row,.run-row,.material-row{border-top:1px solid var(--line);padding:11px 2px;display:grid;gap:6px}
+  .acceptance-row:last-child,.run-row:last-child,.material-row:last-child{border-bottom:1px solid var(--line)}
+  .row-title{display:flex;gap:8px;justify-content:space-between;font-size:13px}
+  .row-meta{color:var(--muted);font-size:11px;display:flex;gap:10px;flex-wrap:wrap}
+  code{font-family:var(--mono);font-size:11px;color:#bfc5c8}
+  .assertion{font:11px/1.55 var(--mono);color:#aeb5b8;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface);padding:7px;border-radius:3px}
+  .banner{padding:9px 12px;border:1px solid #765e37;background:#2a241a;color:#dfbd77;border-radius:4px;margin-bottom:12px;font-size:12px}
+  dialog{border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:6px;padding:0;width:min(620px,calc(100vw - 32px));max-height:calc(100vh - 60px)}
+  dialog::backdrop{background:rgba(0,0,0,.68)}
+  .modal-head{height:48px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 16px}
+  .modal-head h2{font-size:15px;margin:0}.modal-head button{margin-left:auto}
+  .modal-body{padding:16px;overflow:auto;max-height:calc(100vh - 170px)}
+  .modal-actions{height:58px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;align-items:center;gap:8px;padding:0 16px}
+  .field{display:grid;gap:6px;margin-bottom:13px}.field label{font-size:12px;color:var(--muted)}
+  .field input,.field textarea{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:4px;padding:8px 9px}
+  .field textarea{min-height:110px;resize:vertical;font-family:var(--mono);font-size:12px}
+  .checks{display:flex;gap:18px;margin:12px 0}.checks label{display:flex;align-items:center;gap:7px;color:var(--muted)}
+  .preview{border:1px solid var(--line);padding:10px;margin-top:12px;font-size:12px;display:grid;gap:7px}
+  .error{color:var(--danger);font-size:12px;margin-top:8px;white-space:pre-wrap}
+  .hidden{display:none!important}
+  @media(max-width:1180px){.workspace{grid-template-columns:280px minmax(420px,1fr)}.inspect-pane{display:none}}
+  @media(max-width:760px){body{overflow:auto}.app{display:block;height:auto}.sidebar{display:none}.shell{display:block}.workspace{display:block}.task-pane{height:260px;border-right:0}.main-pane{min-height:calc(100vh - 318px)}.search{display:none}.timeline{min-height:340px}.entry{grid-template-columns:1fr}.entry-time{text-align:left}.topbar{position:sticky;top:0;z-index:2}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><strong>AgentSecTool Scanner</strong><span>MAPPING OPERATIONS</span></div>
+    <nav class="nav">
+      <a href="/"><span class="nav-icon">⌂</span><span>资产总览</span></a>
+      <a class="active" href="/derivation"><span class="nav-icon">◇</span><span>能力派生</span></a>
+    </nav>
+    <div class="config-state" id="configState"><span class="dot"></span><span>Agent 未配置</span></div>
+  </aside>
+  <section class="shell">
+    <header class="topbar">
+      <h1>测绘能力派生</h1>
+      <input class="search" id="search" placeholder="检索需求、项目或漏洞" oninput="scheduleTaskLoad()">
+      <button class="btn primary" onclick="openImport()"><span aria-hidden="true">＋</span>导入需求</button>
+    </header>
+    <main class="workspace">
+      <section class="task-pane">
+        <div class="pane-tools">
+          <select id="statusFilter" onchange="loadTasks()">
+            <option value="">全部状态</option><option value="ready">待处理</option><option value="running">派生中</option>
+            <option value="waiting_user">等待用户</option><option value="validation_failed">验收失败</option>
+            <option value="candidate_review">候选待审核</option><option value="admitted">已入仓</option>
+            <option value="infra_failed">基础设施失败</option>
+          </select>
+          <button class="btn icon" title="刷新任务" aria-label="刷新任务" onclick="loadTasks()">↻</button>
+        </div>
+        <div class="task-list" id="taskList"></div>
+      </section>
+      <section class="main-pane">
+        <div class="task-head" id="taskHead"><h2>未选择任务</h2><div class="identity">空闲</div></div>
+        <div class="timeline" id="timeline"><div class="empty">尚未选择任务</div></div>
+        <div class="composer" id="composer">
+          <div class="attachment-list" id="attachmentList"></div>
+          <div class="compose-row">
+            <button class="btn icon" title="附加补充文件" aria-label="附加补充文件" onclick="document.getElementById('fileInput').click()">＋</button>
+            <input class="hidden" type="file" id="fileInput" multiple onchange="addFiles(this.files)">
+            <textarea id="messageInput" rows="1" placeholder="询问判断、补充约束或要求继续执行" oninput="resizeComposer(this)" onkeydown="composerKey(event)"></textarea>
+            <button class="btn icon primary" title="发送" aria-label="发送消息" id="sendButton" onclick="sendMessage()">↑</button>
+          </div>
+        </div>
+      </section>
+      <aside class="inspect-pane">
+        <div class="inspect-tabs">
+          <button class="active" data-tab="acceptance" onclick="setInspectTab('acceptance')">验收项</button>
+          <button data-tab="runs" onclick="setInspectTab('runs')">运行证据</button>
+          <button data-tab="capabilities" onclick="setInspectTab('capabilities')">候选</button>
+          <button data-tab="materials" onclick="setInspectTab('materials')">材料</button>
+        </div>
+        <div class="inspect-body" id="inspectBody"><div class="empty">选择任务后查看</div></div>
+      </aside>
+    </main>
+  </section>
+</div>
+
+<dialog id="importDialog">
+  <div class="modal-head"><h2>导入漏洞需求包</h2><button class="btn icon" aria-label="关闭" onclick="closeDialog('importDialog')">×</button></div>
+  <div class="modal-body">
+    <div class="field"><label for="packagePath">需求包目录</label><input id="packagePath" placeholder="/absolute/path/to/request"></div>
+    <button class="btn" id="previewButton" onclick="previewImport()">校验并预览</button>
+    <div id="importPreview"></div><div class="error" id="importError"></div>
+  </div>
+  <div class="modal-actions"><button class="btn" onclick="closeDialog('importDialog')">取消</button><button class="btn primary" id="confirmImportButton" disabled onclick="confirmImport()">确认导入</button></div>
+</dialog>
+
+<dialog id="reviewDialog">
+  <div class="modal-head"><h2>候选能力审核</h2><button class="btn icon" aria-label="关闭" onclick="closeDialog('reviewDialog')">×</button></div>
+  <div class="modal-body">
+    <div id="reviewSummary" class="preview"></div>
+    <div class="field"><label for="reviewNote">审核意见</label><textarea id="reviewNote"></textarea></div>
+    <div class="error" id="reviewError"></div>
+  </div>
+  <div class="modal-actions"><button class="btn" onclick="reviewCapability(false)">退回修改</button><button class="btn primary" onclick="reviewCapability(true)">通过并入仓</button></div>
+</dialog>
+
+<dialog id="evidenceDialog">
+  <div class="modal-head"><h2>Harness 运行证据</h2><button class="btn icon" aria-label="关闭" onclick="closeDialog('evidenceDialog')">×</button></div>
+  <div class="modal-body"><pre class="assertion" id="evidenceContent"></pre></div>
+  <div class="modal-actions"><button class="btn" onclick="closeDialog('evidenceDialog')">关闭</button></div>
+</dialog>
+
+<dialog id="acceptanceDialog">
+  <div class="modal-head"><h2 id="acceptanceTitle">验收项</h2><button class="btn icon" aria-label="关闭" onclick="closeDialog('acceptanceDialog')">×</button></div>
+  <div class="modal-body">
+    <div class="field"><label>稳定标识</label><input id="acceptanceKey"></div>
+    <div class="field"><label>名称</label><input id="acceptanceName"></div>
+    <div class="field"><label>验收目的</label><input id="acceptancePurpose"></div>
+    <div class="field"><label>结构化断言</label><textarea id="acceptanceAssertion"></textarea></div>
+    <div class="checks"><label><input type="checkbox" id="acceptanceEnabled">启用</label><label><input type="checkbox" id="acceptanceBlocking">阻塞入仓</label></div>
+    <div class="field"><label>修改原因</label><input id="acceptanceReason"></div>
+    <div class="error" id="acceptanceError"></div>
+  </div>
+  <div class="modal-actions"><button class="btn" onclick="closeDialog('acceptanceDialog')">取消</button><button class="btn primary" onclick="saveAcceptance()">保存新版本</button></div>
+</dialog>
+
+<script>
+const state={tasks:[],selected:null,detail:null,attachments:[],inspectTab:'acceptance',importPreview:null,taskTimer:null,reviewCapability:null};
+const labels={ready:'待处理',running:'派生中',waiting_user:'等待用户',validation_failed:'验收失败',candidate_review:'候选待审核',admitted:'已入仓',discarded:'已废弃',infra_failed:'基础设施失败'};
+const eventLabels={package_imported:'需求包已导入',agent_run_started:'智能体开始运行',agent_run_finished:'智能体运行结束',tool_call:'工具调用',tool_result:'工具返回',tool_error:'工具失败',attempt_created:'创建候选版本',harness_started:'Harness 开始运行',harness_finished:'Harness 运行结束',acceptance_test_versioned:'验收项生成新版本',web_research:'检索官方资料',agent_configuration_required:'等待 Agent 配置',user_message_queued:'用户消息已进入队列'};
+function esc(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+async function api(path,options={}){const response=await fetch(path,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});let body={};try{body=await response.json()}catch{}if(!response.ok)throw new Error(body.error||`HTTP ${response.status}`);return body}
+function fmtTime(value){if(!value)return '';const date=new Date(value);return Number.isNaN(date.getTime())?value:date.toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+async function loadConfig(){const value=await api('/api/derivation/config');const node=document.getElementById('configState');node.classList.toggle('ready',!!value.enabled);node.querySelector('span:last-child').textContent=value.enabled?`${value.model} 已授权`:(value.configured?'等待外发授权':'Agent 未配置')}
+let searchTimer;function scheduleTaskLoad(){clearTimeout(searchTimer);searchTimer=setTimeout(loadTasks,250)}
+async function loadTasks(){const params=new URLSearchParams();const status=document.getElementById('statusFilter').value;const q=document.getElementById('search').value.trim();if(status)params.set('status',status);if(q)params.set('q',q);const data=await api('/api/derivation/tasks?'+params);state.tasks=data.tasks;renderTasks();if(state.selected&&!state.tasks.some(task=>task.id===state.selected)){state.selected=null;state.detail=null;renderDetail()}}
+function renderTasks(){const node=document.getElementById('taskList');if(!state.tasks.length){node.innerHTML='<div class="empty">没有符合条件的任务</div>';return}node.innerHTML=state.tasks.map(task=>`<button class="task-row ${task.id===state.selected?'active':''}" onclick="selectTask('${esc(task.id)}')"><div class="task-title">${esc(task.project_name||task.request_id)}</div><div class="task-meta"><span>${esc(task.vulnerability_id||task.request_id)}</span><span class="status ${esc(task.status)}">${esc(labels[task.status]||task.status)}</span></div><div class="task-meta"><span>验收 ${task.confirmed_count||0}/${task.acceptance_count||0}</span><span>${esc(fmtTime(task.updated_at))}</span></div></button>`).join('')}
+async function selectTask(id){state.selected=id;renderTasks();await refreshDetail(true)}
+async function refreshDetail(scroll=false){if(!state.selected)return;try{state.detail=await api(`/api/derivation/tasks/${encodeURIComponent(state.selected)}`);renderDetail();if(scroll){const timeline=document.getElementById('timeline');timeline.scrollTop=timeline.scrollHeight}}catch(error){console.error(error)}}
+function renderDetail(){const head=document.getElementById('taskHead'),timeline=document.getElementById('timeline');if(!state.detail){head.innerHTML='<h2>未选择任务</h2><div class="identity">空闲</div>';timeline.innerHTML='<div class="empty">尚未选择任务</div>';renderInspect();return}const d=state.detail;head.innerHTML=`<h2>${esc(d.project_name||d.request_id)} <span class="status ${esc(d.status)}">${esc(labels[d.status]||d.status)}</span></h2><div class="identity"><span>${esc(d.vulnerability_id||'漏洞身份待识别')}</span><span>${esc(d.request_id)}</span><span>source ${esc(d.source_package_hash.slice(0,12))}</span></div>`;const entries=[];(d.messages||[]).forEach(item=>entries.push({...item,_type:'message'}));(d.events||[]).filter(item=>eventLabels[item.event_kind]&&item.event_kind!=='assistant_message').forEach(item=>entries.push({...item,_type:'event'}));entries.sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at))||(a.sequence||a.id)-(b.sequence||b.id));timeline.innerHTML=entries.length?entries.map(renderEntry).join(''):'<div class="empty">暂无会话记录</div>';renderInspect()}
+function renderEntry(item){if(item._type==='message')return `<div class="entry"><div class="entry-time">${esc(fmtTime(item.created_at))}</div><div class="message ${esc(item.role)}"><div class="role">${item.role==='user'?'用户':'Agent'}</div>${esc(item.content)}${item.supplement_package_id?'<div class="row-meta">含补充包</div>':''}</div></div>`;const payload=item.payload||{};let detail='';if(item.event_kind==='tool_call')detail=payload.name||'';else if(item.event_kind==='tool_error')detail=`${payload.name||''} · ${payload.error||''}`;else if(item.event_kind==='harness_finished')detail=`${payload.status||''} · ${payload.result_count??0} 项`;else if(item.event_kind==='agent_run_finished')detail=payload.status||'';else if(item.event_kind==='web_research')detail=payload.query||'';return `<div class="entry"><div class="entry-time">${esc(fmtTime(item.created_at))}</div><div class="event"><strong>${esc(eventLabels[item.event_kind]||item.event_kind)}</strong>${detail?` · ${esc(detail)}`:''}</div></div>`}
+function setInspectTab(tab){state.inspectTab=tab;document.querySelectorAll('.inspect-tabs button').forEach(button=>button.classList.toggle('active',button.dataset.tab===tab));renderInspect()}
+function renderInspect(){const node=document.getElementById('inspectBody');if(!state.detail){node.innerHTML='<div class="empty">未选择任务</div>';return}if(state.inspectTab==='acceptance')renderAcceptance(node);else if(state.inspectTab==='runs')renderRuns(node);else if(state.inspectTab==='capabilities')renderCapabilities(node);else renderMaterials(node)}
+function renderAcceptance(node){const tests=state.detail.acceptance_tests||[];node.innerHTML=`<div class="section-head"><h3>当前验收口径</h3><button class="mini-btn" onclick="editAcceptance()">＋ 新增</button></div>${tests.length?'':'<div class="empty">暂无验收项</div>'}${tests.map(test=>`<div class="acceptance-row"><div class="row-title"><strong>${esc(test.name)}</strong><span>${test.user_confirmed?'已确认':'草稿'}</span></div><div class="row-meta"><code>${esc(test.stable_key)}</code><span>v${test.current_version}</span><span>${test.blocking?'阻塞':'非阻塞'}</span><span>${test.enabled?'启用':'停用'}</span></div><div>${esc(test.purpose)}</div><div class="assertion">${esc(JSON.stringify(test.assertion,null,2))}</div><div><button class="mini-btn" onclick="editAcceptance('${esc(test.stable_key)}')">编辑</button> ${test.user_confirmed?'':`<button class="mini-btn" onclick="confirmAcceptance('${esc(test.stable_key)}')">确认口径</button>`}</div></div>`).join('')}`}
+function renderRuns(node){const runs=state.detail.harness_runs||[];node.innerHTML=`<div class="section-head"><h3>Harness 运行</h3></div>${runs.length?'':'<div class="empty">暂无运行证据</div>'}${runs.map(run=>`<button class="task-row run-row" onclick="showRun('${esc(run.id)}')"><div class="row-title"><strong>${esc(run.provider)}</strong><span class="status ${esc(run.status)}">${esc(run.status)}</span></div><div class="row-meta"><code>${esc(run.id)}</code><span>${esc(fmtTime(run.started_at))}</span></div>${run.error?`<div class="error">${esc(run.error)}</div>`:''}</button>`).join('')}`}
+function renderCapabilities(node){const rows=state.detail.capabilities||[];node.innerHTML=`<div class="section-head"><h3>能力包版本</h3></div>${rows.length?'':'<div class="empty">暂无候选能力</div>'}${rows.map(item=>`<div class="acceptance-row"><div class="row-title"><strong>${esc(item.asset_type)}</strong><span class="status ${esc(item.status)}">${esc(item.status)}</span></div><div class="row-meta"><code>${esc(item.manifest?.capability_id||item.id)}</code><span>v${item.version}</span></div><div class="row-meta"><span>${esc(item.image_digest?.slice(0,24)||'无镜像 digest')}</span></div>${item.status==='candidate'?`<button class="mini-btn" onclick="openReview('${esc(item.id)}')">审核</button>`:''}</div>`).join('')}`}
+function renderMaterials(node){const rows=state.detail.materials||[];node.innerHTML=`<div class="section-head"><h3>任务材料</h3></div>${rows.map(item=>`<div class="material-row"><div class="row-title"><strong>${esc(item.relative_path)}</strong><span>${esc(item.package_kind)}</span></div><div class="row-meta"><span>${esc(item.role)}</span><span>${item.size_bytes} B</span><code>${esc(item.sha256.slice(0,16))}</code></div></div>`).join('')}`}
+async function showRun(id){const run=await api(`/api/derivation/harness-runs/${encodeURIComponent(id)}`);document.getElementById('evidenceContent').textContent=JSON.stringify(run,null,2);document.getElementById('evidenceDialog').showModal()}
+function openReview(id){const capability=(state.detail.capabilities||[]).find(item=>item.id===id);if(!capability)return;state.reviewCapability=id;document.getElementById('reviewSummary').innerHTML=`<strong>${esc(capability.asset_type)} · v${capability.version}</strong><code>${esc(capability.image_digest||'')}</code>`;document.getElementById('reviewNote').value='';document.getElementById('reviewError').textContent='';document.getElementById('reviewDialog').showModal()}
+async function reviewCapability(approve){const note=document.getElementById('reviewNote').value.trim();const error=document.getElementById('reviewError');if(!approve&&!note){error.textContent='退回修改必须填写审核意见';return}try{await api(`/api/derivation/capabilities/${encodeURIComponent(state.reviewCapability)}/${approve?'approve':'reject'}`,{method:'POST',body:JSON.stringify({note})});closeDialog('reviewDialog');await refreshDetail();await loadTasks()}catch(value){error.textContent=value.message}}
+function resizeComposer(node){node.style.height='auto';node.style.height=Math.min(node.scrollHeight,150)+'px'}
+function composerKey(event){if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}}
+function addFiles(files){for(const file of files)state.attachments.push(file);document.getElementById('fileInput').value='';renderAttachments()}
+function renderAttachments(){document.getElementById('attachmentList').innerHTML=state.attachments.map((file,index)=>`<span class="attachment">${esc(file.name)} <button aria-label="移除附件" onclick="removeAttachment(${index})">×</button></span>`).join('')}
+function removeAttachment(index){state.attachments.splice(index,1);renderAttachments()}
+function bytesToBase64(bytes){let binary='';const size=0x8000;for(let i=0;i<bytes.length;i+=size)binary+=String.fromCharCode(...bytes.subarray(i,i+size));return btoa(binary)}
+async function sendMessage(){if(!state.selected)return;const input=document.getElementById('messageInput');const content=input.value.trim();if(!content&&!state.attachments.length)return;const button=document.getElementById('sendButton');button.disabled=true;try{const attachments=[];for(const file of state.attachments){attachments.push({filename:file.name,kind:'user_attachment',content_base64:bytesToBase64(new Uint8Array(await file.arrayBuffer()))})}await api(`/api/derivation/tasks/${encodeURIComponent(state.selected)}/messages`,{method:'POST',body:JSON.stringify({content,attachments})});input.value='';resizeComposer(input);state.attachments=[];renderAttachments();await refreshDetail(true);await loadTasks()}catch(error){alert(error.message)}finally{button.disabled=false}}
+function openImport(){state.importPreview=null;document.getElementById('packagePath').value='';document.getElementById('importPreview').innerHTML='';document.getElementById('importError').textContent='';document.getElementById('confirmImportButton').disabled=true;document.getElementById('importDialog').showModal()}
+function closeDialog(id){document.getElementById(id).close()}
+async function previewImport(){const path=document.getElementById('packagePath').value.trim();const error=document.getElementById('importError');error.textContent='';try{state.importPreview=await api('/api/derivation/imports/preview',{method:'POST',body:JSON.stringify({package_path:path})});const p=state.importPreview;document.getElementById('importPreview').innerHTML=`<div class="preview"><strong>${esc(p.request_id)}</strong><span>${p.artifacts.length} 项登记材料 · SHA-256 ${esc(p.package_hash.slice(0,16))}</span><span>${p.unlisted_files.length?`${p.unlisted_files.length} 个未登记文件不会导入`:'没有未登记文件'}</span>${p.artifacts.map(item=>`<code>${esc(item.role)} · ${esc(item.relative_path)}</code>`).join('')}</div>`;document.getElementById('confirmImportButton').disabled=false}catch(value){state.importPreview=null;error.textContent=value.message;document.getElementById('confirmImportButton').disabled=true}}
+async function confirmImport(){if(!state.importPreview)return;const path=document.getElementById('packagePath').value.trim();try{const task=await api('/api/derivation/imports',{method:'POST',body:JSON.stringify({package_path:path,expected_hash:state.importPreview.package_hash})});closeDialog('importDialog');await loadTasks();await selectTask(task.id)}catch(error){document.getElementById('importError').textContent=error.message}}
+function editAcceptance(key=''){const current=(state.detail.acceptance_tests||[]).find(item=>item.stable_key===key);document.getElementById('acceptanceTitle').textContent=current?'编辑验收项':'新增验收项';document.getElementById('acceptanceKey').value=current?.stable_key||'';document.getElementById('acceptanceKey').disabled=!!current;document.getElementById('acceptanceName').value=current?.name||'';document.getElementById('acceptancePurpose').value=current?.purpose||'';document.getElementById('acceptanceAssertion').value=JSON.stringify(current?.assertion||{path:'status',operator:'eq',value:'satisfied'},null,2);document.getElementById('acceptanceEnabled').checked=current?.enabled??true;document.getElementById('acceptanceBlocking').checked=current?.blocking??true;document.getElementById('acceptanceReason').value='';document.getElementById('acceptanceError').textContent='';document.getElementById('acceptanceDialog').showModal()}
+async function saveAcceptance(){const error=document.getElementById('acceptanceError');error.textContent='';try{const definition={stable_key:document.getElementById('acceptanceKey').value.trim(),name:document.getElementById('acceptanceName').value.trim(),purpose:document.getElementById('acceptancePurpose').value.trim(),enabled:document.getElementById('acceptanceEnabled').checked,blocking:document.getElementById('acceptanceBlocking').checked,user_confirmed:true,assertion:JSON.parse(document.getElementById('acceptanceAssertion').value)};await api(`/api/derivation/tasks/${encodeURIComponent(state.selected)}/acceptance-tests`,{method:'POST',body:JSON.stringify({definition,reason:document.getElementById('acceptanceReason').value.trim()})});closeDialog('acceptanceDialog');await refreshDetail()}catch(value){error.textContent=value.message}}
+async function confirmAcceptance(key){try{await api(`/api/derivation/tasks/${encodeURIComponent(state.selected)}/acceptance-tests/${encodeURIComponent(key)}/confirm`,{method:'POST',body:'{}'});await refreshDetail()}catch(error){alert(error.message)}}
+async function boot(){await loadConfig();await loadTasks();state.taskTimer=setInterval(async()=>{await loadTasks();if(state.selected)await refreshDetail()},2500)}
+boot().catch(error=>{document.getElementById('taskList').innerHTML=`<div class="error">${esc(error.message)}</div>`});
+</script>
+</body>
+</html>

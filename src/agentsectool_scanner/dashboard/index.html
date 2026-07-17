@@ -65,6 +65,8 @@
   .info-dot{width:15px;height:15px;border-radius:50%;border:1.5px solid var(--indigo);color:var(--indigo);font-size:10px;display:inline-flex;align-items:center;justify-content:center;font-weight:600;}
   .tabs{display:flex;gap:22px;align-items:center;border-bottom:1px solid var(--line);margin-bottom:22px;}
   .tab{padding:9px 1px;color:var(--ink-strong);font-size:14px;font-weight:600;cursor:default;letter-spacing:.04em;}
+  a.tab{text-decoration:none;cursor:pointer;color:var(--muted);}
+  a.tab:hover{color:var(--ink-strong);}
   /* 时间窗口选择器：与「总览」同一基线、统一字号梯度，整组对齐不参差 */
   .winpick{display:flex;align-items:center;gap:10px;height:34px;}
   .winpick > *{display:flex;align-items:center;height:100%;}
@@ -207,6 +209,17 @@
   .summary-line{background:rgba(118,120,174,.12);border:1px solid var(--hair);border-radius:6px;padding:12px 14px;margin-top:14px;}
   .summary-line h5{margin:0 0 6px;font-size:11px;color:var(--indigo);font-weight:600;text-transform:uppercase;letter-spacing:.05em;}
   .summary-line p{margin:0;font-size:12.5px;color:var(--ink);line-height:1.65;}
+  .fact-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:14px;}
+  .fact-group{border:1px solid var(--line);border-radius:6px;overflow:hidden;background:rgba(26,32,54,.42);}
+  .fact-group h5{margin:0;padding:9px 11px;border-bottom:1px solid var(--hair);font-size:12px;color:var(--ink-strong);}
+  .fact-row{display:grid;grid-template-columns:minmax(110px,.8fr) minmax(0,1.2fr);gap:10px;padding:7px 11px;font-size:12px;line-height:1.5;}
+  .fact-row + .fact-row{border-top:1px solid var(--hair);}
+  .fact-row span:first-child{font-family:var(--mono);color:var(--muted);overflow-wrap:anywhere;}
+  .fact-row code{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink);}
+  .relation-list{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px;}
+  .relation{display:inline-flex;gap:7px;align-items:center;border:1px solid var(--line);border-radius:5px;padding:5px 9px;font-size:12px;}
+  .relation code{color:var(--ink-strong);}
+  .relation b{font-size:11px;color:var(--muted);font-weight:600;}
   /* 测试项说明段：淡紫底，和原始请求/响应区分开 */
   .probe-body .seg.desc{background:rgba(122,112,255,.10);}
   .probe-body .seg.desc p{margin:0;font-size:12.5px;line-height:1.65;color:var(--ink);
@@ -254,6 +267,7 @@
 
   <div class="tabs">
     <div class="tab active">总览</div>
+    <a class="tab" href="/derivation">测绘能力派生</a>
     <div class="winpick">
       <span class="winlabel">时间窗口</span>
       <input type="date" id="winStart" onchange="applyWindow()">
@@ -490,6 +504,47 @@ function toggleReport(tr){
   loadReport(row.querySelector('.report'), assetType, ip, port);
 }
 
+function factAt(value,path){
+  return String(path||'').split('.').filter(Boolean).reduce((current,key)=>
+    current && typeof current==='object' && Object.prototype.hasOwnProperty.call(current,key)
+      ? current[key] : undefined, value);
+}
+function displayValue(value){
+  if(value===undefined || value===null || value==='') return '—';
+  return typeof value==='string' ? value : JSON.stringify(value,null,2);
+}
+function renderDynamicReport(d){
+  const facts=d.facts||{};
+  const templates=(d.display_templates||[]).filter(item=>item && typeof item==='object');
+  const groups=(templates.length?templates:[{title:'实例事实',facts:Object.keys(facts)}]).map(template=>{
+    const fields=Array.isArray(template.facts)?template.facts:[];
+    const rows=(fields.length?fields:Object.keys(facts)).map(path=>
+      `<div class="fact-row"><span>${esc(path)}</span><code>${esc(displayValue(factAt(facts,path)))}</code></div>`
+    ).join('') || '<div class="fact-row"><span>—</span><code>无已归档事实</code></div>';
+    return `<section class="fact-group"><h5>${esc(template.title||'实例事实')}</h5>${rows}</section>`;
+  }).join('');
+  const statusLabel={satisfied:'满足',not_satisfied:'不满足',unknown:'未知',error:'执行错误'};
+  const tests=(d.project_tests||[]).map(test=>`
+    <div class="probe">
+      <div class="probe-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="caret">&gt;</span><span class="pname">${esc(test.test_id)}</span>
+        <span class="hit ${test.status==='satisfied'?'y':'n'}">${esc(statusLabel[test.status]||test.status)}</span>
+      </div>
+      <div class="probe-body">
+        <div class="seg"><h5>事实</h5><pre>${esc(JSON.stringify(test.facts||{},null,2))}</pre></div>
+        <div class="seg"><h5>证据</h5><pre>${esc(JSON.stringify(test.evidence||[],null,2))}</pre></div>
+        ${test.error!==null&&test.error!==undefined?`<div class="seg"><h5>错误</h5><pre>${esc(displayValue(test.error))}</pre></div>`:''}
+      </div>
+    </div>`).join('');
+  const vulnerabilityLabel={applicable:'适用',not_applicable:'不适用',unknown:'未知'};
+  const relations=(d.vulnerability_matches||[]).map(item=>
+    `<span class="relation"><code>${esc(item.vulnerability_id)}</code><b>${esc(vulnerabilityLabel[item.status]||item.status)}</b></span>`
+  ).join('') || '<span class="loading">无漏洞关联结果</span>';
+  return `<p class="report-title">实例事实</p><div class="fact-groups">${groups}</div>
+    <p class="report-title">漏洞关联</p><div class="relation-list">${relations}</div>
+    <p class="report-title">项目测试项</p>${tests||'<div class="loading">无项目测试结果</div>'}`;
+}
+
 async function loadReport(box, assetType, ip, port){
   let d;
   try{ d = await getJSON(`/api/report?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}${assetType?`&asset_type=${encodeURIComponent(assetType)}`:''}`); }
@@ -528,6 +583,10 @@ async function loadReport(box, assetType, ip, port){
       </div>
     </div>`;}).join('');
   const verNote = d.version_note ? `<div class="ver-note">${esc(d.version_note)}</div>` : '';
+  if((d.asset_type||'openclaw')!=='openclaw'){
+    box.innerHTML=meta+verNote+renderDynamicReport(d);
+    return;
+  }
   // 研判小结：达标逻辑（C1/C2/C3、证据级别）收口在探针之后讲一次
   const summary = d.summary ? `<div class="summary-line"><h5>研判小结</h5><p>${esc(d.summary)}</p></div>` : '';
   box.innerHTML = meta + verNote
