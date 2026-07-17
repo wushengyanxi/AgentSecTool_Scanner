@@ -9,12 +9,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/wushengyanxi/agentsectool-scanner/prober/detectors"
+	"github.com/wushengyanxi/agentsectool-scanner/prober/detectors/dynamic"
 	_ "github.com/wushengyanxi/agentsectool-scanner/prober/detectors/openclaw"
 	"github.com/wushengyanxi/agentsectool-scanner/prober/targeting"
 )
@@ -23,33 +26,53 @@ func main() {
 	cfg := loadConfig()
 
 	var (
-		assetType   = flag.String("type", "openclaw", "资产类型（如 openclaw）")
-		portsArg    = flag.String("port", "", "端口，逗号分隔多个（默认取探测器默认端口；config.toml 可覆盖）")
-		conc        = flag.Int("concurrency", int(cfg.concurrency), "全局并发探测数")
-		timeout     = flag.Duration("timeout", cfg.timeoutPerIP, "单目标探测超时")
-		deadline    = flag.Duration("deadline", cfg.deadline, "整个任务的总时长上限（0=不限）")
-		rate        = flag.Int("rate", int(cfg.rate), "单个目标 IP 的每秒发包上限（0=不限）")
-		logFlag     = flag.Bool("l", cfg.verbose > 0, "详细日志：打印每个目标的完整研判依据（由探测器结果提供）")
-		fpPath      = flag.String("fingerprints", "", "指纹库 JSON 路径（探测器可选择使用）")
-		outPath     = flag.String("o", "", "JSONL 输出文件；缺省不落盘")
-		tlsOn       = flag.Bool("tls", false, "强制所有目标用 TLS（缺省按端口自动）")
-		skipUnreach = flag.Bool("skip-unreachable", false, "不落盘探不到的目标（timeout/refused/unreachable/down）")
-		progress    = flag.Bool("progress", false, "单行刷新进度（替代逐行输出）")
-		listTypes   = flag.Bool("list-types", false, "列出已注册资产类型并退出")
+		assetType    = flag.String("type", "openclaw", "资产类型（如 openclaw）")
+		portsArg     = flag.String("port", "", "端口，逗号分隔多个（默认取探测器默认端口；config.toml 可覆盖）")
+		conc         = flag.Int("concurrency", int(cfg.concurrency), "全局并发探测数")
+		timeout      = flag.Duration("timeout", cfg.timeoutPerIP, "单目标探测超时")
+		deadline     = flag.Duration("deadline", cfg.deadline, "整个任务的总时长上限（0=不限）")
+		rate         = flag.Int("rate", int(cfg.rate), "单个目标 IP 的每秒发包上限（0=不限）")
+		logFlag      = flag.Bool("l", cfg.verbose > 0, "详细日志：打印每个目标的完整研判依据（由探测器结果提供）")
+		fpPath       = flag.String("fingerprints", "", "指纹库 JSON 路径（探测器可选择使用）")
+		outPath      = flag.String("o", "", "JSONL 输出文件；缺省不落盘")
+		tlsOn        = flag.Bool("tls", false, "强制所有目标用 TLS（缺省按端口自动）")
+		skipUnreach  = flag.Bool("skip-unreachable", false, "不落盘探不到的目标（timeout/refused/unreachable/down）")
+		progress     = flag.Bool("progress", false, "单行刷新进度（替代逐行输出）")
+		listTypes    = flag.Bool("list-types", false, "列出已注册资产类型并退出")
+		capabilities = flag.String("capabilities", "src/agentsectool_scanner/derivation/data/capability_packages", "已入仓动态能力目录")
 	)
 	flagArgs, posArgs := splitArgs(os.Args[1:])
 	_ = flag.CommandLine.Parse(flagArgs)
 
 	if *listTypes {
-		for _, t := range detectors.Types() {
+		types := append([]string(nil), detectors.Types()...)
+		if dynamicTypes, err := dynamic.Types(*capabilities); err == nil {
+			types = append(types, dynamicTypes...)
+		}
+		sort.Strings(types)
+		last := ""
+		for _, t := range types {
+			if t == last {
+				continue
+			}
 			fmt.Println(t)
+			last = t
 		}
 		return
 	}
 
-	det, err := detectors.New(*assetType, detectors.Config{FingerprintsPath: *fpPath})
+	var det detectors.Detector
+	var err error
+	if slices.Contains(detectors.Types(), *assetType) {
+		det, err = detectors.New(*assetType, detectors.Config{FingerprintsPath: *fpPath})
+	} else {
+		det, err = dynamic.New(*assetType, *capabilities, *conc)
+	}
 	if err != nil {
 		fail(err)
+	}
+	if closer, ok := det.(detectors.Closer); ok {
+		defer closer.Close()
 	}
 
 	ports := det.DefaultPorts()
@@ -225,6 +248,7 @@ var valueFlags = map[string]bool{
 	"-concurrency": true, "--concurrency": true, "-timeout": true, "--timeout": true,
 	"-deadline": true, "--deadline": true, "-rate": true, "--rate": true,
 	"-fingerprints": true, "--fingerprints": true, "-o": true,
+	"-capabilities": true, "--capabilities": true,
 }
 
 func splitArgs(args []string) (flags, pos []string) {

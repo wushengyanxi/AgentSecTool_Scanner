@@ -52,6 +52,11 @@ type Detector interface {
 	Probe(ctx context.Context, target Target, opts ProbeOptions) (any, error)
 }
 
+// Closer is implemented by detectors that own worker processes.
+type Closer interface {
+	Close() error
+}
+
 // Factory creates a configured detector instance.
 type Factory func(Config) (Detector, error)
 

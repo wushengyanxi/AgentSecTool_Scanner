@@ -73,3 +73,44 @@ CREATE TABLE IF NOT EXISTS probe_records (
 CREATE INDEX IF NOT EXISTS idx_obs_asset ON observations(asset_id);
 CREATE INDEX IF NOT EXISTS idx_obs_ts ON observations(ts);
 CREATE INDEX IF NOT EXISTS idx_probe_obs ON probe_records(observation_id);
+
+-- 动态能力的项目测试事实。一个观测可包含多个独立项目测试结果。
+CREATE TABLE IF NOT EXISTS project_test_results (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  observation_id INTEGER NOT NULL,
+  test_id        TEXT NOT NULL,
+  status         TEXT NOT NULL,       -- satisfied | not_satisfied | unknown | error
+  facts          TEXT NOT NULL,       -- JSON object
+  evidence       TEXT NOT NULL,       -- JSON array
+  error          TEXT,                -- JSON scalar/object or text
+  FOREIGN KEY (observation_id) REFERENCES observations(id)
+);
+CREATE INDEX IF NOT EXISTS idx_project_test_obs ON project_test_results(observation_id);
+CREATE INDEX IF NOT EXISTS idx_project_test_id_status ON project_test_results(test_id, status);
+
+-- 多个项目测试项聚合后的实例事实；冲突事实保存在 _conflicts 字段中。
+CREATE TABLE IF NOT EXISTS observation_facts (
+  observation_id INTEGER PRIMARY KEY,
+  facts          TEXT NOT NULL,       -- JSON object
+  FOREIGN KEY (observation_id) REFERENCES observations(id)
+);
+
+-- 由能力包规则对已收录实例事实计算的漏洞适用性。
+CREATE TABLE IF NOT EXISTS vulnerability_matches (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  observation_id   INTEGER NOT NULL,
+  vulnerability_id TEXT NOT NULL,
+  status           TEXT NOT NULL,     -- applicable | not_applicable | unknown
+  rule             TEXT NOT NULL,     -- JSON object
+  evidence         TEXT NOT NULL,     -- JSON object
+  FOREIGN KEY (observation_id) REFERENCES observations(id)
+);
+CREATE INDEX IF NOT EXISTS idx_vuln_match_obs ON vulnerability_matches(observation_id);
+CREATE INDEX IF NOT EXISTS idx_vuln_match_lookup ON vulnerability_matches(vulnerability_id, status);
+
+-- 动态能力为该观测声明的展示模板。模板与事实分开保存，避免展示层改写事实。
+CREATE TABLE IF NOT EXISTS observation_presentations (
+  observation_id INTEGER PRIMARY KEY,
+  template       TEXT NOT NULL,       -- JSON array
+  FOREIGN KEY (observation_id) REFERENCES observations(id)
+);

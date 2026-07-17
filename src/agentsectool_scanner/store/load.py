@@ -196,6 +196,73 @@ def classify(r: dict):
     return None  # error_type=timeout/down/... 或纯无命中 → 不收录
 
 
+def _json_path(value, path):
+    current = value
+    if not path:
+        return True, current
+    for part in path.split("."):
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        elif isinstance(current, list) and part.isdigit() and int(part) < len(current):
+            current = current[int(part)]
+        else:
+            return False, None
+    return True, current
+
+
+def _condition_matches(condition, actual):
+    """Evaluate the declarative subset shared by capability and acceptance rules."""
+    if not isinstance(condition, dict):
+        return False
+    if "all" in condition:
+        children = condition["all"]
+        return bool(children) and all(_condition_matches(child, actual) for child in children)
+    if "any" in condition:
+        children = condition["any"]
+        return bool(children) and any(_condition_matches(child, actual) for child in children)
+    if "not" in condition:
+        return not _condition_matches(condition["not"], actual)
+    path = condition.get("path", "")
+    operator = condition.get("operator")
+    expected = condition.get("value")
+    if not isinstance(path, str) or not isinstance(operator, str):
+        return False
+    exists, observed = _json_path(actual, path)
+    if operator == "exists":
+        return exists is bool(expected)
+    if not exists:
+        return False
+    if operator == "eq":
+        return observed == expected
+    if operator == "ne":
+        return observed != expected
+    if operator == "contains":
+        try:
+            return expected in observed
+        except TypeError:
+            return False
+    if operator == "in":
+        try:
+            return observed in expected
+        except TypeError:
+            return False
+    if operator == "ge":
+        try:
+            return observed >= expected
+        except TypeError:
+            return False
+    if operator == "le":
+        try:
+            return observed <= expected
+        except TypeError:
+            return False
+    if operator == "truthy":
+        return bool(observed)
+    if operator == "falsey":
+        return not bool(observed)
+    return False
+
+
 def _snapshot_date(jsonl_path) -> str:
     """第一遍扫描：取整个 jsonl 内所有记录 ts 的日期众数，作为本次快照的基准日期。
 
@@ -309,6 +376,77 @@ def load(db_path: str, jsonl_path) -> int:
                     """,
                     (obs_id, p.get("id"), p.get("request"), p.get("response"),
                      1 if p.get("hit") else 0),
+                )
+            test_results = r.get("test_results") or []
+            for test_result in test_results:
+                if not isinstance(test_result, dict) or not test_result.get("test_id"):
+                    continue
+                error = test_result.get("error")
+                conn.execute(
+                    """
+                    INSERT INTO project_test_results
+                      (observation_id, test_id, status, facts, evidence, error)
+                    VALUES (?,?,?,?,?,?)
+                    """,
+                    (
+                        obs_id,
+                        test_result.get("test_id"),
+                        test_result.get("status") or "unknown",
+                        json.dumps(test_result.get("facts") or {}, ensure_ascii=False),
+                        json.dumps(test_result.get("evidence") or [], ensure_ascii=False),
+                        None if error is None else json.dumps(error, ensure_ascii=False),
+                    ),
+                )
+            aggregate_facts = r.get("facts")
+            if isinstance(aggregate_facts, dict) and test_results:
+                conn.execute(
+                    "INSERT INTO observation_facts (observation_id, facts) VALUES (?, ?)",
+                    (obs_id, json.dumps(aggregate_facts, ensure_ascii=False)),
+                )
+            rule_context = {
+                "facts": aggregate_facts or {},
+                "test_results": test_results,
+                "matched": r.get("matched") or [],
+                "version": r.get("version"),
+            }
+            has_indeterminate_test = any(
+                isinstance(item, dict) and item.get("status") in {"unknown", "error"}
+                for item in test_results
+            ) or bool(r.get("error_type")) or bool(rule_context["facts"].get("_conflicts"))
+            for rule in r.get("vulnerability_rules") or []:
+                if not isinstance(rule, dict) or not rule.get("vulnerability_id"):
+                    continue
+                condition = rule.get("condition") or {}
+                matched = _condition_matches(condition, rule_context)
+                status = "applicable" if matched else (
+                    "unknown" if has_indeterminate_test else "not_applicable"
+                )
+                conn.execute(
+                    """
+                    INSERT INTO vulnerability_matches
+                      (observation_id, vulnerability_id, status, rule, evidence)
+                    VALUES (?,?,?,?,?)
+                    """,
+                    (
+                        obs_id,
+                        rule.get("vulnerability_id"),
+                        status,
+                        json.dumps(rule, ensure_ascii=False),
+                        json.dumps(rule_context, ensure_ascii=False),
+                    ),
+                )
+            display_templates = r.get("display_templates")
+            if not isinstance(display_templates, list):
+                legacy_template = r.get("display_template")
+                display_templates = [legacy_template] if isinstance(legacy_template, dict) else []
+            display_templates = [
+                item for item in display_templates if isinstance(item, dict)
+            ]
+            if display_templates:
+                conn.execute(
+                    """INSERT INTO observation_presentations (observation_id, template)
+                       VALUES (?, ?)""",
+                    (obs_id, json.dumps(display_templates, ensure_ascii=False)),
                 )
             n += 1
         conn.commit()
