@@ -4,6 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AgentSecTool Scanner — 项目文档</title>
+<script>
+  (function(){
+    var key="doc-theme";
+    var saved="";
+    try{saved=localStorage.getItem(key)||"";}catch(e){}
+    var dark=false;
+    try{dark=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches;}catch(e){}
+    document.documentElement.setAttribute("data-theme",saved||(dark?"dark":"light"));
+    window.toggleDocTheme=function(){
+      var root=document.documentElement;
+      var next=root.getAttribute("data-theme")==="dark"?"light":"dark";
+      root.setAttribute("data-theme",next);
+      try{localStorage.setItem(key,next);}catch(e){}
+    };
+  })();
+</script>
 <style>
   :root{
     --bg:#ffffff; --fg:#1f2328; --fg-muted:#59636e; --fg-faint:#818b98;
@@ -12,9 +28,18 @@
     /* 正文全灰度：callout/badge 一律灰底灰框，靠标题文字区分；唯一彩色是链接蓝 */
     --co-bg:#f6f8fa; --co-bd:#d1d9e0; --co-ct:#1f2328;
     --co-bg-strong:#eaedf1; --co-bd-strong:#afb8c1;
+    --panel-bg:#fcfdfe; --card-bg:#ffffff; --hover-bg:#eaeef2; --code-fg:#1f2328;
     --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Helvetica,Arial,sans-serif;
     --nav-w:280px; --maxw:1180px;
+  }
+  html[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#1b1b1b; --fg:#d8d8d8; --fg-muted:#bcbcbc; --fg-faint:#8f8f8f;
+    --border:#3a3a3a; --border-soft:#303030; --code-bg:#242424; --nav-bg:#171717;
+    --link:#9ab4f8; --accent:#d8d8d8; --co-bg:#1d1d1d; --co-bd:#3a3a3a;
+    --co-ct:#d8d8d8; --co-bg-strong:#242424; --co-bd-strong:#4a4a4a;
+    --panel-bg:#1d1d1d; --card-bg:#202020; --hover-bg:#2b2b2b; --code-fg:#d8d8d8;
   }
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth; scroll-padding-top:16px;}
@@ -25,41 +50,38 @@
   .layout{display:flex; align-items:flex-start;}
   nav.side{position:sticky; top:0; height:100vh; width:var(--nav-w); flex:0 0 var(--nav-w);
     overflow-y:auto; background:var(--nav-bg); border-right:1px solid var(--border);
-    padding:20px 14px 60px;}
+    padding:44px 14px 60px;}
   nav.side .brand{font-weight:700; font-size:15px; padding:4px 10px 14px; color:var(--fg);}
   nav.side .brand small{display:block; font-weight:400; font-size:12px; color:var(--fg-muted); margin-top:3px;}
   nav.side a{display:block; padding:5px 10px; color:var(--fg-muted); text-decoration:none;
     border-radius:6px; font-size:13.5px; line-height:1.4;}
-  nav.side a:hover{background:#eaeef2; color:var(--fg);}
-  nav.side a.active{background:#dde3ea; color:var(--fg); font-weight:600;}
+  nav.side a:hover{background:var(--hover-bg); color:var(--fg);}
+  nav.side a.active{background:var(--hover-bg); color:var(--fg); font-weight:600;}
   nav.side .grp{font-size:11px; text-transform:uppercase; letter-spacing:.05em;
     color:var(--fg-faint); padding:16px 10px 4px; font-weight:600;}
 
   main{flex:1 1 auto; min-width:0; padding:40px 56px 120px; max-width:calc(var(--maxw) + 112px);}
   .wrap{max-width:var(--maxw);}
 
-  h1{font-size:38px; font-weight:700; line-height:1.2; margin:0 0 10px; letter-spacing:-.02em;}
+  h1{font-size:30px; font-weight:700; line-height:1.2; margin:0 0 10px; letter-spacing:0;}
   h2{font-size:27px; font-weight:700; line-height:1.3; margin:54px 0 16px; padding-bottom:8px;
-    border-bottom:1px solid var(--border-soft); scroll-margin-top:16px; letter-spacing:-.01em;}
+    border-bottom:1px solid var(--border-soft); scroll-margin-top:16px; letter-spacing:0;}
   h3{font-size:19px; font-weight:600; margin:30px 0 11px;}
   h4{font-size:14px; font-weight:600; margin:20px 0 8px; color:var(--fg-muted); text-transform:none;}
-  /* 一级章节(h2)之后的正文整体左缩进，与标题拉开层次 */
-  section > :not(h2):not(h1){margin-left:18px;}
-  section > h2{margin-left:0;}
-  p{margin:0 0 13px;}
+  p{margin:0 0 13px; text-indent:2em;}
   a{color:var(--link); text-decoration:none;} a:hover{text-decoration:underline;}
   ul,ol{margin:0 0 13px; padding-left:24px;} li{margin:3px 0;}
   strong{font-weight:600; color:var(--fg);}
   hr{border:0; border-top:1px solid var(--border-soft); margin:36px 0;}
 
   code{font-family:var(--mono); font-size:85%; background:var(--code-bg);
-    padding:.15em .4em; border-radius:5px; color:#1f2328;}
+    padding:.15em .4em; border-radius:5px; color:var(--code-fg);}
   pre{background:var(--code-bg); border:1px solid var(--border-soft); border-radius:8px;
     padding:14px 16px; overflow-x:auto; margin:0 0 14px; position:relative;}
   pre code{background:none; padding:0; font-size:12.5px; line-height:1.6; display:block;}
   .copy-btn{position:absolute; top:8px; right:8px; font-family:var(--sans); font-size:11px;
-    background:#fff; border:1px solid var(--border); border-radius:6px; padding:3px 9px;
-    cursor:pointer; color:var(--fg-muted); opacity:0; transition:opacity .12s;}
+    background:var(--card-bg); border:1px solid var(--border); border-radius:6px; padding:3px 9px;
+    cursor:pointer; color:var(--fg-muted); opacity:0;}
   pre:hover .copy-btn{opacity:1;} .copy-btn:hover{background:var(--code-bg); color:var(--fg);}
   .copy-btn.copied{color:var(--ok); border-color:var(--ok-bd);}
 
@@ -75,6 +97,7 @@
     padding:12px 16px; margin:0 0 16px; border-left-width:4px; border-left-color:var(--co-bd-strong); font-size:14px;}
   .callout .ct{font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em;
     margin:0 0 6px; display:flex; align-items:center; gap:6px; color:var(--co-ct);}
+  .callout p{ text-indent:0; }
   .callout p:last-child{margin-bottom:0;}
   /* 危险/警示靠更深的灰底与左边框，而非红色 */
   .callout.danger,.callout.warn{background:var(--co-bg-strong); border-left-color:#6e7781;}
@@ -89,13 +112,13 @@
   .tbl-wrap table td:first-child{white-space:nowrap;}
 
   /* 卡片（模块卡/规则卡/命令卡/数据卡/配置卡） */
-  .card{border:1px solid var(--border); border-radius:8px; margin:0 0 18px; overflow:hidden;}
+  .card{border:1px solid var(--border); border-radius:8px; margin:0 0 18px; overflow:hidden; background:var(--card-bg);}
   .card>.hd{background:var(--code-bg); padding:10px 16px; border-bottom:1px solid var(--border-soft);
     display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
   .card>.hd .nm{font-family:var(--mono); font-weight:600; font-size:14px;}
   .card>.bd{padding:4px 0;}
   .card dl{display:grid; grid-template-columns:160px 1fr; margin:0;}
-  .card dt{font-weight:600; font-size:12.5px; color:var(--fg-muted); padding:7px 16px; border-bottom:1px solid var(--border-soft); background:#fcfdfe;}
+  .card dt{font-weight:600; font-size:12.5px; color:var(--fg-muted); padding:7px 16px; border-bottom:1px solid var(--border-soft); background:var(--panel-bg);}
   .card dd{margin:0; padding:7px 16px; font-size:13.5px; border-bottom:1px solid var(--border-soft);}
   .card dl>dt:last-of-type,.card dl>dd:last-of-type{border-bottom:none;}
   .card dd code{font-size:12px;}
@@ -107,26 +130,39 @@
   .toplink{display:inline-block; font-size:12px; color:var(--fg-faint); margin-left:8px;}
 
   /* 数据流 SVG */
-  .diagram{border:1px solid var(--border); border-radius:8px; padding:18px; overflow-x:auto; background:#fcfdfe; margin:0 0 8px;}
+  .diagram{border:1px solid var(--border); border-radius:8px; padding:18px; overflow-x:auto; background:var(--panel-bg); margin:0 0 8px;}
   .diagram svg{display:block; min-width:720px; width:100%; height:auto;}
-  .caption{font-size:12.5px; color:var(--fg-muted); margin:8px 2px 18px; line-height:1.6;}
+  .caption{font-size:12.5px; color:var(--fg-muted); margin:8px 2px 18px; line-height:1.6; text-indent:0;}
 
   .lead{font-size:16px; color:var(--fg-muted); line-height:1.6; margin:0 0 20px;}
   .keyval{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:0 0 20px;}
-  .keyval .kv{border:1px solid var(--border); border-radius:8px; padding:12px 14px; background:#fcfdfe;}
+  .keyval .kv{border:1px solid var(--border); border-radius:8px; padding:12px 14px; background:var(--panel-bg);}
   .keyval .kv .k{font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--fg-faint); font-weight:600; margin-bottom:4px;}
   .keyval .kv .v{font-size:13.5px; color:var(--fg);}
 
   footer{margin-top:48px; padding-top:20px; border-top:1px solid var(--border-soft);
     font-size:12.5px; color:var(--fg-faint);}
+  footer p{ text-indent:0; }
+  .theme-toggle{position:fixed;top:10px;left:12px;z-index:80;border:0;background:transparent;
+    color:var(--fg-muted);font-family:var(--mono);font-size:13px;line-height:1;padding:5px 6px;cursor:pointer;}
+  html[data-theme="dark"] .diagram .arch-title,
+  html[data-theme="dark"] .diagram .arch-label,
+  html[data-theme="dark"] .diagram .arch-section{fill:#d8d8d8!important;}
+  html[data-theme="dark"] .diagram .arch-code,
+  html[data-theme="dark"] .diagram .arch-small{fill:#bcbcbc!important;}
+  html[data-theme="dark"] .diagram .arch-box{fill:#202020!important;stroke:#d8d8d8!important;}
+  html[data-theme="dark"] .diagram .arch-soft{fill:#242424!important;stroke:#d8d8d8!important;}
+  html[data-theme="dark"] .diagram .arch-boundary{stroke:#8f8f8f!important;}
+  html[data-theme="dark"] .diagram .arch-arrow,
+  html[data-theme="dark"] .diagram marker path{stroke:#d8d8d8!important;}
 
   /* 移动端 */
   .nav-toggle{display:none;}
   @media(max-width:900px){
-    nav.side{position:fixed; left:0; top:0; z-index:50; transform:translateX(-100%); transition:transform .2s; box-shadow:2px 0 12px rgba(0,0,0,.1);}
+    nav.side{position:fixed; left:0; top:0; z-index:50; transform:translateX(-100%);}
     body.nav-open nav.side{transform:translateX(0);}
     main{padding:60px 20px 100px;}
-    .nav-toggle{display:inline-flex; position:fixed; top:12px; left:12px; z-index:60;
+    .nav-toggle{display:inline-flex; position:fixed; top:12px; left:54px; z-index:60;
       background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:7px 11px;
       font-family:var(--sans); font-size:13px; cursor:pointer; align-items:center; gap:6px;}
     .card dl{grid-template-columns:1fr;}
@@ -140,59 +176,62 @@
 </style>
 </head>
 <body>
-<button class="nav-toggle" onclick="document.body.classList.toggle('nav-open')">☰ 目录</button>
+<button class="theme-toggle" type="button" onclick="window.toggleDocTheme()" aria-label="切换明暗模式" title="切换明暗模式">L/D</button>
+<button class="nav-toggle" onclick="document.body.classList.toggle('nav-open')">目录</button>
 <div class="layout">
 <nav class="side" id="sidenav">
   <div class="brand">AgentSecTool Scanner<small>资产测绘平台 · 项目文档</small></div>
-  <a href="#overview">概览 Overview</a>
-  <a href="#asset-detectors">资产类型与探测器 Asset Detectors</a>
-  <a href="#quickstart">快速开始 Quickstart</a>
-  <a href="#architecture">架构 Architecture</a>
-  <a href="#concepts">核心概念 Core Concepts</a>
-  <a href="#workflows">工作流 Workflows</a>
-  <a href="#rules">判定与决策规则 Rules</a>
-  <a href="#narrative">研判依据拼接 Narrative</a>
-  <a href="#data-model">数据模型 Data Model</a>
-  <a href="#configuration">配置 Configuration</a>
-  <a href="#commands">命令参考 Commands</a>
-  <a href="#frontend">前端看板 Frontend</a>
-  <a href="#validation">验证 Validation</a>
-  <a href="#troubleshooting">失败与排错 Troubleshooting</a>
-  <a href="#security">安全与运营边界 Security</a>
-  <a href="#maintenance">维护 Maintenance</a>
-  <a href="#agent">智能体须知 Agent Instructions</a>
-  <a href="#limitations">已知限制 / TODO</a>
+  <a href="#overview">项目概览</a>
+  <a href="#asset-detectors">资产类型与探测器</a>
+  <a href="#derivation">测绘能力派生</a>
+  <a href="#quickstart">快速开始</a>
+  <a href="#architecture">系统架构</a>
+  <a href="#concepts">核心概念</a>
+  <a href="#workflows">工作流</a>
+  <a href="#rules">判定与决策规则</a>
+  <a href="#narrative">研判依据拼接</a>
+  <a href="#data-model">数据模型</a>
+  <a href="#configuration">配置</a>
+  <a href="#commands">命令参考</a>
+  <a href="#frontend">前端与看板</a>
+  <a href="#validation">验证</a>
+  <a href="#troubleshooting">失败与排错</a>
+  <a href="#security">安全与运营边界</a>
+  <a href="#maintenance">维护</a>
+  <a href="#limitations">运行限制</a>
 </nav>
 <main>
 <div class="wrap">
 
 <!-- ========== OVERVIEW ========== -->
 <section id="overview">
-  <h1>AgentSecTool Scanner — 项目文档</h1>
-  <p class="lead">AgentSecTool Scanner 在授权范围内发现公网暴露资产，按资产类型调用探测器，只读地判定目标实例、测定版本并归档，服务于后续的资产测绘与漏洞协同披露。本文档面向维护者和审阅者，说明平台目标、最小闭环、资产类型扩展方式、模块边界、判定规则、测试方法、运行边界与排错路径。</p>
+  <h1>AgentSecTool Scanner：项目文档</h1>
+  <p class="lead">AgentSecTool Scanner 在授权范围内发现公网暴露资产，调用内置或动态探测器观测目标实例、测定版本并归档项目事实。平台还接收上游漏洞需求，通过持续会话、容器 Harness 和人工审核派生可长期运行的项目测试能力。</p>
 
   <div class="keyval">
-    <div class="kv"><div class="k">一句话定义</div><div class="v">综合资产测绘平台：发现 → 按资产类型探测 → 版本测定 → SQLite 归档 → 看板展示</div></div>
-    <div class="kv"><div class="k">平台形态</div><div class="v">平台级入口按资产类型调度 detector；OpenClaw 是首个内置 detector，既有 OpenClaw 数据与报告逻辑保留兼容</div></div>
-    <div class="kv"><div class="k">技术栈</div><div class="v">Go 1.24（detector 注册表 + assetprobe runner）+ Python 标准库（发现 / 测绘 / 落地 / 看板）+ SQLite + echarts（看板地图）</div></div>
-    <div class="kv"><div class="k">权威数据位置</div><div class="v"><code>src/agentsectool_scanner/store/data/scan_results.sqlite</code>（扫描结果，101MB，已 gitignore）</div></div>
+    <div class="kv"><div class="k">平台主链路</div><div class="v">发现 → 按资产类型探测 → 项目事实与版本归档 → 看板展示</div></div>
+    <div class="kv"><div class="k">能力生产链路</div><div class="v">需求快照 → 智能体派生 → Docker Harness → 人工审核 → 动态能力仓</div></div>
+    <div class="kv"><div class="k">平台形态</div><div class="v">平台入口同时加载内置 detector 和已审核容器 worker；OpenClaw 是内置分支</div></div>
+    <div class="kv"><div class="k">权威数据位置</div><div class="v"><code>store/data/scan_results.sqlite</code> 与 <code>derivation/data/derivation.sqlite</code></div></div>
   </div>
 
   <h3>核心能力</h3>
   <ul>
-    <li><strong>平台级探测调度</strong>：<code>assetprobe --type &lt;asset_type&gt;</code> 从注册表选择 detector；当前注册 <code>openclaw</code>。<span class="ev">prober/detectors/, prober/cmd/assetprobe/</span></li>
+    <li><strong>平台级探测调度</strong>：<code>assetprobe --type &lt;asset_type&gt;</code> 从内置注册表或动态能力索引选择 detector。<span class="ev">prober/detectors/, prober/cmd/assetprobe/</span></li>
     <li><strong>只读探测判定</strong>：每个 detector 对单个 IP:端口执行只读探测，输出统一的 <code>asset_type / is_match / category</code> 平台字段；OpenClaw 分支按 C1/C2/C3 二元研判。<span class="ev">prober/openclaw/probe.go, signals.go</span></li>
     <li><strong>版本测定</strong>：OpenClaw 分支优先直读 <code>serverVersion</code>（<code>direct</code>），否则用首页构建产物的资产哈希集合精确匹配指纹库反推（<code>implicit</code> / <code>implicit-range</code>）。<span class="ev">version.go, fingerprints.go</span></li>
     <li><strong>发现层</strong>：主动扫描（masscan / zmap / 内置 async connect）+ 被动种子（FOFA / Shodan），合并去重产出 <code>candidates.csv</code>。<span class="ev">src/agentsectool_scanner/discovery/</span></li>
     <li><strong>落地归档</strong>：<code>results.jsonl</code> → SQLite，按 <code>asset_type:ip:port</code> 去重，入库时按 IP 富化地理位置。<span class="ev">src/agentsectool_scanner/store/load.py</span></li>
-    <li><strong>看板</strong>：纯标准库只读看板，支持时间窗口和资产类型过滤，含可切换世界/中国的 2D 散点地图。<span class="ev">src/agentsectool_scanner/dashboard/</span></li>
+    <li><strong>能力派生</strong>：需求包导入、任务级持续会话、验收项版本、本地 Docker Harness 和候选能力审核共同形成动态项目测试项。<span class="ev">src/agentsectool_scanner/derivation/</span></li>
+    <li><strong>前端</strong>：资产看板提供时间窗口、资产类型、地图和通用事实报告；派生工作台承载需求导入、会话、验收、证据和审核。<span class="ev">src/agentsectool_scanner/dashboard/</span></li>
   </ul>
 
   <h3>核心约束</h3>
   <ul>
     <li><strong>探测全程只读</strong>（函数级有单测固化）：探测只发 HTTP 升级请求与无鉴权 GET，绝不发 WS 数据帧或利用面请求。<span class="ev">ws.go:24-79, probe_test.go:55-89</span> 注：整条 runner 调用链未抓包断言，见 <a href="#validation">验证</a>。</li>
     <li><strong>凭据绝不入库</strong>：FOFA / MaxMind 凭据走 <code>.ini</code> 或环境变量，配置文件已 gitignore。</li>
-    <li><strong>真实数据绝不入库</strong>：各模块 <code>data/</code> / <code>output/</code> 目录含真实暴露主机数据，已 gitignore。</li>
+    <li><strong>能力必须验证后入仓</strong>：动态 worker 经过隔离 Harness、已确认验收项和人工审核后才进入运行索引。</li>
+    <li><strong>真实数据不进入版本库</strong>：各模块 <code>data/</code> 和 <code>output/</code> 目录可能包含暴露主机数据，相应路径已由 Git 忽略。</li>
   </ul>
 
   <h3>非目标</h3>
@@ -201,18 +240,14 @@
     <li><strong>不</strong>把 FOFA / ClawSec 的平台标注当作项目确认事实——它们是外部测绘数据源、只提供候选与平台自己的版本标注。</li>
     <li><strong>不</strong>在平台层硬编码 OpenClaw 规则——OpenClaw 规则只属于 <code>asset_type=openclaw</code> 的 detector 分支。</li>
     <li><strong>不</strong>处理 IPv6（ocprobe 通配枚举只对 IPv4 第三位有意义）。</li>
-    <li>下游的「版本→CVE 映射、协同披露流程」尚未实现，见 <a href="#limitations">已知限制</a>。</li>
+    <li><strong>不</strong>由智能体直接发布能力——智能体只能形成候选，入仓由验证结果和操作人审核共同决定。</li>
   </ul>
 
-  <div class="callout info">
-    <p class="ct">NOTE · 阅读路径</p>
-    <p>维护者可从 <a href="#quickstart">快速开始</a> 跑通本地最小闭环，再读 <a href="#asset-detectors">资产类型与探测器</a> 理解扩展边界，随后进入 <a href="#architecture">架构</a>、<a href="#rules">OpenClaw 判定规则</a> 和 <a href="#troubleshooting">失败与排错</a>。自动化代理相关约束集中在 <a href="#agent">智能体须知</a>。</p>
-  </div>
 </section>
 
 <!-- ========== ASSET DETECTORS ========== -->
 <section id="asset-detectors">
-  <h2>资产类型与探测器 Asset Detectors</h2>
+  <h2>资产类型与探测器</h2>
   <p>平台层负责候选输入、detector 调度、统一结果字段、入库、查询和展示；具体资产类型的探测规则、证据采集、版本测定和报告话术由各自 detector 分支实现。OpenClaw 是当前内置的首个资产类型分支。</p>
 
   <h3>模块职责边界</h3>
@@ -222,17 +257,19 @@
       <tr><td>平台入口</td><td>按 <code>--type</code> 选择资产类型，展开目标、并发、限速、输出 JSONL</td><td><code>prober/cmd/assetprobe</code></td></tr>
       <tr><td>探测器体系根包</td><td>管理接口、asset_type → detector factory 注册表、通用摘要字段</td><td><code>prober/detectors</code></td></tr>
       <tr><td>资产类型分支</td><td>实现只读探测、证据采集、版本测定、detector 专属 JSON</td><td><code>prober/detectors/openclaw</code> + <code>prober/openclaw</code></td></tr>
+      <tr><td>动态能力执行器</td><td>加载已入仓能力索引，维护容器 worker 池并聚合同类项目测试项</td><td><code>prober/detectors/dynamic</code></td></tr>
       <tr><td>落库与看板</td><td>按 <code>asset_type:ip:port</code> 去重；按时间窗口和资产类型查询</td><td><code>src/agentsectool_scanner/store</code>、<code>src/agentsectool_scanner/dashboard</code></td></tr>
     </tbody>
   </table></div>
 
-  <h3>资产类型接入契约</h3>
+  <h3>内置资产类型接入契约</h3>
   <ul>
     <li>在 <code>prober/detectors/&lt;type&gt;/</code> 实现 detector，并通过 <code>detectors.Register()</code> 注册唯一 <code>asset_type</code>。</li>
     <li>结果至少暴露平台字段：<code>asset_type</code>、<code>detector</code>、<code>ip</code>、<code>port</code>、<code>is_match</code>、<code>category</code>、<code>matched</code>、<code>error_type</code>、<code>ts</code>。</li>
     <li><code>category</code> 统一使用 <code>confirmed</code>、<code>confirmed_no_version</code>、<code>suspect</code>；探不到且无命中的记录不入库。</li>
     <li>OpenClaw 的 <code>is_openclaw</code>、<code>rule</code>、C1/C2/C3、T1–T7 是兼容字段和专属规则，不应泄漏成平台通用规则。</li>
   </ul>
+  <p>漏洞需求驱动的项目测试项通过派生工作台接入。每个能力包包含一个独立项目测试项，同一 <code>asset_type</code> 可以登记多个能力包；运行索引以 <code>capability_id</code> 区分项目测试能力，并固定能力 manifest 与容器镜像 digest。</p>
 
   <pre><code>export PYTHONPATH=src:.
 
@@ -244,9 +281,47 @@ prober/bin/assetprobe --type openclaw --fingerprints prober/fingerprints/opencla
 python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/data/scan_results.sqlite</code></pre>
 </section>
 
+<!-- ========== DERIVATION ========== -->
+<section id="derivation">
+  <h2>测绘能力派生</h2>
+  <p>测绘能力派生链路把上游漏洞项目交付的扫描代码和说明文档转化为可持续执行的项目测试项。上游交付保持为独立目录；平台导入登记材料的不可变快照，并在本地派生数据库中管理会话、验收、attempt、Harness 证据、候选能力和审核状态。</p>
+
+  <h3>需求包与补充包</h3>
+  <p>每个需求目录必须包含 <code>manifest.json</code>、一个或多个 UTF-8 代码文件和一个 HTML、Markdown 或纯文本主文档。YAML、配置、日志和样例数据属于可选辅助文件，并由 manifest 的 <code>auxiliary_files</code> 登记。导入器校验安全相对路径、文件存在性和 SHA-256；未登记文件不进入智能体上下文。</p>
+  <pre><code>{
+  "schema_version": "1.0",
+  "request_id": "CVE-EXAMPLE-project-x",
+  "code_files": ["scanner.py"],
+  "document_file": "report.html",
+  "auxiliary_files": [
+    {"path": "environment.yaml", "kind": "environment_hint"}
+  ]
+}</code></pre>
+  <p>任务会话中的附件按消息形成独立补充包。补充包具有自己的文件清单和 hash，不覆盖原始需求快照。用户消息可以提问、补充约束、上传证据或要求智能体根据当前讨论继续执行；运行期间到达的新消息会排队进入同一任务会话。</p>
+
+  <h3>派生、验收与审核</h3>
+  <p>派生智能体读取代码和主文档，生成项目测试项、固定容器 worker、隔离样例环境、漏洞关联规则和展示模板。项目测试项在生产扫描中观测实例事实；验收项只约束候选能力在 Harness 样例中的行为。所有启用验收项必须经操作人确认，智能体不能修改已经确认的验收项。</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>阶段</th><th>主要对象</th><th>准入条件</th></tr></thead>
+    <tbody>
+      <tr><td>需求导入</td><td>原始快照、artifact 清单、任务会话</td><td>manifest、路径和 SHA-256 校验通过</td></tr>
+      <tr><td>候选生成</td><td>attempt、worker、环境、规则、展示模板</td><td>候选文件只写入当前 attempt 工作区</td></tr>
+      <tr><td>容器验收</td><td>Harness run、逐项结果、日志和 trace</td><td>隔离环境中的启用验收项通过</td></tr>
+      <tr><td>候选审核</td><td>能力 manifest、固定镜像 digest、来源证据</td><td>验收项已确认，操作人批准入仓</td></tr>
+      <tr><td>生产执行</td><td>能力索引、长生命周期 worker、项目事实</td><td>运行时镜像 digest 与入仓记录一致</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>多测试项执行</h3>
+  <p>一个能力包承载一个独立项目测试项，同一资产类型可以并存多个能力包。<code>capability_packages/index.json</code> 按 <code>asset_type</code> 保存能力数组；同一 <code>capability_id</code> 的新版本替换旧索引项，不影响同类的其他测试项。动态 detector 聚合各 worker 的状态、事实、证据、版本、漏洞规则和展示模板。冲突事实进入 <code>_conflicts</code>，依赖这些事实的漏洞适用性保持未知。</p>
+
+  <h3>工作台入口</h3>
+  <p><code>http://127.0.0.1:8787/derivation</code> 提供需求导入、任务列表、持续会话、附件补充、验收项编辑、Harness 证据和候选审核。模型配置保存在 Git 忽略的 <code>config/derivation.ini</code>；API key 和项目级外发授权同时有效时，智能体才会向模型服务发送任务材料。工作流的字段、路径、API 和容器约束见<a href="设计文稿/测绘脚本派生工作流详设材料.html">测绘脚本派生工作流详设材料</a>。</p>
+</section>
+
 <!-- ========== QUICKSTART ========== -->
 <section id="quickstart">
-  <h2>快速开始 Quickstart</h2>
+  <h2>快速开始</h2>
   <p>最小可复现闭环。所有命令<strong>在项目根目录</strong>（<code>AgentSecTool_Scanner/</code>）运行——Python 模块以 <code>python3 -m</code> 调用；Makefile 已设 <code>PYTHONPATH</code>，手动执行 Python 命令前先运行 <code>export PYTHONPATH=src:.</code>。在子目录内运行会报 <code>No module named …</code>。</p>
 
   <div class="callout info">
@@ -258,9 +333,9 @@ python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/da
   <pre><code>make test</code></pre>
   <ul>
     <li><strong>运行目录</strong>：项目根 ｜ <strong>写文件/库</strong>：否 ｜ <strong>网络</strong>：否 ｜ <strong>凭据</strong>：否 ｜ <strong>幂等</strong>：是</li>
-    <li><strong>实际执行</strong>：<code>go -C prober build</code> + <code>go -C prober test ./...</code> + <code>python3 -m unittest agentsectool_scanner.discovery.tests.test_discovery agentsectool_scanner.store.tests.test_store agentsectool_scanner.progress.tests.test_blocks tools.fofa.tests.test_pull</code>。<span class="ev">Makefile</span></li>
-    <li><strong>成功标志</strong>：Go 三包 <code>ok</code> + Python <code>25 tests OK</code>（已复核全过）。</li>
-    <li><strong>注意</strong>：<code>make test</code> 只跑 5 个模块的测试；clawsec/geoip/dashboard/scope/fingerprint 无单测，见 <a href="#validation">验证</a>。</li>
+    <li><strong>实际执行</strong>：构建两个 Go 探测入口，运行 <code>prober</code> 全部测试，并执行发现、存储、看板、进度、派生和 FOFA 的 Python 测试。<span class="ev">Makefile</span></li>
+    <li><strong>成功标志</strong>：Go 和 Python 测试命令均以退出码 0 完成。</li>
+    <li><strong>注意</strong>：<code>make test</code> 包含 Go 探测器、派生 API、需求包、智能体编排、能力仓、存储、看板报告和 Docker Harness 测试；Docker 不可用时容器集成用例跳过。</li>
   </ul>
 
   <h3>2 · 构建探测器</h3>
@@ -286,7 +361,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
   </ul>
   <div class="callout danger">
     <p class="ct">WARNING · 这一步会对真实目标发包</p>
-    <p>探测是只读的（不发利用帧），但仍会向目标 IP 发起真实连接。最小路径请用你拥有或获授权的目标 / 本地靶机，不要拿公网随机 IP 当 Quickstart。对公网的大规模主动探测属运营动作，见 <a href="#security">安全与运营边界</a>。</p>
+    <p>探测是只读的（不发利用帧），但仍会向目标 IP 发起真实连接。快速开始应使用自有、获授权的目标或本地靶机，不应使用公网随机 IP。对公网的大规模主动探测属运营动作，见 <a href="#security">安全与运营边界</a>。</p>
   </div>
 
   <h3>4 · 入库（可选，需 venv 装 geoip2）</h3>
@@ -296,18 +371,18 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
     <li><strong>为何用 venv</strong>：入库时调 geoip 富化，依赖第三方包 <code>geoip2</code>；系统 python 无此包则地理列留空（软依赖、不阻断）。<span class="ev">src/agentsectool_scanner/store/load.py:88-91</span></li>
   </ul>
 
-  <h3>5 · 看板查看结果（只读）</h3>
+  <h3>5 · 查看资产与管理派生任务</h3>
   <pre><code>python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/data/scan_results.sqlite --port 8787</code></pre>
   <ul>
-    <li><strong>网络</strong>：仅监听 <code>127.0.0.1:8787</code>（不对公网暴露）｜ <strong>写库</strong>：否（纯只读）｜ <strong>凭据</strong>：否</li>
-    <li>浏览器开 <code>http://127.0.0.1:8787/</code>。库不存在仅告警、不退出。<span class="ev">src/agentsectool_scanner/dashboard/server.py:294-309</span></li>
+    <li><strong>网络</strong>：仅监听 <code>127.0.0.1:8787</code>（不对公网暴露）｜ <strong>写库</strong>：资产看板只读，派生工作台写派生数据库｜ <strong>凭据</strong>：仅派生智能体读取本地模型配置</li>
+    <li>资产看板位于 <code>http://127.0.0.1:8787/</code>，派生工作台位于 <code>http://127.0.0.1:8787/derivation</code>。</li>
   </ul>
 </section>
 
 <!-- ========== ARCHITECTURE ========== -->
 <section id="architecture">
-  <h2>架构 Architecture</h2>
-  <p>系统分两条链路。<strong>正式主链路</strong>：发现 → 平台调度 → detector 探测 → 落地 → 看板。<strong>供料与辅助链路</strong>：FOFA / ClawSec（被动测绘数据源）、geoip（富化）、指纹库、progress / scope（调度）；<code>tools/fingerprint</code> / <code>tools/scan_test</code> 是一次性历史工具。平台层不承载具体资产判定规则；判定与版本测定发生在对应 detector 分支，OpenClaw 分支使用 C1/C2/C3 规则。</p>
+  <h2>系统架构</h2>
+  <p>系统包含扫描主链路、能力生产链路和供料辅助链路。扫描主链路为发现、平台调度、detector 探测、落地和看板；能力生产链路为需求快照、智能体派生、Docker Harness、人工审核和动态能力入仓；FOFA、ClawSec、GeoIP、指纹库、progress 与 scope 提供候选、富化和调度支持。项目判定与版本测定发生在内置 detector 或已入仓项目测试项中。</p>
 
   <div class="diagram">
     <svg viewBox="0 0 1120 540" role="img" aria-label="AgentSecTool Scanner 系统架构图">
@@ -365,11 +440,11 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
       <text x="770" y="192" class="arch-label">OpenClaw</text>
       <text x="770" y="210" class="arch-code">C1 / C2 / C3</text>
       <rect x="715" y="236" width="110" height="42" rx="3" class="arch-soft"/>
-      <text x="770" y="254" class="arch-label">资产类型 A</text>
-      <text x="770" y="272" class="arch-code">专属规则</text>
+      <text x="770" y="254" class="arch-label">动态能力 A</text>
+      <text x="770" y="272" class="arch-code">容器 worker</text>
       <rect x="715" y="298" width="110" height="42" rx="3" class="arch-soft"/>
-      <text x="770" y="316" class="arch-label">资产类型 B</text>
-      <text x="770" y="334" class="arch-code">版本测定</text>
+      <text x="770" y="316" class="arch-label">动态能力 B</text>
+      <text x="770" y="334" class="arch-code">项目测试项</text>
 
       <rect x="925" y="210" width="150" height="70" rx="3" class="arch-box"/>
       <text x="1000" y="238" class="arch-label">JSONL</text>
@@ -377,7 +452,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
       <rect x="925" y="315" width="150" height="76" rx="3" class="arch-soft"/>
       <text x="1000" y="341" class="arch-label">SQLite Store</text>
       <text x="1000" y="361" class="arch-code">assets</text>
-      <text x="1000" y="378" class="arch-code">observations</text>
+      <text x="1000" y="378" class="arch-code">facts / rules</text>
       <rect x="925" y="426" width="150" height="58" rx="3" class="arch-box"/>
       <text x="1000" y="450" class="arch-label">Dashboard</text>
       <text x="1000" y="469" class="arch-code">Report / APIs</text>
@@ -401,7 +476,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
       <path d="M1000,391 L1000,426" class="arch-arrow"/>
     </svg>
   </div>
-  <p class="caption">图 1：AgentSecTool Scanner 系统架构。箭头统一表示候选或结果进入下一处理环节；虚线框表示候选来源与平台边界。注册表、范围与进度、指纹库和地理富化是运行依赖，不进入主数据流。外部测绘平台只提供候选或外部标注，项目确认事实必须经过平台入口与对应 detector 的只读探测。</p>
+  <p class="caption">图 1：AgentSecTool Scanner 扫描主链路。箭头统一表示候选或结果进入下一处理环节；虚线框表示候选来源与平台边界。动态能力的生产与审核链路见“测绘能力派生”章节。</p>
 
   <h3>模块清单</h3>
   <p>状态标签口径：<span class="badge stable">stable</span> 正式主链路且有单测；<span class="badge partial">partial</span> 接入运营但无单测；<span class="badge experimental">experimental</span> 一次性 / 验证性工具。</p>
@@ -411,16 +486,18 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
       <tr><td><code>prober/detectors</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>探测器接口、注册表、平台通用摘要；子目录放具体资产类型实现</td><td><code>detectors.New()</code></td><td>随 Go 全量测试编译覆盖</td></tr>
       <tr><td><code>prober/cmd/assetprobe</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>平台 runner：按 <code>--type</code> 调用 detector</td><td><code>assetprobe</code></td><td>随 Go 全量测试编译覆盖</td></tr>
       <tr><td><code>prober/detectors/openclaw</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>OpenClaw detector 适配层</td><td><code>detectors.Register("openclaw")</code></td><td>复用 openclaw 单测</td></tr>
+      <tr><td><code>prober/detectors/dynamic</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>动态能力索引、容器 worker 池和多测试项聚合</td><td><code>dynamic.New()</code></td><td>有</td></tr>
       <tr><td><code>prober/openclaw</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>只读探测核心：判定 + 版本测定</td><td><code>openclaw.Probe()</code></td><td>有（Go 3 包）</td></tr>
       <tr><td><code>prober/cmd/ocprobe</code></td><td><span class="badge stable">stable</span></td><td>专用入口</td><td>OpenClaw runner：目标展开 + 并发 + 落 JSONL</td><td><code>ocprobe</code></td><td>有</td></tr>
       <tr><td><code>prober/zgrab</code></td><td><span class="badge experimental">experimental</span></td><td>主链路(备)</td><td>ZGrab2 自定义模块，薄封装 Probe</td><td><code>zgrab-openclaw openclaw</code></td><td>无（独立 go.mod，不在 go test ./... 范围）</td></tr>
       <tr><td><code>src/agentsectool_scanner/discovery</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>发现层：主动扫描+被动种子→candidates.csv</td><td><code>python3 -m agentsectool_scanner.discovery</code></td><td>有</td></tr>
       <tr><td><code>src/agentsectool_scanner/store</code></td><td><span class="badge stable">stable</span></td><td>主链路</td><td>落地：jsonl→SQLite，入库时 geoip 富化</td><td><code>python3 -m agentsectool_scanner.store</code></td><td>有</td></tr>
       <tr><td><code>src/agentsectool_scanner/progress</code></td><td><span class="badge stable">stable</span></td><td>辅助调度</td><td>CIDR 块切分 + 原子领取（断点续扫）</td><td><code>python3 -m agentsectool_scanner.progress</code></td><td>有</td></tr>
+      <tr><td><code>src/agentsectool_scanner/derivation</code></td><td><span class="badge stable">stable</span></td><td>能力生产</td><td>需求快照、智能体、Harness、验收和能力入仓</td><td><code>/derivation</code></td><td>有</td></tr>
       <tr><td><code>tools/fofa</code></td><td><span class="badge stable">stable</span></td><td>供料</td><td>FOFA 被动测绘：候选归档+按省统计</td><td><code>python3 -m tools.fofa</code></td><td>有</td></tr>
       <tr><td><code>tools/clawsec</code></td><td><span class="badge partial">partial</span></td><td>供料</td><td>ClawSec 每日快照归档（免凭据）</td><td><code>python3 -m tools.clawsec</code></td><td>无</td></tr>
       <tr><td><code>src/agentsectool_scanner/geoip</code></td><td><span class="badge partial">partial</span></td><td>辅助富化</td><td>IP→城市离线解析（GeoLite2）+ 回填</td><td><code>python3 -m agentsectool_scanner.geoip.backfill</code></td><td>无</td></tr>
-      <tr><td><code>src/agentsectool_scanner/dashboard</code></td><td><span class="badge partial">partial</span></td><td>辅助</td><td>只读看板（4 个 API + echarts 地图）</td><td><code>python3 -m agentsectool_scanner.dashboard</code></td><td>无</td></tr>
+      <tr><td><code>src/agentsectool_scanner/dashboard</code></td><td><span class="badge stable">stable</span></td><td>展示与交互</td><td>资产看板、通用事实报告和派生工作台 API</td><td><code>python3 -m agentsectool_scanner.dashboard</code></td><td>有</td></tr>
       <tr><td><code>tools/scope</code></td><td><span class="badge partial">partial</span></td><td>辅助</td><td>APNIC→中国 CIDR 全集生成</td><td><code>python3 -m tools.scope.cn_ranges</code></td><td>无</td></tr>
       <tr><td><code>tools/fingerprint</code></td><td><span class="badge experimental">experimental</span></td><td>工具</td><td>指纹库采集（build/collect）+ 一次性拆库迁移</td><td><code>python3 tools/fingerprint/*.py</code></td><td>无</td></tr>
       <tr><td><code>tools/scan_test</code></td><td><span class="badge experimental">experimental</span></td><td>验证</td><td>对真实公网目标的一次性实战验证脚本与结果</td><td>各脚本</td><td>无</td></tr>
@@ -436,7 +513,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
 
 <!-- ========== CORE CONCEPTS ========== -->
 <section id="concepts">
-  <h2>核心概念 Core Concepts</h2>
+  <h2>核心概念</h2>
   <p>本节定义全文反复出现的术语。后文用到的每个编号、状态、规则名、数据对象都在此或首次出现处落到具体对象。</p>
 
   <h3>测试项 T1–T7（探测采集的证据信号）</h3>
@@ -548,7 +625,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
 
 <!-- ========== WORKFLOWS ========== -->
 <section id="workflows">
-  <h2>工作流 Workflows</h2>
+  <h2>工作流</h2>
   <p>每条工作流写成从输入到输出的闭环，含前置条件、步骤、产物、验证、失败恢复、禁止事项。命令的逐项副作用见 <a href="#commands">命令参考</a>。</p>
 
   <h3>WF-1 · 本地测试工作流</h3>
@@ -598,7 +675,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
 
 <!-- ========== RULES ========== -->
 <section id="rules">
-  <h2>判定与决策规则 Rules and Decision Logic</h2>
+  <h2>判定与决策规则</h2>
   <p>研判是二元的（是 / 否），不用概率分值。当且仅当满足达标白名单中任一条件时判为 OpenClaw，其余一切组合为否。实现：<code>evaluate(ev, assetHashMatch)</code> <span class="ev">signals.go:26-56</span>。三条规则<strong>对称展开</strong>如下。</p>
 
   <h3>达标白名单总览</h3>
@@ -783,7 +860,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
 
 <!-- ========== NARRATIVE ========== -->
 <section id="narrative">
-  <h2>研判依据拼接 Narrative</h2>
+  <h2>研判依据拼接</h2>
   <p>机器判定（<code>is_openclaw</code> / <code>rule</code>）是结论，报告与看板负责生成面向读者的研判说明。该逻辑由 <code>src/agentsectool_scanner/store/report.py</code> 独立完成，是「研判结论如何对人解释」的统一来源。<strong>判定与话术解耦</strong>：本模块不重新判定，只把已有的 observation + probe_records 拼成分析文字。<span class="ev">src/agentsectool_scanner/store/report.py:1-4</span></p>
 
   <div class="callout invariant">
@@ -811,7 +888,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
 
 <!-- ========== DATA MODEL ========== -->
 <section id="data-model">
-  <h2>数据模型 Data Model</h2>
+  <h2>数据模型</h2>
   <p>数据按子系统分库存放（本地 SQLite，模块自建表）。每个数据对象标注权威性分类：<span class="tag">权威</span> 项目正式状态 · <span class="tag">外部</span> 第三方平台数据，不等于项目确认 · <span class="tag">临时</span> 可删的中间产物 · <span class="tag">敏感</span> 含真实暴露主机/凭据。</p>
 
   <div class="tbl-wrap"><table>
@@ -820,6 +897,10 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
       <tr><td><code>assets</code></td><td>src/agentsectool_scanner/store/data/</td><td><code>(snapshot_date, asset_id)</code></td><td>按快照分行；同快照内同 asset_type:ip:port REPLACE 取最新</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否（运行数据 gitignore）</td></tr>
       <tr><td><code>observations</code></td><td>src/agentsectool_scanner/store/data/</td><td>自增 id（不去重）</td><td>append-only 时序</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
       <tr><td><code>probe_records</code></td><td>src/agentsectool_scanner/store/data/</td><td>自增 id</td><td>append-only，完整请求/响应原文</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
+      <tr><td><code>project_test_results</code>、<code>observation_facts</code></td><td>src/agentsectool_scanner/store/data/</td><td>observation_id + test_id</td><td>逐观测追加项目测试结果和聚合事实</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
+      <tr><td><code>vulnerability_matches</code>、<code>observation_presentations</code></td><td>src/agentsectool_scanner/store/data/</td><td>observation_id</td><td>保存漏洞适用性与展示模板</td><td><span class="tag">权威</span></td><td>否</td></tr>
+      <tr><td><code>derivation.sqlite</code></td><td>src/agentsectool_scanner/derivation/data/</td><td>任务、消息、attempt、运行与能力 ID</td><td>事务化维护派生生命周期</td><td><span class="tag">权威</span><span class="tag">敏感</span></td><td>否</td></tr>
+      <tr><td><code>capability_packages/index.json</code></td><td>src/agentsectool_scanner/derivation/data/</td><td>asset_type + capability_id</td><td>原子替换同能力版本，保留同类其他测试项</td><td><span class="tag">权威</span></td><td>否</td></tr>
       <tr><td><code>fofa_candidates</code></td><td>tools/fofa/data/</td><td><code>(ip, port)</code></td><td>当前态 upsert</td><td><span class="tag">外部</span><span class="tag">敏感</span></td><td>否</td></tr>
       <tr><td><code>clawsec_snapshots</code></td><td>tools/clawsec/data/</td><td><code>(snapshot_date, id)</code></td><td>每日快照（跨日追加）</td><td><span class="tag">外部</span><span class="tag">敏感</span></td><td>否</td></tr>
       <tr><td><code>scan_blocks</code></td><td>src/agentsectool_scanner/store/data/</td><td><code>(campaign, block_cidr)</code></td><td>就地更新状态</td><td><span class="tag">权威</span></td><td>否</td></tr>
@@ -873,7 +954,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
 
 <!-- ========== CONFIGURATION ========== -->
 <section id="configuration">
-  <h2>配置 Configuration</h2>
+  <h2>配置</h2>
   <p>凭据走 <code>.ini</code> 配置文件或环境变量，配置文件已 gitignore。优先级一般为：命令行入参 &gt; 环境变量 &gt; 配置文件。</p>
 
   <div class="callout danger">
@@ -887,6 +968,9 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
       <tr><td><code>FOFA_EMAIL</code> / <code>FOFA_KEY</code></td><td>环境变量 或 <code>tools/fofa/fofa.ini</code></td><td>用 FOFA 时必需</td><td>—</td><td>FOFA 拉取/被动种子的凭据</td><td>discovery 缺则 <code>sys.exit</code>；fofa 模块缺则拉取失败</td></tr>
       <tr><td><code>SHODAN_API_KEY</code></td><td>环境变量</td><td>用 Shodan 时必需</td><td>—</td><td>Shodan 被动种子</td><td>discovery 加 <code>--shodan</code> 缺则 <code>sys.exit</code></td></tr>
       <tr><td>MaxMind account_id / license_key</td><td><code>src/agentsectool_scanner/geoip/geoip.ini</code></td><td>下载库时需</td><td>—</td><td>下载 GeoLite2 库；运行时富化只需库文件本身</td><td>缺库文件则 geoip 软降级、地理列留空</td></tr>
+      <tr><td><code>[openai] api_key</code></td><td><code>config/derivation.ini</code></td><td>运行派生智能体时必需</td><td>—</td><td>调用配置的 Responses API</td><td>工作台显示智能体未配置</td></tr>
+      <tr><td><code>[authorization] allow_external_model</code></td><td><code>config/derivation.ini</code></td><td>外发任务材料时必需</td><td>false</td><td>项目级材料外发授权</td><td>false 时保留本地任务，但不启动模型调用</td></tr>
+      <tr><td><code>[research] allowed_domains</code></td><td><code>config/derivation.ini</code></td><td>是</td><td>官方仓库、Docker 文档和镜像源</td><td>限制智能体检索域名</td><td>空值或格式无效时拒绝加载配置</td></tr>
       <tr><td><code>[probe] concurrency</code></td><td><code>prober/config.toml</code> 或 <code>-concurrency</code></td><td>否</td><td>16（内置）</td><td>全局并发探测数</td><td>过高撞 ulimit/conntrack（见安全节）</td></tr>
       <tr><td><code>[probe] timeout_per_ip</code></td><td>config.toml 或 <code>-timeout</code></td><td>否</td><td>8s</td><td>单 IP 探测超时</td><td>过短漏判慢机；过长拖慢枚举</td></tr>
       <tr><td><code>[probe] rate</code></td><td>config.toml 或 <code>-rate</code></td><td>否</td><td>50</td><td>单 IP 每秒发包上限（per-worker，0=不限）</td><td>注：实现为 per-worker sleep，非全局限速（见安全节）</td></tr>
@@ -895,18 +979,18 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
       <tr><td><code>src/agentsectool_scanner/geoip/geoip.ini [geoip] city_db</code></td><td>配置文件</td><td>否</td><td>src/agentsectool_scanner/geoip/data/GeoLite2-City.mmdb</td><td>GeoLite2 库路径</td><td>路径错则 geoip 软降级</td></tr>
     </tbody>
   </table></div>
-  <p class="caption"><code>config/</code> 目录只含示例文件（<code>scanner.example.yaml</code> / <code>blocklist.example.txt</code>）；ocprobe 的运行配置实为 <code>prober/config.toml</code>。<span class="ev">config/ ls; prober/config.toml:1-16</span></p>
+  <p class="caption"><code>config/</code> 保存可提交的配置模板；<code>derivation.ini</code>、扫描黑名单和其他含凭据的本地配置均由 Git 忽略。OpenClaw 探测运行参数保存在 <code>prober/config.toml</code>。</p>
 
   <div class="callout todo">
-    <p class="ct">TODO：scanner_identity 缺失</p>
+    <p class="ct">规模化扫描标识尚未配置</p>
     <p>config 注释提到「规模化扫描前必须填写」rDNS / info_url / abuse_contact 这组可识别扫描标识，但当前 <code>scannerUserAgent</code> 常量<strong>不含</strong> abuse 联系信息（<code>consts.go</code> 注释自承待办）。文档不声称「带 abuse 联系信息」。见 <a href="#limitations">限制</a>。<span class="badge unverified">UNVERIFIED</span></p>
   </div>
 </section>
 
 <!-- ========== COMMANDS ========== -->
 <section id="commands">
-  <h2>命令参考 Commands and Reference</h2>
-  <p>完整命令索引（Quickstart 是最小路径，这里是全集）。每条标注副作用。所有命令<strong>在项目根运行</strong>。</p>
+  <h2>命令参考</h2>
+  <p>下表给出完整命令索引，并标注各命令的副作用。所有命令均在<strong>项目根目录</strong>运行。</p>
 
   <h3><code>assetprobe</code>（平台级探测入口）</h3>
   <p>目标为<strong>位置参数</strong>：精确 IP / CIDR / 通配 IP（<code>1.14.*.22</code>）/ 每行一个目标的文件 / <code>-</code> 标准输入。CSV 候选文件会取第一列作为目标。平台级扫描使用此入口。</p>
@@ -915,6 +999,7 @@ prober/bin/assetprobe --type openclaw -port 18789 -fingerprints prober/fingerpri
     <tbody>
       <tr><td><code>--type</code></td><td>openclaw</td><td>资产类型；从 detector 注册表选择探测器</td></tr>
       <tr><td><code>--list-types</code></td><td>关</td><td>列出已注册资产类型并退出</td></tr>
+      <tr><td><code>--capabilities</code></td><td><code>src/agentsectool_scanner/derivation/data/capability_packages</code></td><td>已入仓动态能力目录</td></tr>
       <tr><td><code>-port</code></td><td>detector 默认端口 / config</td><td>端口，逗号分隔多个</td></tr>
       <tr><td><code>-concurrency</code></td><td>16</td><td>全局并发 worker 数</td></tr>
       <tr><td><code>-timeout</code></td><td>8s</td><td>单目标探测超时</td></tr>
@@ -996,7 +1081,7 @@ prober/bin/ocprobe -port 18789 -l 203.0.113.10</code></pre>
       <tr><td><code>python3 -m agentsectool_scanner.progress claim</code></td><td>为 worker 原子领一个待扫块（多机协同）</td><td>是（scan_blocks）</td><td>否</td><td>否</td><td>BEGIN IMMEDIATE 串行</td></tr>
       <tr><td><code>python3 -m agentsectool_scanner.progress status</code></td><td>查某 campaign 块完成进度</td><td>否</td><td>否</td><td>否</td><td>只读</td></tr>
       <tr><td><code>.venv/bin/python3 -m agentsectool_scanner.geoip.backfill [--all]</code></td><td>回填/重刷资产地理列（<code>--all</code> 全量重刷）</td><td>是（assets）</td><td>否</td><td>否</td><td>幂等</td></tr>
-      <tr><td><code>python3 -m agentsectool_scanner.dashboard</code></td><td>只读看板（127.0.0.1:8787，详见 <a href="#frontend">前端看板</a>）</td><td>否</td><td>仅监听回环</td><td>否</td><td>只读</td></tr>
+      <tr><td><code>python3 -m agentsectool_scanner.dashboard</code></td><td>资产看板与测绘能力派生工作台（127.0.0.1:8787）</td><td>派生工作台写 <code>derivation.sqlite</code></td><td>仅监听回环；智能体可访问配置的模型 API</td><td>运行智能体时需</td><td>查询只读；写操作保留版本和审核记录</td></tr>
       <tr><td><code>python3 -m tools.scope.cn_ranges</code></td><td>生成中国 CIDR 全集</td><td>否（写 txt）</td><td>是（拉 APNIC）</td><td>否</td><td>整文件覆盖</td></tr>
     </tbody>
   </table></div>
@@ -1029,21 +1114,21 @@ python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/da
 # geoip 回填/重刷已有资产的地理列（幂等）
 .venv/bin/python3 -m agentsectool_scanner.geoip.backfill --all</code></pre>
 
-  <h3>Makefile target</h3>
+  <h3>Makefile 目标</h3>
   <div class="callout danger">
     <p class="ct">WARNING · make clean 危险</p>
     <p><code>make clean</code> 会删除各模块的本地 <code>data/</code> / <code>output/</code> 目录，包含 scanner、FOFA、ClawSec 的 SQLite 库和临时扫描产物，不可逆。<code>make probe</code> / <code>make demo</code> 使用 <code>assetprobe --type openclaw</code>。</p>
   </div>
-  <p>可用 target：<code>make test</code>（测试）、<code>make prober</code>（构建 assetprobe + ocprobe）、<code>make assetprobe</code>、<code>make ocprobe</code>、<code>make zgrab</code>（构建 ZGrab2 模块）、<code>make probe</code>、<code>make demo</code>、<code>make load</code>（store 入库）、<code>make stats</code>、<code>make fofa-info/pull/provinces/export/pv</code>、<code>make clawsec-info/pull/longlived/overlap</code>。<span class="ev">Makefile</span></p>
+  <p>可用目标包括 <code>make test</code>、<code>make dashboard</code>、<code>make prober</code>、<code>make assetprobe</code>、<code>make ocprobe</code>、<code>make zgrab</code>、<code>make probe</code>、<code>make demo</code>、<code>make load</code>、<code>make stats</code>、<code>make fofa-info/pull/provinces/export/pv</code> 和 <code>make clawsec-info/pull/longlived/overlap</code>。<span class="ev">Makefile</span></p>
 </section>
 
 <!-- ========== FRONTEND ========== -->
 <section id="frontend">
-  <h2>前端看板 Frontend &amp; Dashboard</h2>
-  <p>这是看板所有<strong>对人可见产物</strong>的权威章节——想了解看板展示什么、怎么交互、数据从哪来，看这一节即可。看板是辅助链路 <span class="badge partial">partial</span>（无单测），由 <code>src/agentsectool_scanner/dashboard</code> 提供：纯标准库 <code>http.server</code> 后端 + 单页前端 <code>index.html</code>（594 行），只读查 <code>scan_results.sqlite</code>，<strong>不写任何库</strong>。起服务见 <a href="#workflows">WF-4 结果查看工作流</a>，进程入口见 <a href="#commands">命令参考</a>。<span class="ev">src/agentsectool_scanner/dashboard/server.py, index.html</span></p>
+  <h2>前端与看板</h2>
+  <p><code>src/agentsectool_scanner/dashboard</code> 使用标准库 <code>http.server</code> 同时提供资产看板和测绘能力派生工作台。资产看板只读查询 <code>scan_results.sqlite</code>；派生工作台通过本地 API 更新 <code>derivation.sqlite</code>、补充包和能力审核状态。服务仅监听回环地址。</p>
 
-  <h3>可见产物（页面区块）</h3>
-  <p>单页自上而下的区块，每块的数据来自下方某个 API。<span class="ev">src/agentsectool_scanner/dashboard/index.html:235-301</span></p>
+  <h3>资产看板</h3>
+  <p>资产看板的时间窗口和资产类型共同约束查询范围，资产行可展开为项目报告。内置 OpenClaw 分支使用专用研判话术；动态能力按展示模板呈现项目事实、测试证据和漏洞适用性。</p>
   <div class="tbl-wrap"><table>
     <thead><tr><th>区块</th><th>展示什么</th><th>交互</th><th>数据源</th></tr></thead>
     <tbody>
@@ -1057,13 +1142,25 @@ python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/da
       <tr><td>资产列表（7 列表格）</td><td>IP / 端口 / 类别 / 版本 / 来源 / 省市 / 最近见，逐行</td><td>类别筛选下拉、IP/版本搜索框（防抖）、分页器、<strong>双击行展开逐主机研判报告</strong></td><td><code>/api/assets</code>、展开时 <code>/api/report</code></td></tr>
     </tbody>
   </table></div>
+
+  <h3>测绘能力派生工作台</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>区域</th><th>用户交互</th><th>系统行为</th></tr></thead>
+    <tbody>
+      <tr><td>需求导入</td><td>输入需求目录，预览后确认导入</td><td>校验 <code>manifest.json</code>、安全相对路径和 SHA-256，然后建立不可变快照</td></tr>
+      <tr><td>任务会话</td><td>发送问题、约束或继续执行指令，一条消息可附带多个文件</td><td>附件先形成独立补充包，随后与消息共同进入同一持续会话</td></tr>
+      <tr><td>验收项</td><td>编辑、启用、停用并确认验收项；停用时填写原因</td><td>每次修订保留新版本；智能体无权改写已确认验收项</td></tr>
+      <tr><td>失败诊断</td><td>在时间线中围绕失败证据质询智能体，并通过自然语言提供修订意图</td><td>同一任务上下文中继续分析，不提供“整轮重跑”或“生成修订 attempt”按钮</td></tr>
+      <tr><td>候选审核</td><td>查看固定镜像、Harness 证据、规则和展示模板，执行批准或退回</td><td>仅当启用验收项已确认且 Harness 通过时，候选能力才可入仓</td></tr>
+    </tbody>
+  </table></div>
   <div class="callout invariant">
     <p class="ct">INVARIANT · 研判标记的悬停含义来自单一文案源</p>
     <p>资产表/报告里的 <code>T1</code>/<code>T3</code>/<code>C1</code> 等研判标记，悬停弹出的「含义」文案不是前端硬编码，而是来自 <code>src/agentsectool_scanner/store/report.py</code> 的 <code>TEST_MEANINGS</code><span class="ev">src/agentsectool_scanner/store/report.py:265-277</span>——同一份文案被前端横幅悬停与 <code>store --report</code> 报告共用。测试项本身的定义见 <a href="#concepts">核心概念 T1–T7</a>，文案如何拼成报告见 <a href="#narrative">研判依据拼接</a>。</p>
   </div>
 
   <h3>JSON API 契约</h3>
-  <p>后端四个只读 API，前端各区块据此渲染。全部 GET、无鉴权、仅监听 <code>127.0.0.1</code>。<span class="ev">src/agentsectool_scanner/dashboard/server.py:53-235,269-282</span></p>
+  <p>资产查询 API 均为只读 GET，并支持 <code>asset_type</code> 和时间窗口参数。派生 API 接收本机需求路径、会话消息、附件、验收项和审核动作；服务未提供网络鉴权，因此监听范围固定为 <code>127.0.0.1</code>。</p>
   <div class="tbl-wrap"><table>
     <thead><tr><th>端点</th><th>查询参数</th><th>返回</th><th>说明</th></tr></thead>
     <tbody>
@@ -1071,22 +1168,23 @@ python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/da
       <tr><td><code>/api/overview</code></td><td><code>start, end</code></td><td>概览对象：分桶计数、版本分布、来源分布、观测/探针总数</td><td>数字卡 + 三个分布条的数据；统计基于时间窗口内同 ip:port 取最新快照的结果集</td></tr>
       <tr><td><code>/api/geo</code></td><td><code>scope=china|world, start, end</code></td><td><code>{points:[{name,lng,lat,count,openclaw}], located, total}</code></td><td>china 以 country 字段为准（中国/香港/澳门/台湾；country 为空时退回经纬度框），<strong>排除落在框内的境外邻国</strong>（印度/中亚等）；按坐标聚合；窗口内取最新快照</td></tr>
       <tr><td><code>/api/assets</code></td><td><code>category, q, limit, offset, start, end</code></td><td><code>{total, rows}</code></td><td>分页 + 类别过滤 + IP/版本搜索；窗口内同 ip:port 取最新快照；rows 富化省/市与披露日期</td></tr>
-      <tr><td><code>/api/report</code></td><td><code>ip, port</code></td><td>逐主机研判报告对象</td><td>narrative 由 <a href="#narrative">研判依据拼接</a>（<code>src/agentsectool_scanner/store/report.py</code>）生成；含全部探针命中态、研判小结、版本说明、请求/响应（二进制体折 MD5）</td></tr>
+      <tr><td><code>/api/report</code></td><td><code>ip, port, asset_type</code></td><td>逐实例研判报告对象</td><td>OpenClaw 使用专用 narrative；动态能力返回项目事实、逐测试项证据、漏洞适用性和展示模板</td></tr>
     </tbody>
   </table></div>
 
   <h3>静态路由与防护</h3>
   <ul>
-    <li><code>GET /</code> 与 <code>/index.html</code> → 单页前端；<code>/assets/*</code> → 静态资源（logo/字体/js/json），按扩展名定 content-type。</li>
+    <li><code>GET /</code> 与 <code>/index.html</code> 返回资产看板，<code>GET /derivation</code> 返回派生工作台；<code>/assets/*</code> 提供本地静态资源。</li>
     <li>防目录穿越：<code>/assets/*</code> 取 <code>basename</code>，越界路径或缺失文件返回 404。<span class="ev">src/agentsectool_scanner/dashboard/server.py:251-268</span></li>
     <li>库不存在时仅告警、服务照起（返回空数据）。</li>
   </ul>
+  <p>派生工作台的 API、页面动作和状态约束见<a href="#derivation">测绘能力派生</a>及<a href="设计文稿/测绘脚本派生工作流详设材料.html">工作流详设材料</a>。</p>
 </section>
 
 <!-- ========== VALIDATION ========== -->
 <section id="validation">
-  <h2>验证 Validation</h2>
-  <p>本节把关键结论绑定到证据。凡正文出现「已验证 / 支持 / 只读 / 幂等」等词，应能在此找到对应验证方法；无验证者标 <span class="badge unverified">UNVERIFIED</span>。</p>
+  <h2>验证</h2>
+  <p>平台验证覆盖探测判定、需求包不可变性、验收版本、智能体工具循环、容器隔离、能力入仓、动态 worker 执行、结果落库和前端报告。无法由现有测试确立的行为在下表中单独列出。</p>
 
   <h3>有测试支撑的结论</h3>
   <div class="tbl-wrap"><table>
@@ -1095,7 +1193,12 @@ python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/da
       <tr><td>判定白名单 C1/C2/C3 正确，反例不达标</td><td><code>TestEvaluate</code> 覆盖 C1/C2/C3 + 反例（assetHash 单独不达标等），go test 全过 <span class="ev">probe_test.go:91-130</span></td></tr>
       <tr><td>probeWS 函数级只读不变量（不发利用帧）</td><td><code>TestProbeWS_ReadOnlyAndChallenge</code> 断言写入字节不含 connect/config.apply、以 \r\n\r\n 结尾 <span class="ev">probe_test.go:55-89</span></td></tr>
       <tr><td>版本反推 implicit-range / direct 正确</td><td>对应测试断言 source 标记 <span class="ev">version_test / probe_test</span></td></tr>
-      <tr><td>discovery / store / progress / fofa 核心逻辑</td><td>各模块 tests/，<code>make test</code> 跑 25 个 python 用例全过</td></tr>
+      <tr><td>discovery / store / progress / fofa 核心逻辑</td><td>各模块测试由 <code>make test</code> 统一执行</td></tr>
+      <tr><td>需求快照、补充包和验收项版本约束</td><td><code>derivation.tests.test_packages</code> 覆盖路径逃逸、hash 冲突、主文档类型、补充包隔离和已确认验收项保护</td></tr>
+      <tr><td>智能体工具循环不依赖远端会话存储</td><td><code>derivation.tests.test_agent</code> 使用模拟 Responses 传输验证 <code>store=false</code>、加密 reasoning 内容回放、工具结果回传、可信域名与等待用户状态</td></tr>
+      <tr><td>同一资产类型可保留多个项目测试能力</td><td>能力仓测试验证同类不同 <code>capability_id</code> 不互相 supersede；Go 动态 detector 测试验证多 worker 结果聚合</td></tr>
+      <tr><td>候选 worker 经验证后可进入扫描与落库链路</td><td><code>derivation.tests.test_harness</code> 构建隔离目标和 worker，完成 Harness、审核入仓、<code>assetprobe</code> 扫描、SQLite 事实与漏洞关联落库</td></tr>
+      <tr><td>动态事实和展示模板可由看板查询</td><td><code>dashboard.tests.test_dashboard</code> 验证项目事实、测试证据、漏洞适用性和展示模板的报告对象</td></tr>
       <tr><td>主链路对真实数据可跑通入库</td><td>scan_results.sqlite 实有 assets 5762 / observations 5762 / probe_records 28810（已复核 count）</td></tr>
     </tbody>
   </table></div>
@@ -1119,7 +1222,7 @@ python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/da
 
 <!-- ========== TROUBLESHOOTING ========== -->
 <section id="troubleshooting">
-  <h2>失败与排错 Failure Modes and Troubleshooting</h2>
+  <h2>失败与排错</h2>
   <p>按现象列出常见失败，含检查命令、恢复方式、是否影响权威数据、是否可安全重跑。</p>
   <div class="tbl-wrap"><table>
     <thead><tr><th>现象</th><th>可能原因</th><th>检查 / 恢复</th><th>影响权威数据</th><th>可安全重跑</th></tr></thead>
@@ -1139,7 +1242,7 @@ python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/da
 
 <!-- ========== SECURITY ========== -->
 <section id="security">
-  <h2>安全与运营边界 Security, Privacy, Operational Boundaries</h2>
+  <h2>安全与运营边界</h2>
 
   <h3>授权边界</h3>
   <div class="callout danger">
@@ -1166,7 +1269,7 @@ python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/da
 
   <h3>凭据 / 敏感数据 / 网络</h3>
   <ul>
-    <li><strong>凭据存储</strong>：FOFA/MaxMind 走 <code>.ini</code>（已 gitignore、从未进历史）或环境变量。文档不列值。</li>
+    <li><strong>凭据存储</strong>：FOFA、MaxMind 和模型 API 凭据从本地 <code>.ini</code> 或环境变量读取，相应本地配置已由 Git 忽略。</li>
     <li><strong>敏感数据</strong>：各模块的 <code>data/</code> / <code>output/</code> 目录、<code>prober/output/</code>、<code>tools/scan_test/output/results/</code>、各 .sqlite 含真实暴露主机与原始请求/响应，已 gitignore。probe_records 的响应原文做了二进制摘要清洗、前端 HTML 转义防 XSS。</li>
     <li><strong>明文传输</strong>：ClawSec 平台走 <code>http://clawsec.tcode.com.cn/api</code>（明文，非 https）。请求/响应明文传输。</li>
     <li><strong>看板</strong>：仅监听 <code>127.0.0.1</code>，不对公网暴露。</li>
@@ -1179,14 +1282,14 @@ python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/da
     <li>入库后历史在 observations（append-only），探测可安全重跑。</li>
   </ul>
   <div class="callout todo">
-    <p class="ct">TODO：可识别扫描标识未落地</p>
+    <p class="ct">可识别扫描标识尚未落地</p>
     <p>规模化扫描的常见合规要求（rDNS、说明页 URL、abuse 联系）当前 UA 不含。config 注释承认待办。须在运营前补 scanner_identity。<span class="badge unverified">UNVERIFIED</span></p>
   </div>
 </section>
 
 <!-- ========== MAINTENANCE ========== -->
 <section id="maintenance">
-  <h2>维护 Maintenance</h2>
+  <h2>维护</h2>
   <ul>
     <li><strong>指纹库更新</strong>：OpenClaw 发新版时 <code>tools/fingerprint/collect_corpus.py --repo &lt;仓库&gt; --only &lt;版本&gt;</code>，优先官方镜像静态提取（source=image）。现库 161 条，覆盖正式版 2026.1.5~2026.6.9 与 2026.5.16 起的预发布版；缺口见限制。</li>
     <li><strong>GeoLite2 库更新</strong>：MaxMind 每周更新，重新下载 .mmdb 后 <code>.venv/bin/python3 -m agentsectool_scanner.geoip.backfill --all</code> 重刷已有资产。</li>
@@ -1198,37 +1301,10 @@ python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/da
   </ul>
 </section>
 
-<!-- ========== AGENT ========== -->
-<section id="agent">
-  <h2>智能体须知 Agent Instructions</h2>
-  <p>本节面向后续修改本项目的代码智能体，作用接近 <code>AGENTS.md</code> / <code>CLAUDE.md</code>（项目根有此二文件，<span class="badge unverified">本节未逐字吸收其内容，TODO</span>）。</p>
-
-  <h3>项目目标（压缩）</h3>
-  <p>授权范围内发现公网资产暴露面，通过平台入口调度具体 detector，执行只读探测、版本测定、结果归档和看板展示。OpenClaw 是当前内置的首个资产类型；其 C1/C2/C3 判定与版本测定只在 <code>prober/openclaw</code>。</p>
-
-  <h3>代码地图（改之前先读）</h3>
-  <ul>
-    <li>改判定规则 → <code>prober/openclaw/signals.go</code>（evaluate）+ 必须同步 <code>probe_test.go</code> 的 TestEvaluate。</li>
-    <li>改版本测定 → <code>version.go</code> / <code>fingerprints.go</code>。</li>
-    <li>改探测采集 → <code>http.go</code> / <code>ws.go</code>（T1–T7 信号）。</li>
-    <li>改入库语义 → <code>src/agentsectool_scanner/store/load.py</code> + <code>src/agentsectool_scanner/store/schema.sql</code>（去重/覆盖/迁移）。</li>
-    <li>改地名 → <code>src/agentsectool_scanner/geoip/lookup.py</code> / <code>src/agentsectool_scanner/geoip/cn_names.py</code>。</li>
-  </ul>
-
-  <h3>修改约束</h3>
-  <ul>
-    <li><strong>禁止</strong>：把凭据值写进任何文件或文档；把 <code>data/</code>、真实结果、.ini 提交到版本库；让探测发出 WS 数据帧/利用帧（破坏只读不变量，有单测会失败）。</li>
-    <li><strong>谨慎</strong>：改 evaluate 的白名单（影响所有判定口径，须重跑 TestEvaluate 并保持对称）；改 schema（须配 _migrate 幂等迁移）。</li>
-    <li><strong>测试命令</strong>：<code>make test</code>（Go + Python）。改 Go 探测逻辑后 <code>go -C prober test ./openclaw/</code>。</li>
-    <li><strong>done 标准</strong>：相关单测通过；新增能力配测试；改了判定/版本/schema/命令/安全边界须同步本文档。</li>
-    <li><strong>commit</strong>：按项目 CLAUDE.md 的动作标签规范；不显式声明 AI 参与。</li>
-  </ul>
-</section>
-
 <!-- ========== KNOWN LIMITATIONS ========== -->
 <section id="limitations">
-  <h2>已知限制 / TODO Known Limitations and TODOs</h2>
-  <p>全项目的缺失、未验证、风险、待办集中于此。每项含影响、为何无法确定、需要的证据。</p>
+  <h2>运行限制</h2>
+  <p>当前运行限制覆盖探测入口、指纹覆盖、智能体连接、Harness 环境与规模化扫描身份。其中可由自动化测试复现的行为与依赖外部运行环境的项目分开记录。</p>
 
   <h3>已确认的缺陷 / 限制</h3>
   <div class="tbl-wrap"><table>
@@ -1240,6 +1316,8 @@ python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/da
       <tr><td>指纹库覆盖缺口</td><td>2026.5.16 前的预发布版、无官方镜像的纯 alpha 版未收录 → 这些实例 implicit 反推为未知</td><td>持续 collect_corpus 增量补录</td></tr>
       <tr><td>不可区分版本区间</td><td>构建产物相同的版本（如 2026.3.7=2026.3.8）只能给 implicit-range，无法精确到单版</td><td>设计局限，无解（除非引入别的区分信号）</td></tr>
       <tr><td>scannerUserAgent 不含 abuse 联系信息</td><td>规模化扫描合规性不足</td><td>运营前补 rDNS/info_url/abuse_contact</td></tr>
+      <tr><td>派生 Harness 只支持本地 Docker</td><td>没有 Docker 守护进程的主机无法运行容器验收</td><td>在可控本地环境运行；远程容器池尚未纳入运行契约</td></tr>
+      <tr><td>派生 API 只靠回环地址隔离</td><td>服务本身不提供网络身份认证</td><td>保持 <code>127.0.0.1</code> 监听；引入反向代理前增加认证与授权</td></tr>
       <tr><td>历史合并库 <code>tools/fingerprint/data/scan.sqlite</code>（69MB，本地忽略）</td><td>已被 <code>tools/fofa/data</code>、<code>tools/clawsec/data</code>、<code>src/agentsectool_scanner/store/data</code> 分库存储取代</td><td>确认无用后删除</td></tr>
       <tr><td>部分历史资料与代码口径不一致</td><td>schema.sql:1「内容指纹去重」、result.go:38 漏 C3、测试覆盖范围等表述需继续校准</td><td>逐处以代码、测试与运行证据为准修正</td></tr>
     </tbody>
@@ -1254,18 +1332,14 @@ python3 -m agentsectool_scanner.dashboard --db src/agentsectool_scanner/store/da
     <li>TestProbeIntegration 端到端判定（需起容器，无留痕）。</li>
     <li>指纹常量来源、local-build 23 条等同官方分发（未独立核验）。</li>
     <li>masscan/zmap 真实 root 环境可用（仅合成单测）。</li>
-    <li>-rate 全局限速效果（实现为 per-worker）。</li>
-  </ul>
-
-  <h3>本文档自身的 TODO</h3>
-  <ul>
-    <li>下游能力（版本→CVE 映射、协同披露流程、暴露面板的时间维度）尚未实现，本文档无对应章节。</li>
+    <li><code>-rate</code> 全局限速效果（当前实现为每个 worker 独立限速）。</li>
+    <li>实际模型 API 下的长时间多轮派生稳定性（当前测试使用模拟 Responses 传输）。</li>
   </ul>
 </section>
 
 
   <footer>
-    <p>本文档是离线自包含的项目说明，面向维护者与审阅者。事实性结论应绑定 <span class="ev">file:line</span> 或测试/运行证据；证据不足处标 <span class="badge unverified">UNVERIFIED</span> 或归入「已知限制 / TODO」。文档不请求外部资源。</p>
+    <p>AgentSecTool Scanner 项目文档，更新日期：2026-07-15。</p>
   </footer>
 
 </div>

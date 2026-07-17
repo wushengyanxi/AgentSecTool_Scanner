@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>测绘脚本派生工作流详设材料</title>
+<script>
+  (function(){
+    var key = "doc-theme";
+    var saved = "";
+    try { saved = localStorage.getItem(key) || ""; } catch(e) {}
+    var prefersDark = false;
+    try { prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches; } catch(e) {}
+    document.documentElement.setAttribute("data-theme", saved || (prefersDark ? "dark" : "light"));
+    window.toggleDocTheme = function(){
+      var root = document.documentElement;
+      var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try { localStorage.setItem(key, next); } catch(e) {}
+    };
+  })();
+</script>
+<style>
+  :root{
+    --bg:#fcfcfc;--fg:#1f2328;--muted:#59636e;--faint:#777777;
+    --border:#777777;--border-soft:#d1d9e0;--panel:#f7f7f7;--code:#f2f2f2;
+    --link:#2459a9;--accent:#333333;
+  }
+  html[data-theme="dark"]{
+    color-scheme:dark;--bg:#1b1b1b;--fg:#d8d8d8;--muted:#bcbcbc;--faint:#8f8f8f;
+    --border:#4a4a4a;--border-soft:#303030;--panel:#202020;--code:#242424;
+    --link:#9ab4f8;--accent:#6e7781;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:auto;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,"Noto Sans CJK SC","PingFang SC",sans-serif;
+    line-height:1.68;color:var(--fg);background:var(--bg);margin:40px auto;max-width:1180px;padding:0 28px 72px;}
+  .theme-toggle{position:fixed;top:10px;left:12px;z-index:80;border:0;background:transparent;color:var(--muted);
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1;padding:5px 6px;cursor:pointer;}
+  .theme-toggle:hover{text-decoration:underline;color:var(--fg);}
+  h1{font-size:30px;letter-spacing:0;margin:0 0 18px;border-bottom:2px solid var(--fg);padding-bottom:12px;}
+  h2{font-size:21px;letter-spacing:0;margin-top:36px;border-bottom:1px solid var(--border-soft);padding-bottom:7px;}
+  h3{font-size:17px;letter-spacing:0;margin-top:25px;}
+  p{font-size:15.5px;margin:10px 0;text-indent:2em;}
+  .lead{font-size:16px;color:var(--muted);}
+  a{color:var(--link);}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  code{background:var(--code);padding:1px 4px;border-radius:3px;}
+  pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--code);
+    border:1px solid var(--border-soft);padding:14px 16px;overflow:auto;font-size:13px;line-height:1.55;}
+  table{border-collapse:collapse;width:100%;margin:14px 0 25px;font-size:14px;}
+  th,td{border:1px solid var(--border);padding:8px 10px;vertical-align:top;}
+  th{background:var(--code);text-align:left;}
+  td code{white-space:nowrap;}
+  .note{border-left:4px solid var(--accent);padding:9px 14px;background:var(--panel);margin:18px 0;}
+  .note p{margin:3px 0;text-indent:0;}
+  .figure{border:1px solid var(--border-soft);background:var(--panel);padding:18px;margin:18px 0 5px;overflow:auto;}
+  .caption{font-size:13px;color:var(--muted);text-align:center;margin-top:5px;text-indent:0;}
+  .arch{display:block;width:100%;min-width:930px;height:auto;}
+  .arch .outer{fill:var(--bg);stroke:var(--fg);stroke-width:1.2;}
+  .arch .box{fill:var(--panel);stroke:var(--fg);stroke-width:1.2;}
+  .arch .line{fill:none;stroke:var(--fg);stroke-width:1.4;}
+  .arch text{fill:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;}
+  .arch .sub{fill:var(--muted);}
+  ul{padding-left:24px;margin:10px 0 18px;}
+  li{margin:5px 0;}
+  footer{margin-top:44px;padding-top:13px;border-top:1px solid var(--border-soft);color:var(--muted);}
+  footer p{text-indent:0;font-size:13px;}
+  @media(max-width:760px){
+    body{margin:28px auto;padding:0 18px 48px;}
+    h1{font-size:25px;}
+    .figure{margin-left:0;margin-right:0;}
+  }
+</style>
+</head>
+<body>
+<button class="theme-toggle" type="button" onclick="window.toggleDocTheme()" aria-label="切换明暗模式" title="切换明暗模式">L/D</button>
+
+<header>
+  <h1>测绘脚本派生工作流详设材料</h1>
+  <p class="lead">漏洞需求包进入测绘平台后，系统围绕代码、说明文档和补充材料建立可追溯的派生任务。任务中的智能体负责形成项目测试项、容器运行环境、验收项和展示模板；Harness 负责在隔离环境中产生可复查证据；审核通过的项目测试项以固定容器 worker 的形式进入能力仓。</p>
+</header>
+
+<main>
+<section id="boundary">
+  <h2>系统边界</h2>
+  <p>工作流处理的输入是上游漏洞项目交付的需求目录。目录中的代码和主文档构成主要分析材料，辅助文件提供环境、配置或运行线索。平台保存原始材料的不可变快照，并以独立补充包承接后续会话中上传的文件。原始包、补充包和候选文件记录 SHA-256；会话消息、工具事件、容器运行和审核结论记录时间与关联对象。</p>
+  <p>项目测试项用于观测目标实例是否满足某个项目级条件。一个需求可以派生多个测试项，多个漏洞也可以复用同一测试项。漏洞适用性由结构化规则组合项目测试项产生的事实，不由单个弱特征或单次模型判断直接确立。</p>
+  <div class="note"><p>能力入仓只注册已经验证的项目测试项及其容器镜像，不触发公网目标扫描。实际测绘任务由主扫描器在独立调度阶段启动。</p></div>
+</section>
+
+<section id="paths">
+  <h2>项目内路径</h2>
+  <table>
+    <thead><tr><th>对象</th><th>路径</th><th>保存内容</th></tr></thead>
+    <tbody>
+      <tr><td>派生模块</td><td><code>src/agentsectool_scanner/derivation/</code></td><td>需求解析、状态库、智能体编排、Harness 和 API 服务。</td></tr>
+      <tr><td>派生数据库</td><td><code>src/agentsectool_scanner/derivation/data/derivation.sqlite</code></td><td>任务、会话、验收、运行、能力和审核状态。</td></tr>
+      <tr><td>证据与产物</td><td><code>src/agentsectool_scanner/derivation/data/artifacts/</code></td><td>原始快照、补充包、模型产物、日志和 trace。</td></tr>
+      <tr><td>Harness 运行</td><td><code>src/agentsectool_scanner/derivation/data/harness_runs/</code></td><td>每次容器验证的工作目录和原始结果。</td></tr>
+      <tr><td>能力仓</td><td><code>src/agentsectool_scanner/derivation/data/capability_packages/</code></td><td>审核通过的不可变能力版本与运行索引。</td></tr>
+      <tr><td>本地配置</td><td><code>config/derivation.ini</code></td><td>OpenAI API、模型、授权和运行预算；文件不进入 Git。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="package">
+  <h2>需求包契约</h2>
+  <p>每个需求目录包含一个 <code>manifest.json</code>、一个或多个 UTF-8 代码文件和一个主文档。主文档格式限定为 HTML、Markdown 或纯文本，并在正文中给出项目身份和漏洞或报告身份。YAML、配置、日志和样例数据可以作为辅助文件登记，但不承担固定语义。</p>
+<pre>{
+  "schema_version": "1.0",
+  "request_id": "request-2026-0001",
+  "code_files": ["scanner.py", "helpers/protocol.py"],
+  "document_file": "vulnerability-report.html",
+  "auxiliary_files": [
+    {"path": "environment.yaml", "kind": "environment_hint"}
+  ]
+}</pre>
+  <p>导入器只读取 manifest 登记的文件。绝对路径、目录逃逸、符号链接逃逸、缺失文件和重复路径均导致校验失败。系统重新计算 SHA-256；相同 <code>request_id</code> 与相同内容 hash 返回已有任务，相同 <code>request_id</code> 与不同内容返回冲突。</p>
+</section>
+
+<section id="flow">
+  <h2>主数据流</h2>
+  <div class="figure" role="img" aria-label="需求包经导入、智能体派生、容器验收和审核形成项目测试项的数据流">
+    <svg class="arch" viewBox="0 0 1180 360" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+          <path d="M0,0 L9,3.5 L0,7 Z" fill="var(--fg)"></path>
+        </marker>
+      </defs>
+      <rect class="outer" x="20" y="20" width="1140" height="320"></rect>
+      <text x="45" y="55" font-size="15" font-weight="700">漏洞需求驱动的项目测试项派生链路</text>
+
+      <rect class="box" x="45" y="120" width="160" height="90" rx="3"></rect>
+      <text x="125" y="154" text-anchor="middle" font-size="14" font-weight="700">需求包</text>
+      <text class="sub" x="125" y="181" text-anchor="middle" font-size="12">代码 / 主文档</text>
+      <text class="sub" x="125" y="200" text-anchor="middle" font-size="12">辅助材料</text>
+
+      <rect class="box" x="230" y="120" width="160" height="90" rx="3"></rect>
+      <text x="310" y="154" text-anchor="middle" font-size="14" font-weight="700">导入快照</text>
+      <text class="sub" x="310" y="181" text-anchor="middle" font-size="12">路径校验 / hash</text>
+      <text class="sub" x="310" y="200" text-anchor="middle" font-size="12">任务级会话</text>
+
+      <rect class="box" x="415" y="120" width="160" height="90" rx="3"></rect>
+      <text x="495" y="154" text-anchor="middle" font-size="14" font-weight="700">派生智能体</text>
+      <text class="sub" x="495" y="181" text-anchor="middle" font-size="12">分析 / 检索 / 生成</text>
+      <text class="sub" x="495" y="200" text-anchor="middle" font-size="12">工具调用循环</text>
+
+      <rect class="box" x="600" y="120" width="160" height="90" rx="3"></rect>
+      <text x="680" y="154" text-anchor="middle" font-size="14" font-weight="700">候选能力包</text>
+      <text class="sub" x="680" y="181" text-anchor="middle" font-size="12">测试项 / 环境</text>
+      <text class="sub" x="680" y="200" text-anchor="middle" font-size="12">规则 / 展示模板</text>
+
+      <rect class="box" x="785" y="120" width="160" height="90" rx="3"></rect>
+      <text x="865" y="154" text-anchor="middle" font-size="14" font-weight="700">Docker Harness</text>
+      <text class="sub" x="865" y="181" text-anchor="middle" font-size="12">容器运行 / 断言</text>
+      <text class="sub" x="865" y="200" text-anchor="middle" font-size="12">日志 / trace</text>
+
+      <rect class="box" x="970" y="120" width="160" height="90" rx="3"></rect>
+      <text x="1050" y="154" text-anchor="middle" font-size="14" font-weight="700">项目测试项</text>
+      <text class="sub" x="1050" y="181" text-anchor="middle" font-size="12">人工审核 / 入仓</text>
+      <text class="sub" x="1050" y="200" text-anchor="middle" font-size="12">主扫描器加载</text>
+
+      <line class="line" x1="205" y1="165" x2="225" y2="165" marker-end="url(#arrow)"></line>
+      <line class="line" x1="390" y1="165" x2="410" y2="165" marker-end="url(#arrow)"></line>
+      <line class="line" x1="575" y1="165" x2="595" y2="165" marker-end="url(#arrow)"></line>
+      <line class="line" x1="760" y1="165" x2="780" y2="165" marker-end="url(#arrow)"></line>
+      <line class="line" x1="945" y1="165" x2="965" y2="165" marker-end="url(#arrow)"></line>
+
+      <rect class="box" x="230" y="245" width="160" height="58" rx="3"></rect>
+      <text x="310" y="270" text-anchor="middle" font-size="13" font-weight="700">补充包</text>
+      <text class="sub" x="310" y="291" text-anchor="middle" font-size="12">会话附件 / 独立 hash</text>
+
+      <rect class="box" x="415" y="245" width="160" height="58" rx="3"></rect>
+      <text x="495" y="270" text-anchor="middle" font-size="13" font-weight="700">验收项草案</text>
+      <text class="sub" x="495" y="291" text-anchor="middle" font-size="12">用户确认后锁定</text>
+
+      <rect class="box" x="785" y="245" width="160" height="58" rx="3"></rect>
+      <text x="865" y="270" text-anchor="middle" font-size="13" font-weight="700">运行证据</text>
+      <text class="sub" x="865" y="291" text-anchor="middle" font-size="12">逐项结果 / 原始文件</text>
+    </svg>
+  </div>
+  <p class="caption">图 1：需求材料、智能体派生、容器验证和能力入仓之间的主数据流。实线箭头仅表示主链路；下排框与其上方阶段竖直对应，表示伴随治理对象。</p>
+</section>
+
+<section id="agent">
+  <h2>智能体与持续会话</h2>
+  <p>每个派生任务拥有一条持续会话。用户消息可以包含问题、修订意图、执行指令和附件引用。智能体在同一会话中调用读取材料、查询既有测试项、受控检索、写候选文件、构建镜像、运行 Harness、读取证据和形成候选能力等工具。工具事件与对话消息共同构成时间线。</p>
+  <p>任务状态由目标完成度决定。验收项通过并形成候选能力时，智能体结束当前运行；缺少事实、需要安全判断或无法取得新证据时，状态转为等待用户；基础设施不可用时记录执行失败。运行期间到达的新消息按顺序进入同一任务会话，并在当前运行结束后继续处理。</p>
+  <p>同一资产类型下的多个能力共享事实空间。智能体生成的事实字段需要使用稳定的项目命名空间，避免与同类其他测试项重名。多个能力引用同一漏洞编号时，其结构化适用条件必须一致；事实或规则冲突会阻止冲突结论进入确定状态。</p>
+  <table>
+    <thead><tr><th>工具</th><th>输入边界</th><th>输出</th></tr></thead>
+    <tbody>
+      <tr><td><code>list_materials</code>、<code>read_material</code></td><td>已登记原始包、补充包和当前 attempt 文件。</td><td>材料清单与带 hash 的文本片段。</td></tr>
+      <tr><td><code>web_search</code></td><td>配置允许的官方仓库、文档、注册表和可信镜像源。</td><td>来源链接和检索结果。</td></tr>
+      <tr><td><code>define_acceptance_test</code></td><td>当前任务中的验收项草案。</td><td>带版本的待确认验收项。</td></tr>
+      <tr><td><code>begin_attempt</code>、<code>write_candidate_file</code></td><td>当前 attempt 的安全相对路径。</td><td>候选文件及 SHA-256。</td></tr>
+      <tr><td><code>run_harness</code></td><td>候选环境、worker 和当前验收项。</td><td>运行 ID 与逐项结果。</td></tr>
+      <tr><td><code>read_harness_run</code></td><td>当前任务所属运行。</td><td>日志、trace、命令和结构化结果。</td></tr>
+      <tr><td><code>register_candidate</code></td><td>通过验证且验收项已经确认的测试项、规则和模板。</td><td>候选能力包。</td></tr>
+      <tr><td><code>request_user_input</code></td><td>无法由现有证据消解的具体问题。</td><td>等待用户状态和问题说明。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="acceptance">
+  <h2>测试项与验收项</h2>
+  <p>项目测试项是生产测绘能力，负责在目标实例上观测一个条件。验收项是派生阶段的质量约束，负责判断项目测试项在指定样本和环境中的行为是否满足预期。二者分别保存，避免生产逻辑与自我验证逻辑混为一体。</p>
+  <p>智能体可以使用草案验收项开展探索。候选能力进入审核前，操作人必须确认所有启用验收项的阻断属性、断言和预期结果。智能体不能修改已经确认的验收项；操作人修订后形成新版本。验收样本数量由 Harness case 声明，不使用统一的正负样本数量。</p>
+  <table>
+    <thead><tr><th>字段</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td><code>stable_key</code></td><td>任务内稳定的验收项标识。</td></tr>
+      <tr><td><code>name</code>、<code>purpose</code></td><td>验收项名称和验证目标。</td></tr>
+      <tr><td><code>enabled</code></td><td>当前版本是否参与验收聚合；停用时必须记录理由。</td></tr>
+      <tr><td><code>blocking</code></td><td>失败是否阻止候选进入审核。</td></tr>
+      <tr><td><code>assertion</code></td><td>字段路径、操作符和预期值。</td></tr>
+      <tr><td><code>user_confirmed</code></td><td>当前版本是否已经由操作人确认。</td></tr>
+      <tr><td><code>actor</code>、<code>change_reason</code></td><td>版本形成主体及修改理由。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="worker">
+  <h2>容器 worker 协议</h2>
+  <p>审核通过的项目测试项以固定 OCI 镜像 digest 运行。主扫描器在扫描任务开始时启动长生命周期容器 worker，通过标准输入发送一行一个目标的 JSON，通过标准输出接收一行一个测试结果。Harness 使用相同协议验证候选镜像，保证验证对象与生产对象一致。</p>
+<pre>{"request_id":"r-1","target":{"host":"192.0.2.10","port":443,"tls":true},"timeout_ms":8000}
+{"request_id":"r-1","test_id":"project.condition","status":"satisfied","facts":{},"evidence":[],"error":null}</pre>
+  <p>状态限定为 <code>satisfied</code>、<code>not_satisfied</code>、<code>unknown</code> 和 <code>error</code>。每个能力包包含一个独立项目测试项，同一资产类型可以登记多个能力包。主扫描器调用相应的长生命周期 worker，聚合测试事实、版本和展示模板，并用结构化漏洞关联规则计算适用性。事实字段发生冲突时，冲突值单独保存，相关漏洞结果保持未知。</p>
+  <p>能力仓的 <code>index.json</code> 按资产类型保存能力数组。数组元素以 <code>capability_id</code> 区分独立项目测试项，并固定 manifest 路径和镜像 digest；同一 <code>capability_id</code> 的新版本替换运行索引中的旧版本，不影响同一资产类型下的其他项目测试项。</p>
+</section>
+
+<section id="data">
+  <h2>数据对象</h2>
+  <table>
+    <thead><tr><th>对象</th><th>职责</th><th>关键关系</th></tr></thead>
+    <tbody>
+      <tr><td><code>package_snapshots</code>、<code>artifacts</code></td><td>原始需求快照、补充包及文件清单。</td><td>原始包对应任务；补充包绑定会话消息。</td></tr>
+      <tr><td><code>derivation_tasks</code></td><td>需求进入平台后的任务状态。</td><td>关联一条持续会话和当前候选能力。</td></tr>
+      <tr><td><code>agent_threads</code>、<code>agent_messages</code>、<code>agent_events</code>、<code>agent_runs</code></td><td>任务级持续会话与执行记录。</td><td>消息按序处理，事件供前端轮询。</td></tr>
+      <tr><td><code>derivation_attempts</code></td><td>关键输入或候选产物变化形成的版本。</td><td>关联能力包和 Harness 运行。</td></tr>
+      <tr><td><code>acceptance_tests</code>、<code>acceptance_test_versions</code></td><td>验收项身份、当前版本和历史版本。</td><td>确认状态属于具体版本。</td></tr>
+      <tr><td><code>harness_runs</code>、<code>acceptance_results</code></td><td>容器验证及逐项结果。</td><td>关联固定 attempt 和原始证据目录。</td></tr>
+      <tr><td><code>capability_packages</code></td><td>候选和已审核能力包。</td><td><code>capability_key</code> 标识独立项目测试能力，每个版本包含一个项目测试项。</td></tr>
+      <tr><td><code>project_tests</code>、<code>vulnerability_rules</code></td><td>生产测试定义与漏洞关联规则。</td><td>同一资产类型下可并存多个项目测试项。</td></tr>
+    </tbody>
+  </table>
+  <p>扫描结果进入测绘库后，<code>project_test_results</code> 保存逐测试项状态、事实和证据，<code>observation_facts</code> 保存聚合事实，<code>vulnerability_matches</code> 保存漏洞适用性，<code>observation_presentations</code> 保存能力声明的展示模板。事实、规则结论与展示定义分别保存。</p>
+</section>
+
+<section id="frontend">
+  <h2>前端交互</h2>
+  <p>派生工作台使用独立页面，与资产看板互相导航。操作人输入本机可访问的需求目录路径后，导入预览展示文件清单、hash、主文档和未登记文件。确认导入后进入任务详情，并通过任务级会话启动分析。任务看板显示当前阶段、最近工具事件、验收汇总和等待用户的具体原因。</p>
+  <p>任务详情同时呈现材料、验收项、attempt、Harness 证据、候选能力和持续会话。聊天输入支持文本与附件；附件先形成补充包，再与消息共同提交。失败卡点作为可展开事件显示，操作人可以引用事件继续质询。自然语言执行指令恢复同一任务，不提供单步重跑、整轮重跑或生成修订 attempt 按钮。</p>
+  <p>候选审核页显示已确认验收项、非阻断警告、固定镜像 digest、项目测试项、项目识别规则、漏洞关联、展示模板和来源证据。审核动作包括通过入仓和退回修改，动作理由与时间随候选记录保存。</p>
+  <p>资产看板按展示模板选择实例事实字段，并同时呈现逐项目测试项证据和漏洞适用性。OpenClaw 内置 detector 继续使用专用报告话术，动态能力不套用 OpenClaw 的测试项名称和判定说明。</p>
+</section>
+
+<section id="api">
+  <h2>HTTP 接口</h2>
+  <table>
+    <thead><tr><th>方法与路径</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET /api/derivation/config</code></td><td>返回模型配置与项目级外发授权状态。</td></tr>
+      <tr><td><code>POST /api/derivation/imports/preview</code></td><td>校验 manifest、路径和 hash，返回导入预览。</td></tr>
+      <tr><td><code>POST /api/derivation/imports</code></td><td>按预览 hash 确认导入并创建任务级会话。</td></tr>
+      <tr><td><code>GET /api/derivation/tasks</code></td><td>查询任务列表与状态汇总。</td></tr>
+      <tr><td><code>GET /api/derivation/tasks/{id}</code></td><td>返回任务详情、验收、运行和候选能力。</td></tr>
+      <tr><td><code>POST /api/derivation/tasks/{id}/messages</code></td><td>发送消息；附件随消息形成不可变补充包，并恢复智能体。</td></tr>
+      <tr><td><code>GET /api/derivation/tasks/{id}/events</code></td><td>按事件序号增量读取消息和工具事件。</td></tr>
+      <tr><td><code>POST /api/derivation/tasks/{id}/acceptance-tests</code></td><td>新增或修订验收项并生成新版本。</td></tr>
+      <tr><td><code>POST /api/derivation/tasks/{id}/acceptance-tests/{key}/confirm</code></td><td>确认当前验收项版本。</td></tr>
+      <tr><td><code>GET /api/derivation/harness-runs/{id}</code></td><td>读取容器环境、逐项结果和证据路径。</td></tr>
+      <tr><td><code>POST /api/derivation/capabilities/{id}/approve</code></td><td>审核通过并注册项目测试项。</td></tr>
+      <tr><td><code>POST /api/derivation/capabilities/{id}/reject</code></td><td>退回修改并记录理由。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="security">
+  <h2>安全与审计</h2>
+  <p>模型生成文件只能写入当前 attempt 工作区，不能覆盖原始包、补充包和已入仓能力。Docker 构建与运行禁止 privileged、host network、宿主目录写挂载、Docker socket、设备映射和额外 capabilities，并设置 CPU、内存、进程数和超时。项目测试项不得在生产测绘中实施状态修改或漏洞利用。</p>
+  <p>OpenAI API key 只从 Git 忽略的本地配置读取。项目级授权控制需求材料是否可以发送给外部模型服务；智能体运行记录模型、状态、响应 ID、消息和工具事件，不保存 API key。Responses 请求使用 <code>store=false</code>，每轮请求回放完整输出项及加密 reasoning 内容，本地数据库承担任务会话与审计记录的持久化。</p>
+</section>
+</main>
+
+<footer><p>测绘脚本派生工作流详设材料，设计基线日期：2026-07-15。</p></footer>
+</body>
+</html>

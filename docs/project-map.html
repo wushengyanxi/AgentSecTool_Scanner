@@ -3,15 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AgentSecTool Scanner Project Map</title>
+<title>AgentSecTool Scanner 项目地图</title>
+<script>
+  (function(){
+    var key="doc-theme";
+    var saved="";
+    try{saved=localStorage.getItem(key)||"";}catch(e){}
+    var dark=false;
+    try{dark=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches;}catch(e){}
+    document.documentElement.setAttribute("data-theme",saved||(dark?"dark":"light"));
+    window.toggleDocTheme=function(){
+      var root=document.documentElement;
+      var next=root.getAttribute("data-theme")==="dark"?"light":"dark";
+      root.setAttribute("data-theme",next);
+      try{localStorage.setItem(key,next);}catch(e){}
+    };
+  })();
+</script>
 <style>
   :root{
     --bg:#ffffff; --fg:#1f2328; --fg-muted:#59636e; --fg-faint:#818b98;
     --border:#d1d9e0; --border-soft:#e4e8ec; --code-bg:#f6f8fa; --nav-bg:#f6f8fa;
     --link:#0969da; --co-bg:#f6f8fa; --co-bg-strong:#eaedf1; --co-bd:#d1d9e0;
+    --panel-bg:#fcfdfe; --card-bg:#ffffff; --hover-bg:#eaeef2; --code-fg:#1f2328;
     --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Helvetica,Arial,sans-serif;
     --nav-w:280px; --maxw:1180px;
+  }
+  html[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#1b1b1b; --fg:#d8d8d8; --fg-muted:#bcbcbc; --fg-faint:#8f8f8f;
+    --border:#3a3a3a; --border-soft:#303030; --code-bg:#242424; --nav-bg:#171717;
+    --link:#9ab4f8; --co-bg:#1d1d1d; --co-bg-strong:#242424; --co-bd:#3a3a3a;
+    --panel-bg:#1d1d1d; --card-bg:#202020; --hover-bg:#2b2b2b; --code-fg:#d8d8d8;
   }
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth; scroll-padding-top:16px;}
@@ -20,40 +44,40 @@
   .layout{display:flex; align-items:flex-start;}
   nav.side{position:sticky; top:0; height:100vh; width:var(--nav-w); flex:0 0 var(--nav-w);
     overflow-y:auto; background:var(--nav-bg); border-right:1px solid var(--border);
-    padding:20px 14px 60px;}
+    padding:44px 14px 60px;}
   nav.side .brand{font-weight:700; font-size:15px; padding:4px 10px 14px; color:var(--fg);}
   nav.side .brand small{display:block; font-weight:400; font-size:12px; color:var(--fg-muted); margin-top:3px;}
   nav.side a{display:block; padding:5px 10px; color:var(--fg-muted); text-decoration:none;
     border-radius:6px; font-size:13.5px; line-height:1.4;}
-  nav.side a:hover{background:#eaeef2; color:var(--fg);}
+  nav.side a:hover{background:var(--hover-bg); color:var(--fg);}
   nav.side .grp{font-size:11px; text-transform:uppercase; letter-spacing:0;
     color:var(--fg-faint); padding:16px 10px 4px; font-weight:600;}
   main{flex:1 1 auto; min-width:0; padding:40px 56px 120px; max-width:calc(var(--maxw) + 112px);}
   .wrap{max-width:var(--maxw);}
-  h1{font-size:38px; font-weight:700; line-height:1.2; margin:0 0 10px; letter-spacing:0;}
+  h1{font-size:30px; font-weight:700; line-height:1.2; margin:0 0 10px; letter-spacing:0;}
   h2{font-size:27px; font-weight:700; line-height:1.3; margin:54px 0 16px; padding-bottom:8px;
     border-bottom:1px solid var(--border-soft); scroll-margin-top:16px; letter-spacing:0;}
   h3{font-size:19px; font-weight:600; margin:28px 0 10px;}
-  section > :not(h2):not(h1){margin-left:18px;}
-  section > h2{margin-left:0;}
-  p{margin:0 0 13px;}
+  p{margin:0 0 13px; text-indent:2em;}
   a{color:var(--link); text-decoration:none;} a:hover{text-decoration:underline;}
   ul,ol{margin:0 0 13px; padding-left:24px;} li{margin:3px 0;}
   strong{font-weight:600; color:var(--fg);}
   code{font-family:var(--mono); font-size:85%; background:var(--code-bg);
-    padding:.15em .4em; border-radius:5px; color:#1f2328;}
+    padding:.15em .4em; border-radius:5px; color:var(--code-fg);}
   pre{background:var(--code-bg); border:1px solid var(--border-soft); border-radius:8px;
     padding:14px 16px; overflow-x:auto; margin:0 0 14px;}
   pre code{background:none; padding:0; font-size:12.5px; line-height:1.62; display:block;}
   .lead{font-size:16px; color:var(--fg-muted); line-height:1.65; margin:0 0 20px; max-width:900px;}
-  .keyval{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:0 0 20px;}
-  .keyval .kv{border:1px solid var(--border); border-radius:8px; padding:12px 14px; background:#fcfdfe;}
-  .keyval .kv .k{font-size:11px; text-transform:uppercase; letter-spacing:0; color:var(--fg-faint); font-weight:600; margin-bottom:4px;}
+  .keyval{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:0 0 20px;}
+  .keyval .kv{border:1px solid var(--border); border-radius:8px; padding:12px 14px; background:var(--panel-bg);}
+  .keyval .kv .k{font-size:11px; letter-spacing:0; color:var(--fg-faint); font-weight:600; margin-bottom:4px;}
   .keyval .kv .v{font-size:13.5px; color:var(--fg);}
+  .keyval .kv .v code{white-space:normal;overflow-wrap:anywhere;}
   .callout{border:1px solid var(--co-bd); background:var(--co-bg); border-radius:8px;
     padding:12px 16px; margin:0 0 16px; border-left-width:4px; border-left-color:#6e7781; font-size:14px;}
   .callout .ct{font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:0;
     margin:0 0 6px; color:var(--fg);}
+  .callout p{ text-indent:0; }
   .callout p:last-child{margin-bottom:0;}
   .tbl-wrap{overflow-x:auto; margin:0 0 16px; border:1px solid var(--border); border-radius:8px;}
   table{border-collapse:collapse; width:100%; font-size:13.5px;}
@@ -63,25 +87,28 @@
   td code,th code{font-size:12px; white-space:nowrap;}
   .badge{display:inline-block; font-family:var(--mono); font-size:11px; font-weight:600;
     padding:1px 7px; border-radius:20px; letter-spacing:0; vertical-align:middle; white-space:nowrap;
-    background:var(--co-bg-strong); color:var(--fg-muted); border:1px solid #afb8c1;}
+    background:var(--co-bg-strong); color:var(--fg-muted); border:1px solid var(--border);}
   .flow{display:grid; grid-template-columns:repeat(5,minmax(130px,1fr)); gap:10px; align-items:stretch;
-    border:1px solid var(--border); border-radius:8px; padding:14px; background:#fcfdfe; margin:0 0 10px;}
+    border:1px solid var(--border); border-radius:8px; padding:14px; background:var(--panel-bg); margin:0 0 10px;}
   .flow .step{position:relative; min-height:116px; border:1px solid var(--border); border-radius:8px;
-    background:#fff; padding:12px 14px;}
+    background:var(--card-bg); padding:12px 14px;}
   .flow .step:not(:last-child)::after{content:"→"; position:absolute; right:-17px; top:42px;
-    font-family:var(--mono); font-size:18px; color:var(--fg-faint); background:#fcfdfe; line-height:1;}
+    font-family:var(--mono); font-size:18px; color:var(--fg-faint); background:var(--panel-bg); line-height:1;}
   .flow .nm{font-weight:700; margin-bottom:6px;}
-  .flow .desc{font-size:13px; color:var(--fg-muted); margin:0 0 7px;}
+  .flow .desc{font-size:13px; color:var(--fg-muted); margin:0 0 7px; text-indent:0;}
   .flow .src{font-family:var(--mono); font-size:11.5px; color:var(--fg-faint); overflow-wrap:anywhere;}
-  .caption{font-size:12.5px; color:var(--fg-muted); margin:8px 2px 18px; line-height:1.6;}
+  .caption{font-size:12.5px; color:var(--fg-muted); margin:8px 2px 18px; line-height:1.6; text-indent:0;}
   .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:12px; margin:0 0 16px;}
-  .card{border:1px solid var(--border); border-radius:8px; background:#fff; overflow:hidden;}
+  .card{border:1px solid var(--border); border-radius:8px; background:var(--card-bg); overflow:hidden;}
   .card .hd{background:var(--code-bg); padding:10px 14px; border-bottom:1px solid var(--border-soft); font-weight:700;}
   .card .bd{padding:11px 14px; font-size:13.5px;}
-  .card .bd p{margin-bottom:9px;}
+  .card .bd p{margin-bottom:9px; text-indent:0;}
   .card .bd p:last-child{margin-bottom:0;}
   footer{margin-top:48px; padding-top:20px; border-top:1px solid var(--border-soft);
     font-size:12.5px; color:var(--fg-faint);}
+  footer p{ text-indent:0; }
+  .theme-toggle{position:fixed;top:10px;left:12px;z-index:80;border:0;background:transparent;
+    color:var(--fg-muted);font-family:var(--mono);font-size:13px;line-height:1;padding:5px 6px;cursor:pointer;}
   .nav-toggle{display:none;}
   @media(max-width:1050px){
     .flow{grid-template-columns:1fr;}
@@ -89,12 +116,10 @@
     .flow .step:not(:last-child)::after{content:"↓"; right:calc(50% - 6px); top:auto; bottom:-17px;}
   }
   @media(max-width:900px){
-    nav.side{position:fixed; left:0; top:0; z-index:50; transform:translateX(-100%);
-      transition:transform .2s; box-shadow:2px 0 12px rgba(0,0,0,.1);}
+    nav.side{position:fixed; left:0; top:0; z-index:50; transform:translateX(-100%);}
     body.nav-open nav.side{transform:translateX(0);}
     main{padding:60px 20px 100px;}
-    section > :not(h2):not(h1){margin-left:0;}
-    .nav-toggle{display:inline-flex; position:fixed; top:12px; left:12px; z-index:60;
+    .nav-toggle{display:inline-flex; position:fixed; top:12px; left:54px; z-index:60;
       background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:7px 11px;
       font-family:var(--sans); font-size:13px; cursor:pointer; align-items:center; gap:6px;}
   }
@@ -106,15 +131,17 @@
 </style>
 </head>
 <body>
+<button class="theme-toggle" type="button" onclick="window.toggleDocTheme()" aria-label="切换明暗模式" title="切换明暗模式">L/D</button>
 <button class="nav-toggle" onclick="document.body.classList.toggle('nav-open')">目录</button>
 <div class="layout">
 <nav class="side" id="sidenav">
-  <div class="brand">Project Map<small>AgentSecTool Scanner</small></div>
-  <a href="#overview">定位与读法</a>
+  <div class="brand">项目地图<small>AgentSecTool Scanner</small></div>
+  <a href="#overview">项目定位</a>
   <a href="#tree">目录地图</a>
   <a href="#flow">主链路</a>
   <a href="#go-prober">Go 探测侧</a>
   <a href="#python-platform">Python 平台侧</a>
+  <a href="#agent-runtime">智能体运行时</a>
   <a href="#tools">tools 地图</a>
   <a href="#data">运行数据</a>
   <a href="#change-points">修改入口</a>
@@ -125,19 +152,16 @@
 <div class="wrap">
 
 <section id="overview">
-  <h1>AgentSecTool Scanner Project Map</h1>
-  <p class="lead">本文档用于快速定位项目结构、代码职责、主数据链路和常见修改入口。它描述当前代码状态：AgentSecTool Scanner 是一个可扩展的资产测绘平台，OpenClaw 是当前内置的首个资产类型。</p>
+  <h1>AgentSecTool Scanner：项目地图</h1>
+  <p class="lead">AgentSecTool Scanner 是面向多资产类型的测绘平台。平台包含候选发现、内置与动态探测、漏洞需求驱动的能力派生、Codex 智能体运行时、证据归档和结果展示；OpenClaw 是当前内置的资产类型。</p>
 
   <div class="keyval">
     <div class="kv"><div class="k">项目定位</div><div class="v">候选发现、资产探测、版本测定、证据归档、看板展示的综合测绘平台。</div></div>
     <div class="kv"><div class="k">推荐探测入口</div><div class="v"><code>prober/bin/assetprobe --type openclaw</code></div></div>
     <div class="kv"><div class="k">Python 包根</div><div class="v"><code>src/agentsectool_scanner/</code>，使用 src-layout 隔离源码包和仓库杂项。</div></div>
-    <div class="kv"><div class="k">OpenClaw 边界</div><div class="v">OpenClaw 判定、版本和证据采集属于 detector 分支，不是平台层的唯一目标。</div></div>
-  </div>
-
-  <div class="callout">
-    <div class="ct">读法</div>
-    <p>先看目录地图确认代码位置，再看主链路理解数据如何流动。需要改功能时优先查“修改入口”，需要运行或验收时查“命令入口”。</p>
+    <div class="kv"><div class="k">派生工作台</div><div class="v"><code>http://127.0.0.1:8787/derivation</code></div></div>
+    <div class="kv"><div class="k">智能体运行时</div><div class="v"><code>src/agentsectool_scanner/agent_runtime/</code>，负责 Codex 执行、模型接入、审批和 trace。</div></div>
+    <div class="kv"><div class="k">OpenClaw 边界</div><div class="v">OpenClaw 是内置资产类型，其判定、版本和证据采集均位于专属 detector 分支。</div></div>
   </div>
 </section>
 
@@ -149,7 +173,8 @@
 │  ├─ cmd/assetprobe/              平台化探测入口：按 --type 调 detector
 │  ├─ cmd/ocprobe/                 OpenClaw 兼容入口
 │  ├─ detectors/                   detector 注册表与资产类型实现
-│  │  └─ openclaw/                 OpenClaw detector 适配层
+│  │  ├─ openclaw/                 OpenClaw detector 适配层
+│  │  └─ dynamic/                  已入仓容器 worker 的加载与结果聚合
 │  ├─ openclaw/                    OpenClaw 协议判定、证据、版本、指纹
 │  ├─ fingerprints/                detector 指纹库
 │  ├─ targeting/                   目标展开：IP、CIDR、通配 IPv4、CSV、stdin
@@ -157,7 +182,11 @@
 ├─ src/agentsectool_scanner/       Python 平台包
 │  ├─ discovery/                   主动/被动候选发现与合并
 │  ├─ store/                       JSONL 入库、SQLite schema、统计与报告查询
-│  ├─ dashboard/                   本地只读看板服务与静态页面
+│  ├─ dashboard/                   资产看板、派生工作台与本地 API
+│  ├─ derivation/                  需求导入、智能体、Harness、能力审核与入仓
+│  ├─ agent_runtime/               Codex SDK、模型接入、容器执行与 trace
+│  │  ├─ config/ · core/ · trace/  配置、审批事件和可复查运行记录
+│  │  └─ deploy/ · tests/          受限运行镜像、LiteLLM 模板和运行时测试
 │  ├─ progress/                    主动扫描块队列
 │  ├─ geoip/                       GeoLite2 富化与离线配置
 │  └─ paths.py                     Python CLI 的仓库默认路径
@@ -168,7 +197,15 @@
 │  ├─ fingerprint/                 指纹语料采集、迁移、构建
 │  └─ scan_test/                   扫描测试辅助脚本
 ├─ config/                         跨模块配置模板
-└─ docs/                           当前项目文档与历史归档</code></pre>
+└─ docs/                           项目说明、设计文档与历史归档
+   ├─ 项目文档-v2.html             系统功能、使用方式和规则参考
+   ├─ project-map.html             代码目录、数据链路和修改入口
+   ├─ 设计文稿/
+   │  ├─ 漏洞脚本驱动的测绘能力派生概要设计.html
+   │  └─ 测绘脚本派生工作流详设材料.html
+   ├─ 开发任务/
+   │  └─ 测绘能力派生开发任务.html
+   └─ archive/                     历史总结与旧版操作记录</code></pre>
 
   <div class="callout">
     <div class="ct">src-layout 说明</div>
@@ -207,6 +244,14 @@
     </div>
   </div>
   <p class="caption">图中只表达单向数据流。候选来源的第三方标签只作为候选输入，本项目确认口径以 <code>assetprobe</code> 的实时只读探测结果为准。</p>
+  <div class="flow" aria-label="测绘能力派生数据流">
+    <div class="step"><div class="nm">漏洞需求</div><p class="desc">代码、主文档、材料清单及可选辅助文件。</p><div class="src">manifest.json</div></div>
+    <div class="step"><div class="nm">不可变快照</div><p class="desc">校验路径与 SHA-256，建立任务级持续会话。</p><div class="src">derivation/packages.py</div></div>
+    <div class="step"><div class="nm">智能体派生</div><p class="desc">形成项目测试项、worker、环境、规则和展示模板。</p><div class="src">derivation/agent.py</div></div>
+    <div class="step"><div class="nm">容器验收</div><p class="desc">在隔离样例环境中执行并保存逐项证据。</p><div class="src">derivation/harness.py</div></div>
+    <div class="step"><div class="nm">审核入仓</div><p class="desc">固定镜像 digest，登记到动态能力索引。</p><div class="src">capability_packages/index.json</div></div>
+  </div>
+  <p class="caption">测绘能力派生链路不执行公网扫描。审核通过的能力在后续扫描任务中由 <code>assetprobe</code> 加载。</p>
 </section>
 
 <section id="go-prober">
@@ -235,6 +280,12 @@
           <td>把 OpenClaw 探测核心接入平台接口，或修改默认端口与指纹加载。</td>
         </tr>
         <tr>
+          <td><code>prober/detectors/dynamic</code></td>
+          <td>动态项目测试项执行器。</td>
+          <td><code>CompositeDetector</code>、worker 池、能力索引校验</td>
+          <td>调整容器隔离、JSONL worker 协议、多测试项聚合或镜像 digest 校验。</td>
+        </tr>
+        <tr>
           <td><code>prober/openclaw</code></td>
           <td>OpenClaw 判定、取版本、证据采集。</td>
           <td><code>Probe</code>、<code>probeWS</code>、<code>probeHTTP</code>、<code>score</code>、<code>determineVersion</code></td>
@@ -259,7 +310,7 @@
 
 <section id="python-platform">
   <h2>Python 平台侧</h2>
-  <p>Python 侧承担平台主流程：发现候选、持久化、看板、进度队列、地理富化。它不承载具体资产类型的判定规则。</p>
+  <p>Python 侧承担候选发现、能力派生、智能体运行、持久化、看板、进度队列和地理富化。具体项目测试逻辑保存在内置 detector 或已入仓能力包中；模型线程、容器权限、审批事件和 trace 由独立运行时模块管理。</p>
   <div class="tbl-wrap">
     <table>
       <thead><tr><th>路径</th><th>职责</th><th>重点文件 / 对象</th><th>什么时候看这里</th></tr></thead>
@@ -278,9 +329,21 @@
         </tr>
         <tr>
           <td><code>src/agentsectool_scanner/dashboard</code></td>
-          <td>本地只读看板。</td>
-          <td><code>server.py</code>、<code>index.html</code>、<code>assets/</code></td>
-          <td>改 API、地图、筛选、展示字段或前端静态资源。</td>
+          <td>本地资产看板与派生工作台。</td>
+          <td><code>server.py</code>、<code>index.html</code>、<code>derivation.html</code></td>
+          <td>改扫描报告、派生任务交互、API、地图或展示模板渲染。</td>
+        </tr>
+        <tr>
+          <td><code>src/agentsectool_scanner/derivation</code></td>
+          <td>测绘能力派生与治理。</td>
+          <td><code>packages.py</code>、<code>agent.py</code>、<code>harness.py</code>、<code>capabilities.py</code></td>
+          <td>改需求包契约、会话工具、验收规则、容器策略、候选审核或能力索引。</td>
+        </tr>
+        <tr>
+          <td><code>src/agentsectool_scanner/agent_runtime</code></td>
+          <td>Codex 智能体运行时。</td>
+          <td><code>codex_runtime.py</code>、<code>launcher.py</code>、<code>worker.py</code>、<code>trace/</code></td>
+          <td>改模型提供方、Codex thread/turn、容器权限、审批、协议兼容或 trace。</td>
         </tr>
         <tr>
           <td><code>src/agentsectool_scanner/progress</code></td>
@@ -297,11 +360,62 @@
         <tr>
           <td><code>src/agentsectool_scanner/paths.py</code></td>
           <td>Python CLI 默认路径。</td>
-          <td><code>SCANNER_DB</code>、<code>PROBER_RESULTS</code>、<code>FOFA_DB</code></td>
+          <td><code>SCANNER_DB</code>、<code>DERIVATION_DB</code>、<code>AGENT_RUNTIME_CONFIG</code></td>
           <td>默认数据位置调整时先看这里，再同步 Makefile 与文档。</td>
         </tr>
       </tbody>
     </table>
+  </div>
+</section>
+
+<section id="agent-runtime">
+  <h2>智能体运行时</h2>
+  <p>智能体运行时为 Scanner 提供独立的 Codex 执行环境。宿主进程读取本地模型配置并生成去除密钥的容器配置，受限容器启动 Codex app-server，再通过 OpenAI 或 LiteLLM 的 Responses API 访问所选模型。thread、turn、工具事件、审批决定和模型协议记录写入任务 trace。</p>
+  <div class="flow" aria-label="Scanner 智能体运行时主链路">
+    <div class="step">
+      <div class="nm">宿主入口</div>
+      <p class="desc">加载模型档案，准备 trace 路径和容器参数。</p>
+      <div class="src">launcher.py</div>
+    </div>
+    <div class="step">
+      <div class="nm">受限容器</div>
+      <p class="desc">只读根文件系统、临时工作区、资源上限和独立状态卷。</p>
+      <div class="src">runtime.Dockerfile</div>
+    </div>
+    <div class="step">
+      <div class="nm">Codex 执行</div>
+      <p class="desc">创建或续接 thread，执行 turn 并处理工具审批。</p>
+      <div class="src">codex_runtime.py</div>
+    </div>
+    <div class="step">
+      <div class="nm">模型服务</div>
+      <p class="desc">使用 OpenAI 直连或 LiteLLM 网关提供 Responses API。</p>
+      <div class="src">config/ · compose.yaml</div>
+    </div>
+    <div class="step">
+      <div class="nm">运行记录</div>
+      <p class="desc">保存流式事件、工具结果、协议载荷和行为图。</p>
+      <div class="src">trace/ · render/</div>
+    </div>
+  </div>
+  <p class="caption">运行时主链路从宿主配置进入受限容器，经 Codex 调用模型服务；执行事件返回 trace，真实模型密钥不写入容器配置或运行记录。</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>路径</th><th>职责</th><th>关键约束</th></tr></thead>
+      <tbody>
+        <tr><td><code>config/</code></td><td>Pydantic 配置模型、模型档案和本地配置加载。</td><td>提交的示例不含密钥；本地配置由 Git 忽略。</td></tr>
+        <tr><td><code>codex_runtime.py</code></td><td>Codex SDK 初始化、thread 续接、turn 执行和事件桥接。</td><td>模型提供方与运行时分离；LiteLLM 工具序列经过协议归一化。</td></tr>
+        <tr><td><code>launcher.py</code>、<code>worker.py</code></td><td>构建运行镜像、注入临时配置并启动容器内进程。</td><td>密钥只通过进程环境传递，不进入命令参数和配置 JSON。</td></tr>
+        <tr><td><code>core/</code>、<code>trace/</code></td><td>审批对象、运行结果、JSONL 事件和模型载荷记录。</td><td>敏感请求头被遮蔽；原始载荷采集由配置控制。</td></tr>
+        <tr><td><code>doctor.py</code>、<code>tests/</code></td><td>检查 SDK 版本、app-server、模型协议、工具循环和续接能力。</td><td>模型配置通过协议检查后才适合承担长时间任务。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <div class="ct">当前执行边界</div>
+    <p><code>derivation/agent.py</code> 承载测绘能力派生的业务工具循环，<code>agent_runtime/</code> 承载通用 Codex 执行环境。当前 <code>DerivationService</code> 仍实例化前者，两个模块之间没有运行时适配调用。</p>
   </div>
 </section>
 
@@ -366,6 +480,24 @@
           <td>detector 原始输出，供 store 入库。</td>
         </tr>
         <tr>
+          <td>能力派生状态库</td>
+          <td><code>src/agentsectool_scanner/derivation/data/derivation.sqlite</code></td>
+          <td><code>agentsectool_scanner.derivation</code></td>
+          <td>需求快照、持续会话、验收、attempt、Harness 和审核状态。</td>
+        </tr>
+        <tr>
+          <td>动态能力仓</td>
+          <td><code>src/agentsectool_scanner/derivation/data/capability_packages/</code></td>
+          <td><code>CapabilityRegistry</code></td>
+          <td>已审核能力版本、固定镜像引用和运行索引。</td>
+        </tr>
+        <tr>
+          <td>智能体运行 trace</td>
+          <td><code>src/agentsectool_scanner/agent_runtime/data/runs/</code></td>
+          <td><code>TraceSink</code></td>
+          <td>Codex thread/turn、工具、审批、模型协议和行为图记录。</td>
+        </tr>
+        <tr>
           <td>FOFA 库与导出</td>
           <td><code>tools/fofa/data/fofa.sqlite</code>、<code>tools/fofa/output/candidates.csv</code></td>
           <td><code>tools.fofa</code></td>
@@ -395,9 +527,19 @@
       <thead><tr><th>目标</th><th>优先修改位置</th><th>需要同步检查</th></tr></thead>
       <tbody>
         <tr>
-          <td>新增资产类型</td>
+          <td>新增内置资产类型</td>
           <td><code>prober/detectors/&lt;type&gt;/</code>、<code>prober/detectors/registry.go</code></td>
           <td><code>assetprobe --list-types</code>、JSONL 摘要字段、store 入库字段、报告展示。</td>
+        </tr>
+        <tr>
+          <td>调整漏洞需求驱动的动态能力</td>
+          <td><code>src/agentsectool_scanner/derivation</code>、<code>prober/detectors/dynamic</code></td>
+          <td>需求快照不可变性、验收版本、Harness 隔离、能力索引和通用报告展示。</td>
+        </tr>
+        <tr>
+          <td>调整智能体运行时或模型接入</td>
+          <td><code>src/agentsectool_scanner/agent_runtime</code>、<code>config/agent-runtime.example.toml</code></td>
+          <td>模型协议、密钥注入、容器权限、trace 脱敏、doctor 与运行时测试集。</td>
         </tr>
         <tr>
           <td>调整 OpenClaw 判定规则</td>
@@ -435,6 +577,15 @@
   <pre><code># 全量测试
 make test
 
+# 智能体运行时：安装依赖并执行独立测试
+make agent-setup
+make agent-test
+
+# 创建被 Git 忽略的本地模型配置后检查运行时或进入交互界面
+cp config/agent-runtime.example.toml config/agent-runtime.toml
+make agent-doctor
+make agent
+
 # 本地最小链路：discovery(localhost) -> assetprobe -> store -> stats
 make demo
 
@@ -449,7 +600,7 @@ prober/bin/assetprobe --type openclaw --fingerprints prober/fingerprints/opencla
   -o prober/output/results.jsonl src/agentsectool_scanner/discovery/output/candidates.csv
 python3 -m agentsectool_scanner.store --in prober/output/results.jsonl --stats
 python3 -m agentsectool_scanner.dashboard</code></pre>
-  <p class="caption">看板默认地址为 <code>http://127.0.0.1:8787/</code>。主动扫描公网前必须配置授权范围、黑名单、限速和可识别出口。</p>
+  <p class="caption">资产看板位于 <code>http://127.0.0.1:8787/</code>，派生工作台位于 <code>http://127.0.0.1:8787/derivation</code>。主动扫描公网前必须配置授权范围、黑名单、限速和可识别出口。</p>
 </section>
 
 <section id="boundaries">
@@ -463,13 +614,17 @@ python3 -m agentsectool_scanner.dashboard</code></pre>
     <p>FOFA、ClawSec、Shodan、ZoomEye 等外部测绘标签只能作为候选或参照。平台内的确认、版本和证据以本项目 detector 的实时探测输出为准。</p>
   </div>
   <div class="callout">
+    <div class="ct">智能体执行边界</div>
+    <p>智能体只在授权环境和受限容器中执行任务。提交的配置模板不含真实凭据；本地密钥、LiteLLM 配置、Codex 状态和 trace 均按敏感运行数据管理。智能体产生的候选内容需要经过 Harness 和人工审核，不能直接成为生产测绘能力。</p>
+  </div>
+  <div class="callout">
     <div class="ct">文档边界</div>
-    <p><code>docs/archive/</code> 保存历史阶段说明，不代表当前架构入口。当前项目文档以 <code>docs/项目文档-v2.html</code> 和本文档为主。</p>
+    <p><code>docs/archive/</code> 保存可供追溯的历史总结。当前功能说明位于 <code>docs/项目文档-v2.html</code>，代码地图位于 <code>docs/project-map.html</code>，能力派生的实施顺序与验收条件位于 <code>docs/开发任务/测绘能力派生开发任务.html</code>。</p>
   </div>
 </section>
 
 <footer>
-  <p>最后更新：2026-07-13。目录、默认路径、CLI 入口或数据表结构变化时，应同步更新本文档。</p>
+  <p>AgentSecTool Scanner 项目地图，更新日期：2026-07-17。</p>
 </footer>
 
 </div>

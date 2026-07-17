@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>测绘能力派生开发任务</title>
+<script>
+  (function(){
+    var key = "doc-theme";
+    var saved = "";
+    try { saved = localStorage.getItem(key) || ""; } catch(e) {}
+    var prefersDark = false;
+    try { prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches; } catch(e) {}
+    document.documentElement.setAttribute("data-theme", saved || (prefersDark ? "dark" : "light"));
+    window.toggleDocTheme = function(){
+      var root = document.documentElement;
+      var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try { localStorage.setItem(key, next); } catch(e) {}
+    };
+  })();
+</script>
+<style>
+  :root{
+    --bg:#ffffff;--fg:#1f2328;--muted:#59636e;--faint:#818b98;
+    --border:#d1d9e0;--border-soft:#e4e8ec;--panel:#f6f8fa;--panel-strong:#eef1f4;
+    --link:#0969da;--accent:#4b5563;--nav:#f6f8fa;--hover:#eaeef2;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --nav-width:244px;--content-width:980px;
+  }
+  html[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#1b1b1b;--fg:#d8d8d8;--muted:#bcbcbc;--faint:#8f8f8f;
+    --border:#3a3a3a;--border-soft:#303030;--panel:#242424;--panel-strong:#292929;
+    --link:#9ab4f8;--accent:#a5a5a5;--nav:#171717;--hover:#2b2b2b;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;scroll-padding-top:18px;}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.72;-webkit-font-smoothing:antialiased;}
+  a{color:var(--link);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  code{font-family:var(--mono);font-size:86%;background:var(--panel);padding:.15em .4em;border-radius:4px;overflow-wrap:anywhere;}
+  strong{font-weight:650;color:var(--fg);}
+  .layout{display:flex;align-items:flex-start;}
+  .side{position:sticky;top:0;flex:0 0 var(--nav-width);width:var(--nav-width);height:100vh;overflow-y:auto;background:var(--nav);border-right:1px solid var(--border);padding:44px 14px 56px;}
+  .side .brand{padding:4px 10px 13px;font-size:15px;font-weight:700;}
+  .side .brand small{display:block;margin-top:3px;color:var(--muted);font-size:12px;font-weight:400;}
+  .side a{display:block;padding:5px 10px;border-radius:6px;color:var(--muted);font-size:13px;line-height:1.45;}
+  .side a:hover{background:var(--hover);color:var(--fg);text-decoration:none;}
+  .side .group{padding:16px 10px 4px;color:var(--faint);font-size:11px;font-weight:650;}
+  main{flex:1 1 auto;min-width:0;padding:42px 54px 110px;}
+  .content{max-width:var(--content-width);}
+  h1{margin:0 0 13px;font-size:31px;line-height:1.25;letter-spacing:0;}
+  h2{margin:50px 0 17px;padding-bottom:8px;border-bottom:1px solid var(--border-soft);font-size:24px;line-height:1.35;letter-spacing:0;}
+  h3{margin:34px 0 12px;font-size:19px;line-height:1.45;letter-spacing:0;}
+  p{margin:0 0 13px;text-indent:2em;}
+  .lead{max-width:900px;margin-bottom:21px;color:var(--muted);font-size:16px;line-height:1.75;}
+  ul,ol{margin:8px 0 15px;padding-left:25px;}
+  li{margin:5px 0;}
+  .theme-toggle{position:fixed;top:10px;left:12px;z-index:80;border:0;background:transparent;color:var(--muted);font-family:var(--mono);font-size:13px;line-height:1;padding:5px 6px;cursor:pointer;}
+  .theme-toggle:hover{color:var(--fg);text-decoration:underline;}
+  .nav-toggle{display:none;}
+  .summary{margin:20px 0 25px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+  .summary-row{display:grid;grid-template-columns:150px minmax(0,1fr);gap:18px;padding:10px 4px;border-bottom:1px solid var(--border-soft);}
+  .summary-row:last-child{border-bottom:0;}
+  .summary-key{font-size:13px;font-weight:650;color:var(--muted);}
+  .summary-value{font-size:14px;}
+  .sequence{margin:17px 0 23px;padding:13px 16px;border-left:4px solid var(--accent);background:var(--panel);font-family:var(--mono);font-size:13px;line-height:1.7;overflow-wrap:anywhere;}
+  .sequence span{white-space:nowrap;}
+  .stage{padding-top:2px;border-top:1px solid var(--border-soft);}
+  .stage:first-of-type{border-top:0;}
+  .stage h3{font-size:19px;font-weight:650;}
+  .label{font-weight:650;}
+  .acceptance{margin:14px 0 18px;padding:12px 16px;border-left:4px solid var(--accent);background:var(--panel);}
+  .acceptance-title{margin-bottom:5px;font-size:13px;font-weight:700;}
+  .acceptance ol,.acceptance ul{margin:4px 0 2px;}
+  .landing{color:var(--muted);font-size:14px;}
+  .landing strong{color:var(--fg);}
+  .table-wrap{margin:15px 0 21px;border:1px solid var(--border);overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th,td{padding:8px 11px;border-bottom:1px solid var(--border-soft);text-align:left;vertical-align:top;}
+  th{background:var(--panel);font-weight:650;white-space:nowrap;}
+  tr:last-child td{border-bottom:0;}
+  .note{margin:16px 0;padding:11px 15px;border:1px solid var(--border);background:var(--panel);}
+  .note p{margin:0;text-indent:0;font-size:14px;}
+  .plain-list{padding-left:23px;}
+  .plain-list li{padding-left:2px;}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--border-soft);color:var(--faint);font-size:12.5px;}
+  footer p{text-indent:0;}
+  @media(max-width:900px){
+    .side{position:fixed;left:0;top:0;z-index:60;transform:translateX(-100%);transition:transform .16s ease;}
+    body.nav-open .side{transform:translateX(0);}
+    main{padding:62px 20px 90px;}
+    .nav-toggle{display:inline-flex;position:fixed;top:10px;left:55px;z-index:70;align-items:center;border:1px solid var(--border);background:var(--bg);color:var(--fg);padding:6px 10px;border-radius:6px;font:13px var(--sans);cursor:pointer;}
+  }
+  @media(max-width:600px){
+    h1{font-size:26px;}
+    h2{font-size:21px;margin-top:42px;}
+    .summary-row{grid-template-columns:1fr;gap:3px;}
+    .sequence span{white-space:normal;}
+  }
+  @media print{
+    .side,.theme-toggle,.nav-toggle{display:none!important;}
+    main{padding:0;}
+    .content{max-width:none;}
+    .acceptance,.note,.table-wrap{break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+<button class="theme-toggle" type="button" onclick="window.toggleDocTheme()" aria-label="切换明暗模式" title="切换明暗模式">L/D</button>
+<button class="nav-toggle" type="button" onclick="document.body.classList.toggle('nav-open')" aria-label="打开或关闭目录">目录</button>
+
+<div class="layout">
+<nav class="side" aria-label="文档目录">
+  <div class="brand">开发任务<small>测绘能力派生主线</small></div>
+  <a href="#goal">开发目标</a>
+  <a href="#baseline">当前基础与断点</a>
+  <a href="#principles">实施约束</a>
+  <div class="group">开发阶段</div>
+  <a href="#stage-1">一、真实智能体接管任务</a>
+  <a href="#stage-2">二、形成完整能力草案</a>
+  <a href="#stage-3">三、验证与人机修订</a>
+  <a href="#stage-4">四、进入生产扫描链路</a>
+  <a href="#stage-5">五、形成多能力治理</a>
+  <a href="#stage-6">六、稳定承接上游交付</a>
+  <a href="#stage-7">七、并发与恢复能力</a>
+  <div class="group">验收管理</div>
+  <a href="#definition">总体完成条件</a>
+  <a href="#deferred">后置任务</a>
+</nav>
+
+<main>
+<div class="content">
+<header id="goal">
+  <h1>测绘能力派生开发任务</h1>
+  <p class="lead">开发工作的验收终点是形成一条可持续运行的测绘能力生产链路：上游交付漏洞代码和说明文档，平台智能体据此派生项目测试项及漏洞适用规则，在样例环境中完成验证；自动处理受阻时，用户通过前端对话和补充文件提供判断依据；审核通过的能力进入扫描器、结果库和查询界面。</p>
+
+  <div class="summary" aria-label="任务概要">
+    <div class="summary-row"><div class="summary-key">核心业务对象</div><div class="summary-value">需求包、派生任务、项目测试项、事实字段、漏洞适用规则、Harness 运行、候选能力包和审核记录。</div></div>
+    <div class="summary-row"><div class="summary-key">首要验收样本</div><div class="summary-value">一份具有代表性的上游需求包，包含一个或多个代码文件、一份主文档，以及 manifest 登记的可选辅助材料。</div></div>
+    <div class="summary-row"><div class="summary-key">用户主要入口</div><div class="summary-value">派生任务详情页中的持续会话、失败项证据、附件上传、验收项编辑和候选能力审核。</div></div>
+    <div class="summary-row"><div class="summary-key">生产输出</div><div class="summary-value">可由 <code>assetprobe</code> 调用的项目测试项、稳定事实字段、结构化漏洞规则和展示模板。</div></div>
+  </div>
+
+  <div class="sequence" aria-label="开发依赖顺序">
+    <span>真实任务接管</span> → <span>完整能力草案</span> → <span>验证与修订</span> → <span>审核入仓</span> → <span>生产扫描</span> → <span>多能力治理</span> → <span>可靠运行</span>
+  </div>
+</header>
+
+<section id="baseline">
+  <h2>当前基础与主要断点</h2>
+  <p>代码库已经具备需求包导入、派生状态库、本地 Docker Harness、动态 detector、派生工作台和候选审核等组件，并包含可连接 OpenAI 或 LiteLLM 模型提供方的 Codex 运行时。现有派生模块还保留独立的 Responses API 工具循环，Codex 运行时尚未接管真实派生任务；审核结果与动态 detector、JSONL、SQLite 和前端查询之间也尚未形成经过端到端验收的生产链路。</p>
+  <p>现有 Python 派生测试、智能体运行时测试和 Go 探测测试构成实施基线。进入第一阶段前，应固定当前可回退版本并记录回归命令；后续每个阶段均需保持已有 OpenClaw 扫描、JSONL 入库和资产看板可用。</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>已有基础</th><th>可复用内容</th><th>尚待闭合的业务结果</th></tr></thead>
+      <tbody>
+        <tr><td>需求导入与派生状态库</td><td>材料快照、hash、任务、attempt、验收、会话和候选记录。</td><td>真实上游需求能够被同一 Codex 会话持续分析和修订。</td></tr>
+        <tr><td>Codex 运行时</td><td>容器执行、模型配置、线程续接、审批事件和 trace。</td><td>运行时通过受控业务工具操作派生任务，不再由另一套模型循环承担生产派生。</td></tr>
+        <tr><td>Harness 与动态 detector</td><td>本地容器验证、逐项结果、worker 加载和事实聚合。</td><td>审核后的候选能够在真实扫描链路中产生可查询的漏洞适用结论。</td></tr>
+        <tr><td>派生工作台</td><td>任务列表、对话、附件、验收项、运行证据和审核界面。</td><td>失败项、用户指令、补充包、新 attempt 和后续证据保持完整关联。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="principles">
+  <h2>实施约束</h2>
+  <p>派生业务只保留一个生产智能体运行时。Codex 负责任务循环、文件操作、Shell 和工具调用；模型由部署配置选择，可直接连接 OpenAI，也可通过 LiteLLM 使用兼容模型。模型提供方差异不得形成第二套业务智能体实现。</p>
+  <p>智能体容器只获得当前任务的可写工作区、原始材料的只读视图和短期业务工具令牌。Docker Harness 在宿主侧执行，智能体容器不挂载 Docker socket。业务工具通过 Streamable HTTP MCP 提供，并以任务、运行、允许工具和资源路径四个维度限制权限。</p>
+  <p>材料读取和运行证据查询可由运行策略自动授权，候选写入、Harness 执行和能力登记需要同时满足任务状态、工具允许列表和资源归属校验。无人值守运行使用受限工作区权限，并对越界操作返回可记录的拒绝结果，不授予智能体宿主级完全访问权限。</p>
+  <p>原始需求包保持不可变。用户在会话中上传的文件形成独立补充包，并与消息、attempt、Harness 运行和候选版本建立关联。用户通过自然语言消息继续任务；系统依据消息含义和当前证据决定分析、修改或重新验证范围。</p>
+  <div class="note"><p>所有阶段共用同一份代表性需求包向前推进。阶段验收必须展示可复查的输入、工具事件、产物和结果，不能使用仅为测试断言准备的硬编码分支替代真实流程。</p></div>
+</section>
+
+<section id="stages">
+  <h2>开发阶段</h2>
+
+  <article class="stage" id="stage-1">
+    <h3>第一阶段：真实智能体接管派生任务</h3>
+    <p><span class="label">解决的问题。</span>派生工作台能够保存消息，但 Codex 运行时与派生业务仍是两条独立链路。平台无法证明智能体读取了当前任务材料、正确理解了用户意图，并在后续消息中延续相同上下文。</p>
+    <p><span class="label">完成后的能力。</span>用户导入需求包并在任务详情页发送分析指令后，Codex 容器读取任务范围内的代码和主文档，给出带材料依据的项目识别条件、可观测事实和待确认问题。用户发送第二条消息时，同一线程继续工作，历史消息、工具事件和 trace 保持连续。</p>
+    <p><span class="label">前端交互。</span>任务详情页展示用户消息、智能体回复、当前运行阶段和材料引用。智能体需要外部判断时，直接在会话中提出具体问题；用户以普通消息回答，无需选择内部执行步骤。</p>
+    <p class="landing"><strong>主要落点。</strong>定义统一的 <code>AgentBackend</code> 和 <code>CodexDerivationBackend</code>；将现有业务工具处理器提取为 <code>DerivationToolService</code>；通过任务级 Streamable HTTP MCP 暴露 <code>list_materials</code>、<code>read_material</code>、<code>define_acceptance_test</code>、<code>begin_attempt</code>、<code>run_harness</code>、<code>read_harness_run</code>、<code>register_candidate</code> 和 <code>request_user_input</code>。派生库引入有序 schema migration，并增加 runtime run、thread、turn、trace、请求模型、模型提供方和实际响应模型字段。新后端达到功能等价后，删除生产路径中的独立 Responses transport、手写工具循环和重复模型配置。</p>
+    <div class="acceptance">
+      <div class="acceptance-title">验收条件</div>
+      <ol>
+        <li>智能体回复能够引用需求包中的具体代码位置和文档内容，引用可回到原始材料及其 SHA-256。</li>
+        <li>连续两条用户消息关联同一 Codex thread，并分别记录独立 turn、运行状态和 trace。</li>
+        <li>智能体只能读取当前任务登记的材料和工作区；访问其他任务或宿主无关路径时得到明确拒绝。</li>
+        <li>智能体容器不具有 Docker socket、宿主仓库写权限或下游模型真实密钥。</li>
+        <li>OpenAI 直连和 LiteLLM 配置使用同一运行时接口，派生业务代码中不按模型厂商分支。</li>
+      </ol>
+    </div>
+  </article>
+
+  <article class="stage" id="stage-2">
+    <h3>第二阶段：形成完整的测绘能力草案</h3>
+    <p><span class="label">解决的问题。</span>对漏洞脚本的文字分析尚不能作为可执行测绘能力。平台需要把漏洞利用条件转化为可持续采集的项目级事实，并将事实、规则、运行实现和展示方式组成一致的候选版本。</p>
+    <p><span class="label">完成后的能力。</span>用户在持续会话中发送继续派生的自然语言指令后，智能体生成容器 worker、事实字段定义、漏洞适用规则、展示模板、Harness 环境与 case、能力 manifest 和验收项草案。候选目录经过结构和引用校验后出现在任务详情页。</p>
+    <p><span class="label">前端交互。</span>候选区按版本展示产物清单、文件摘要、事实字段、规则依赖和待确认验收项。用户可查看原文和差异，并通过会话指出需要保留、调整或禁止的设计；验收项的结构化字段可在详情抽屉中修订并形成新版本。</p>
+    <p class="landing"><strong>主要落点。</strong>建立 attempt 级可写工作区和候选 schema 校验；固化能力包 manifest、worker 输入输出、事实命名空间、漏洞规则、展示模板及 Harness case 的引用关系；由 Codex 原生工作区操作或受控写文件工具生成产物。</p>
+    <div class="acceptance">
+      <div class="acceptance-title">验收条件</div>
+      <ol>
+        <li>候选文件由同一 agent attempt 生成，在人工编辑代码前即可通过结构校验和引用完整性校验。</li>
+        <li>事实字段使用稳定的项目命名空间，漏洞规则只引用 manifest 已声明的事实。</li>
+        <li>展示模板只引用 worker 能返回的字段，缺失字段在校验阶段被拒绝。</li>
+        <li>worker 输出合法 JSONL，并可在同一进程中连续处理至少三个目标请求而不退出。</li>
+        <li>候选版本记录输入材料、验收项版本、模型、thread、turn 和所有文件 hash。</li>
+      </ol>
+    </div>
+  </article>
+
+  <article class="stage" id="stage-3">
+    <h3>第三阶段：证明自动验证与人机修订闭环</h3>
+    <p><span class="label">解决的问题。</span>模型生成的测绘代码可能误解协议、遗漏环境参数或产生不稳定字段。单纯重复运行不会增加有效信息，失败处理需要同时支持基于证据的自动修订和用户提供的新约束。</p>
+    <p><span class="label">完成后的能力。</span>Harness 为每个启用验收项保存期望值、实际值、日志、trace 和失败分类。现有证据足够时，智能体自行解释失败并生成新 attempt；证据不足时，任务进入等待用户状态，用户围绕失败项追问、上传补充文件并发送修订指令，同一会话随后继续执行。</p>
+    <p><span class="label">前端交互。</span>失败项显示在验收结果旁，点击后打开持续会话区域并自动带入对应证据。用户可以质询失败原因、反驳当前判断、补充环境文件并直接发送“按这些信息继续修复”等消息。附件保存为补充包，原始需求包保持不变。界面不提供要求用户判断内部重跑步骤的控制项。</p>
+    <p class="landing"><strong>主要落点。</strong>统一 Harness 结果结构和失败分类；把失败验收项、候选版本和 trace 注入后续 turn；完善补充包、消息、attempt 与运行记录关联；由任务协调器根据输入 hash 和产物变化计算需要复用或重新执行的范围。</p>
+    <div class="acceptance">
+      <div class="acceptance-title">验收场景</div>
+      <ol>
+        <li>第一次 attempt 因字段解析错误导致阻塞验收项失败；智能体读取证据后自动形成第二次 attempt，修复 worker 并通过该项。</li>
+        <li>样例环境缺少必要启动参数时，页面显示失败验收项、期望、实际输出、日志和智能体诊断；用户上传配置并发送修订消息，同一 thread 形成第三次 attempt。</li>
+        <li>任意结果均可追溯到原始包、补充包、用户消息、候选文件、Harness run 和 agent trace。</li>
+        <li>所有启用且阻塞入仓的验收项通过后，候选才可提交审核；非阻塞失败在审核页保留醒目标记。</li>
+      </ol>
+    </div>
+  </article>
+
+  <article class="stage" id="stage-4">
+    <h3>第四阶段：让审核能力进入生产扫描链路</h3>
+    <p><span class="label">解决的问题。</span>通过样例验收的候选仍可能停留在派生目录中，无法为资产库提供漏洞适用性查询。平台需要验证从审核入仓到探测、入库和展示的完整生产路径。</p>
+    <p><span class="label">完成后的能力。</span>审核页展示能力 manifest、文件摘要、验收结果、事实字段、漏洞规则和展示模板。操作人批准后，能力版本写入不可变仓库和动态能力索引，<code>assetprobe</code> 能加载对应 worker，结构化事实与漏洞结论经 JSONL 进入 SQLite，并由前端按漏洞标识查询。</p>
+    <p><span class="label">前端交互。</span>审核人可查看候选产物、历史 attempt 和验证证据，执行通过入仓、退回修改或废弃。扫描结果页展示命中的事实依据、规则求值过程和证据时间；证据不足的实例明确显示为未知状态。</p>
+    <p class="landing"><strong>主要落点。</strong>连接 <code>capability_packages</code>、动态 detector 注册表、<code>assetprobe</code>、统一 JSONL schema、SQLite 规则求值与 dashboard 查询；为能力版本、事实记录和漏洞结论保留来源版本及观测时间。</p>
+    <div class="acceptance">
+      <div class="acceptance-title">验收矩阵</div>
+      <ol>
+        <li>实例 A 满足项目识别条件和漏洞适用条件，扫描后被漏洞标识查询命中。</li>
+        <li>实例 B 属于同一项目但不满足漏洞适用条件，资产事实入库且不产生适用结论。</li>
+        <li>实例 C 证据不足，规则结果为未知，并显示缺少的事实及最近观测证据。</li>
+        <li>完整链路按 <code>assetprobe → JSONL → SQLite → dashboard</code> 运行，不依赖手工修改数据库或结果文件。</li>
+        <li>已有 OpenClaw detector 和资产看板回归测试保持通过。</li>
+      </ol>
+    </div>
+  </article>
+
+  <article class="stage" id="stage-5">
+    <h3>第五阶段：形成同一项目的多能力治理</h3>
+    <p><span class="label">解决的问题。</span>单个成功样本仍可能表现为新的写死扫描器。综合测绘平台需要让同一项目的多个独立测试项共享稳定事实空间，并允许后续漏洞报告增量扩展能力。</p>
+    <p><span class="label">完成后的能力。</span>第二份同项目需求可以新增或升级一个项目测试项，其他已入仓能力保持原版本。扫描时多个 worker 结果按事实命名空间聚合；事实冲突保留各自证据和来源版本，依赖冲突事实的漏洞规则返回未知。</p>
+    <p><span class="label">前端交互。</span>项目能力页按事实字段展示生产者、版本、最近验证结果和被哪些漏洞规则引用。升级候选展示影响范围，审核人可确认替换目标版本；冲突实例展示各来源值和证据，不将某一结果静默覆盖。</p>
+    <p class="landing"><strong>主要落点。</strong>完善能力索引的版本选择、事实合并、<code>_conflicts</code> 记录和三值规则求值；建立能力升级对依赖规则与展示模板的影响检查。</p>
+    <div class="acceptance">
+      <div class="acceptance-title">验收条件</div>
+      <ol>
+        <li>导入同一项目的第二份漏洞需求，派生并入仓第二个独立项目测试项。</li>
+        <li>两个 worker 在一次扫描中运行并聚合事实，字段来源和能力版本均可查询。</li>
+        <li>升级其中一个能力后，另一个能力的版本、hash 和验证记录保持不变。</li>
+        <li>冲突事实写入 <code>_conflicts</code>，相关漏洞规则返回未知且保留双方证据。</li>
+      </ol>
+    </div>
+  </article>
+
+  <article class="stage" id="stage-6">
+    <h3>第六阶段：稳定承接上游需求交付</h3>
+    <p><span class="label">解决的问题。</span>人工整理的一次性样例无法支撑两个可独立运行项目之间的长期协作。上游交付需要具备明确身份、内容校验、重复导入语义和可选辅助材料发现机制。</p>
+    <p><span class="label">完成后的能力。</span>一个需求对应一个目录，固定包含 <code>manifest.json</code>、一个或多个代码文件和一份主文档。YAML、配置、日志、样例数据等辅助材料可选，由 manifest 声明路径、类型和 SHA-256。平台从共享目录读取交付，生成预览并进行幂等导入；后续附件作为补充包追加。</p>
+    <p><span class="label">前端交互。</span>导入页显示需求身份、代码文件、主文档、辅助材料、逐文件 hash 和校验问题。用户确认后创建任务；重复内容返回已有任务入口，内容冲突和文件篡改给出具体路径及期望 hash。</p>
+    <p class="landing"><strong>主要落点。</strong>稳定 manifest schema、目录安全校验、逐文件摘要和包级摘要；提供共享目录导入入口及导入预览；保持原始快照只读，并为补充包使用独立序号、hash 和来源消息。</p>
+    <div class="acceptance">
+      <div class="acceptance-title">验收条件</div>
+      <ol>
+        <li>连续导入至少三份实际上游需求包，代码文件数量可以不同。</li>
+        <li>相同需求身份和相同内容返回同一任务，不产生重复材料快照。</li>
+        <li>文件内容与 manifest SHA-256 不一致时拒绝导入，并指出具体文件。</li>
+        <li>manifest 中登记的可选辅助材料可被智能体读取；未提供 YAML 时仍可正常创建任务。</li>
+        <li>用户会话中的新增文件形成补充包，不改变原始目录及其包摘要。</li>
+      </ol>
+    </div>
+  </article>
+
+  <article class="stage" id="stage-7">
+    <h3>第七阶段：补齐并发、恢复与模型兼容能力</h3>
+    <p><span class="label">解决的问题。</span>进程内线程和一次性容器运行无法保证长任务在服务重启、并发执行和模型切换后的可恢复性。运行中断若只留下“执行中”状态，会使任务、资源和用户判断失去一致性。</p>
+    <p><span class="label">完成后的能力。</span>持久任务队列负责 agent turn、Harness 和审核后发布任务；服务重启后，未完成任务恢复执行或进入带明确原因的可恢复状态。每个任务拥有隔离工作区、令牌、thread 和 trace。模型配置只有通过协议检查后才能启用。</p>
+    <p><span class="label">前端交互。</span>任务列表显示排队、运行、等待用户、可恢复失败和完成状态，并提供最后心跳、失败分类和恢复记录。普通业务用户只选择已启用的运行配置，不接触模型地址和真实凭据。</p>
+    <p class="landing"><strong>主要落点。</strong>以持久协调器替换仅驻留内存的后台线程；增加租约、心跳、幂等执行和中断恢复；为 OpenAI 与 LiteLLM 配置建立流式 Responses、多轮工具、线程续接、文件操作和 Harness 调用协议检查。远程容器池在本地闭环稳定后接入同一 provider 接口。</p>
+    <div class="acceptance">
+      <div class="acceptance-title">验收条件</div>
+      <ol>
+        <li>三个派生任务并发运行，材料、thread、trace、工作区和候选文件之间无交叉。</li>
+        <li>Harness 运行期间重启服务，任务能够继续执行或进入带恢复入口的明确状态，不永久停留在运行中。</li>
+        <li>模型配置通过流式响应、连续多轮工具调用、线程续接、文件修订和 Harness 调用后才进入可用列表。</li>
+        <li>运行日志记录请求模型、提供方配置标识和实际响应模型，凭据内容不进入数据库或 trace。</li>
+        <li>智能体容器在并发和恢复场景中始终不挂载 Docker socket。</li>
+      </ol>
+    </div>
+  </article>
+</section>
+
+<section id="definition">
+  <h2>总体完成条件</h2>
+  <p>测绘能力派生主线完成时，平台应以实际交付材料重复完成“导入、理解、生成、验证、用户介入、审核、入仓、扫描、查询”全过程。验收记录需要同时覆盖成功、明确不适用、证据不足、自动修订和人工补充五类结果。</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>验收维度</th><th>完成证据</th></tr></thead>
+      <tbody>
+        <tr><td>功能闭环</td><td>至少一份真实需求从共享目录进入生产扫描链路，并在本地实例矩阵中产生正确的适用、不适用和未知结果。</td></tr>
+        <tr><td>智能体有效性</td><td>材料引用、工具事件、连续 thread、自动修订和用户指导后的修订均可复查。</td></tr>
+        <tr><td>能力可治理性</td><td>能力包、事实字段、漏洞规则、展示模板、验收结果、版本和 hash 具有稳定关联。</td></tr>
+        <tr><td>运行安全性</td><td>任务资源隔离、最小工具权限、短期令牌、只读原始材料和宿主侧 Docker 执行均通过测试。</td></tr>
+        <tr><td>持续运行</td><td>多任务并发、服务重启、模型配置切换和失败恢复不会破坏任务状态或混入其他任务数据。</td></tr>
+        <tr><td>回归稳定性</td><td>OpenClaw 内置 detector、现有 JSONL 入库和资产看板持续通过自动化回归。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="deferred">
+  <h2>后置任务</h2>
+  <p>阶段四完成前，开发资源集中于单份真实需求的生产闭环。新增大量资产类型、远程容器池、全量前端视觉重做、大规模 agent 评测集以及上下游数据库和目录合并均排在生产闭环之后。阶段四提供稳定数据契约后，这些工作才能基于真实运行数据确定接口和优先级。</p>
+  <p>阶段七之后，评测集应从已完成任务的脱敏材料、失败类型和人工修订记录中形成，重点衡量事实提取准确率、工具调用成功率、自动修订收敛率、人工介入次数和错误入仓率。评测结果用于模型配置准入和工作流改进。</p>
+</section>
+
+<footer>
+  <p>相关设计材料：<a href="../设计文稿/漏洞脚本驱动的测绘能力派生概要设计.html">测绘能力派生概要设计</a>、<a href="../设计文稿/测绘脚本派生工作流详设材料.html">测绘脚本派生工作流详设材料</a>。更新日期：2026-07-17。</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>
